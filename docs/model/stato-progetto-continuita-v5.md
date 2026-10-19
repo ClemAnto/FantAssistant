@@ -1,5 +1,14 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXVII): 11 ottobre 2026 — IL WIDGET PROVATO SUL TELEFONO VERO, E LA GIORNATA CORRENTE.**
+**Aggiornato (XXVIII): 19 ottobre 2026 — LA PAGINA FORMAZIONE LEGGE IL CSV DELLE ROSE, NIENTE PIÙ LOGIN.**
+Il login a Leghe ed EuroLeghe risponde `403 FAIL` (non `ATH018`) sia diretto sia dal Worker pubblicato il 16/10, quindi
+per decisione dell'operatore la rosa arriva dall'export CSV della lega («Carica rosa», `core/roster-file.ts`,
+`ui/roster-upload/`). Più rose, una per fantasquadra, sincronizzate fra dispositivi tramite il foglio delle probabili
+(`scripts/gas/rosters.gs`, stessa `WIDGET_SECRET` del widget, verificato distribuito); ogni squadra ha un ID e non un
+nome, e un export più recente aggiorna la squadra scelta. Pubblicato v0.1.57. **Da fare dall'operatore**: ridistribuire
+`widget.gs`, lanciare una volta `widgetRemoveLoginTeams` (toglie i doppioni del widget dell'epoca del login), reinviare
+le squadre al widget. Dettaglio e aperti: **`formazione-leghe-v1.md`** §4-undecies e §5.
+
+· precedente: **Aggiornato (XXVII): 11 ottobre 2026 — IL WIDGET PROVATO SUL TELEFONO VERO, E LA GIORNATA CORRENTE.**
 Collegato in debug wireless il telefono dell'operatore (moto g85 5G, Android 16, launcher Motorola) si è trovata la
 causa delle partite che non comparivano: gli stemmi passati come bitmap nelle righe (`views_bitmap_memory` 764.928
 byte) facevano fermare la lista alla 13ª riga di 48; ora passano per URI (`CrestProvider`) e arrivano tutte. Poi, su

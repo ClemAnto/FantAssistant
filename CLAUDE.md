@@ -207,8 +207,10 @@ For a roster built for a HANDFUL OF MATCHDAYS instead of a season — a SECOND c
 credits on the Qt.A, its own modifiers, five substitutions and a SWITCH that fires on starting:
 **`rosa-3-giornate-v1.md`** (03/09/2026). It also carries the four platform-club defects it found and
 the calibration of the editorial page onto P(vote) and P(starts). See the two sections near the end.
-For the LINEUP page (`/lineup`, the next matchday's formation read from the operator's own Leghe /
-EuroLeghe account): **`formazione-leghe-v1.md`** (08/10/2026) — the endpoints and what their short keys
+For the LINEUP page (`/lineup`, the next matchday's formation; **since 16/10/2026 the roster comes from the
+league's CSV export and the page does NOT log in** - Leghe answers `403 FAIL` to the login, §4-undecies:
+several squads, synced between devices through `scripts/gas/rosters.gs`, each keyed by an ID and never by a
+name - and until then read from the operator's own Leghe / EuroLeghe account): **`formazione-leghe-v1.md`** (08/10/2026) — the endpoints and what their short keys
 mean, the measured CORS block and the pass-through, the embedded login (Leghe) against the direct one
 (EuroLeghe, where the embed is not deployed), and the plan for the advice. The app's third live source
 after the press sheet and fanta-asta-live; the league tokens never leave `sessionStorage`. Since 09/10/2026

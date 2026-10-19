@@ -19,6 +19,10 @@ dall'operatore e verificato). Commit su `master`, NON ancora pushati. Il motore 
 fase 2. **Il sito pubblicato NON ha ancora la pagina funzionante**: manca l'intermediario (§2) e la pagina
 non è stata ripubblicata - la si usa sotto `ng serve`.
 
+**CAMBIO DI PARADIGMA, 16/10/2026: la pagina NON fa piu' login a Leghe.** La rosa arriva dal CSV di export delle
+rose della lega (§4-undecies); il codice di Leghe resta in `core/` e la pagina non lo chiama. Quello che segue fino
+al §4-decies registra la fase col login, e resta vero di quel codice.
+
 Questa pagina realizza la «fase settimanale» che `formazione-settimanale-v1.md` (07/08/2026) aveva solo
 progettato: i vincoli scritti là — datare con l'ORA, una fonte per affermazione, `vuoto = ignoto`, niente di
 questo diventa una regola del motore — valgono qui e la fase 2 li deve rispettare.
@@ -606,7 +610,73 @@ la posizione prima di rilasciare), come farebbe un occhio.
 **Non verificato**: il salvataggio contro il Leghe VERO. È una scrittura sull'account dell'operatore e la fa lui la
 prima volta; il confronto «Leghe la conferma» è fatto apposta per dirgli subito se è andata.
 
+## §4-undecies. La rosa dal FILE, più rose, su ogni dispositivo, e la squadra è un ID (16-19/10/2026)
+
+**Perché.** Il login a Leghe ha smesso di rispondere: `403 FAIL: Request failed` sia da Node diretto sia dal Worker
+(pubblicato il 16/10 su `leghe-proxy.clemente-antonio-81.workers.dev`, verificato: origine estranea 403, percorso fuori
+lista 404, preflight 204, risposta identica a Leghe diretto), e NON `ATH018` (credenziali sbagliate) — cioè un rifiuto
+PRIMA del controllo di utente e password, su Leghe e su EuroLeghe. L'operatore: «cambiamo completamente paradigma: non
+ci serve fare il login ... utilizziamo semplicemente il file csv esportabile», e «al posto di ACCEDI ci deve essere
+CARICA ROSA».
+
+**Il file** è l'export delle rose della lega (Leghe ed EuroLeghe scrivono lo stesso): `squadra,fc_id,crediti`, `$,$,$`
+fra due squadre. Si legge con `sealed-bid.parseAwards`, il lettore che la pagina delle buste usa sullo stesso export
+(una definizione, due lettori). `core/roster-file.ts`: `parseRosterFile`, `guessPlatform` (il listone che conosce più
+id: è una maggioranza e non un'appartenenza, perché i due listoni si sovrappongono), `matchdayFromFile` (costruisce lo
+stesso `LeagueMatchday` che la pagina leggeva da Leghe), `RosterFileStore`. La modale è `ui/roster-upload/`.
+
+**Cosa viene dal pacchetto al posto di Leghe**: nome, ruoli nel gioco dichiarato, club e campionato dal listone; la
+PROSSIMA PARTITA dal calendario (`keeper-pairs.next`, per data); chi è FUORI oggi da `PlayerStatus.unavailableNow`; la
+probabilità di voto dalla quota del foglio (`pv / stagione`), perché la percentuale delle probabili era di Leghe. **Cosa
+manca e lo si dice**: avversario di lega, scadenza, competizioni (quei riquadri sono nascosti), le REGOLE della lega
+(vale tutto il regolamento dei moduli, la panchina non ha limite, i modificatori non sono letti), il SALVATAGGIO su
+Leghe (la formazione si disegna qui e si scrive a mano), e le quote dei bookmaker non si agganciano (il join usava le
+partite come le scriveva Leghe).
+
+**Più rose** (sua richiesta, 16/10): ogni file + la sua squadra è una fantasquadra, il selettore in alto le cambia. **Su
+ogni dispositivo** (stessa sera): la lista si fonde con la copia sul foglio delle probabili (`scripts/gas/rosters.gs`,
+`?what=rosters` GET e POST `kind: 'rosters'`, stessa distribuzione e stessa `WIDGET_SECRET` del widget, a pezzi da 8 KB
+perché una proprietà ne tiene 9); per voce vince l'`updatedAt` più recente, e una rimozione viaggia come lapide o un
+altro dispositivo la riporterebbe in vita. Senza chiave le rose restano sul dispositivo e la modale lo dice. Verificato
+dal vivo il 19/10: la distribuzione risponde «chiave segreta sbagliata» a una lettura con chiave finta (senza
+`rosters.gs` avrebbe risposto con le probabili).
+
+**La squadra è un ID e non un nome** (19/10: «la chiave delle squadre dovrebbe essere un id e non il nome»). Il widget
+mostrava ogni uomo due volte: la stessa squadra gli era arrivata col tasto del login (chiave `euro:<utente>:<lega>`) e
+poi col file (chiave fatta di nomi), e il foglio distingue le squadre per chiave. Il CSV non porta NESSUN id di squadra
+o di lega, quindi una squadra nuova riceve un id casuale una volta sola (`newRosterId`) e quelle già salvate tengono la
+chiave che avevano, che da lì vale come id. Un export più recente AGGIORNA la squadra che lui sceglie («Aggiorna»),
+proposta per listone, lega e nome (`matchingRoster`): l'unico posto in cui un nome decide, e solo come proposta. Una
+prima cura che sul foglio cancellava le squadre con lo stesso nome (`0549266`) è stata ritirata la stessa sera
+(`8eb7141`), perché era esattamente il nome-come-chiave che lui chiedeva di togliere. Per le squadre dell'epoca del login
+c'è `widgetRemoveLoginTeams` in `widget.gs`, da lanciare una volta dall'editor: le riconosce dalla forma della chiave.
+
+**Banco**: `app/scripts/e2e-lineup-file.mjs <export.csv>` guida la pagina costruita col file vero dentro il suo input,
+e gira `rosters.gs` stesso su un foglio finto in memoria: due squadre, il selettore, una squadra ricaricata con gli id
+fermi, un dispositivo nuovo che le riprende dal foglio, una rimozione che arriva al foglio, zero richieste a Leghe o a
+Google — **17 controlli, verdi**. `e2e-lineup-live.mjs` porta un `--online` (il sito pubblicato attraverso il Worker),
+utile solo se il login tornasse; `e2e-lineup-offline.mjs` fa login a un Leghe finto ed è ormai obsoleto.
+
+Lezioni. **Una risposta del server che non è quella delle credenziali sbagliate dice dove si è fermata la richiesta**
+(`FAIL` contro `ATH018`): il confronto Node-diretto / Worker / sito, con la stessa risposta su tutti e tre, ha tolto
+l'intermediario dai sospetti in tre richieste. **Un nome come chiave si rompe il giorno in cui la stessa cosa arriva da
+un'altra strada** - qui dal login al file - e la cura è un id dove la fonte non ne ha uno, non un confronto più tollerante
+fra nomi. E **una replica fatta su un foglio finto va fatta col codice vero del foglio** (`vm` su `rosters.gs`), o il
+banco misura la propria copia.
+
 ## §5. Aperti, in ordine
+
+**Dal 19 ottobre 2026, in cima (la pagina legge il CSV, §4-undecies):**
+- **Operatore**: incollare l'ultimo `widget.gs` e ridistribuire, lanciare una volta `widgetRemoveLoginTeams`
+  dall'editor, reinviare al widget le squadre che vuole vedere; scrivere la `WIDGET_SECRET` in «Carica rosa» su ogni
+  dispositivo e ricaricare il CSV una volta (la rosa della prima versione, 16/10 mattina, non viene trasferita).
+- **Regole della lega senza Leghe**: panchina (quanti), modificatori, moduli ammessi — da dichiarare in «Carica rosa»
+  se servono; oggi valgono tutto il regolamento e una panchina senza limite.
+- **Le quote dei bookmaker** non si agganciano più (il join usava le partite di Leghe): da riscrivere sul calendario.
+- **Il codice di Leghe** (login, salvataggio, cache, Worker) è fermo e non chiamato: tenerlo o toglierlo è una sua
+  decisione. Il Worker su Cloudflare si può cancellare.
+- Due dispositivi che caricano per la PRIMA volta la stessa squadra prima di sincronizzarsi le danno due id: oggi non
+  si fondono da sole (si toglie a mano quella in più).
 
 **Dal 9 ottobre 2026 (notte), in cima:**
 - **Il primo salvataggio vero**, sotto `ng serve` (il sito pubblicato non ha ancora l'intermediario): guardare che la

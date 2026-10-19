@@ -286,3 +286,12 @@ scrivono una volta per PC e telefono; `deploy:pages` aggiorna anche il telefono 
   file (es. le rose esportate) vanno usate dal PC finché non serve.
 - La pagina Formazione è disegnata per lo schermo del PC: la versione da telefono è il passo successivo, poi gli
   scambi.
+
+## Le squadre del widget hanno un ID (19/10/2026)
+
+Il foglio tiene le squadre per CHIAVE, e la chiave la manda la pagina Formazione. Fino al 16/10 era quella del login a
+Leghe (`euro:<utente>:<lega>`), da allora è l'id della rosa caricata dal CSV (`formazione-leghe-v1.md` §4-undecies):
+la stessa squadra reinviata è arrivata come seconda voce e il widget mostrava ogni uomo due volte. Il nome non decide
+niente (una prima cura per nome è stata ritirata), e le voci dell'epoca del login si tolgono una volta lanciando
+`widgetRemoveLoginTeams` dall'editor dell'Apps Script, che le riconosce dalla forma della chiave e scrive nel log cosa ha
+tolto. Poi le squadre si reinviano dalla pagina.
