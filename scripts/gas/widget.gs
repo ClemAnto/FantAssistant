@@ -102,6 +102,25 @@ function doPost(e) {
   }));
 }
 
+/**
+ * ONE-OFF CLEANUP, run by hand from the editor (Esegui -> widgetRemoveLoginTeams), 19/10/2026. Until 16/10 the Lineup
+ * page sent a squad under its Leghe LOGIN key (`euro:<user>:<league>`, two numbers); since then a squad is a roster
+ * file with its own id, so the same squad resent arrived as a second entry and the widget showed every man twice.
+ * This drops the login-era entries - and only those, recognised by the shape of their key - and logs what it took.
+ * Resend the squads from the Lineup page afterwards.
+ */
+function widgetRemoveLoginTeams() {
+  var squads = widgetSquads_();
+  var gone = Object.keys(squads).filter(function (key) { return /^(euro|classic):\d+:\d+$/.test(key); });
+  gone.forEach(function (key) {
+    Logger.log('tolta: ' + squads[key].label + ' (' + key + ')');
+    delete squads[key];
+  });
+  PropertiesService.getScriptProperties().setProperty('widget:squads', JSON.stringify(squads));
+  Logger.log(gone.length + ' squadre del vecchio login tolte, ' + Object.keys(squads).length + ' restano');
+  refreshWidget();
+}
+
 function widgetSquads_() {
   var raw = PropertiesService.getScriptProperties().getProperty('widget:squads');
   try { return raw ? JSON.parse(raw) : {}; } catch (err) { return {}; }
