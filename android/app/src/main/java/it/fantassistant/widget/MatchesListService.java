@@ -72,6 +72,9 @@ public class MatchesListService extends RemoteViewsService {
         private final android.text.TextPaint menPaint = new android.text.TextPaint();
         /** Horizontal padding between the widget's edge and the men's text: `widget.xml` 8+8, `item.xml` 8+8. */
         private static final int MEN_INSET_DP = 32;
+        /** The space between two items, with my men shown and without. */
+        private static final int GAP_WITH_MEN_DP = 8;
+        private static final int GAP_DP = 4;
 
         Factory(Context context, int widgetId) {
             this.context = context;
@@ -135,6 +138,10 @@ public class MatchesListService extends RemoteViewsService {
             Object item = items.get(position);
             // One layout, one view type (see `item.xml`): a label shows its half and hides the match's.
             RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.item);
+            // The gap under each item (the list's divider is 0): wider when my men are shown under the matches,
+            // the old 4dp when they are hidden (operator, 20/10/2026).
+            int gap = Math.round((men ? GAP_WITH_MEN_DP : GAP_DP) * context.getResources().getDisplayMetrics().density);
+            v.setViewPadding(R.id.item, 0, 0, 0, gap);
             boolean label = item instanceof String;
             v.setViewVisibility(R.id.group_box, label ? View.VISIBLE : View.GONE);
             v.setViewVisibility(R.id.row, label ? View.GONE : View.VISIBLE);
