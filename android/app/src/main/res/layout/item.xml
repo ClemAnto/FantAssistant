@@ -92,6 +92,15 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/home_pos"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="3dp"
+                    android:textColor="@color/muted"
+                    android:textSize="9sp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/dash"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -119,6 +128,15 @@
                     android:textColor="@color/fg"
                     android:textSize="12sp"
                     android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/away_pos"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="3dp"
+                    android:textColor="@color/muted"
+                    android:textSize="9sp"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <TextView
@@ -144,7 +162,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="2dp"
-            android:textColor="@color/fg"
+            android:textColor="@color/fg_men"
             android:textSize="11sp" />
     </LinearLayout>
 </LinearLayout>

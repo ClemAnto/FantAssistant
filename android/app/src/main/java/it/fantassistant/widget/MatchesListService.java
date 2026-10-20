@@ -160,6 +160,9 @@ public class MatchesListService extends RemoteViewsService {
             // A side with none of my men reads fainter (operator, 10/10/2026), so the eye goes to the clubs that matter.
             fade(v, R.id.home, R.id.home_crest, split && r.homePlayers.isEmpty() && !r.awayPlayers.isEmpty());
             fade(v, R.id.away, R.id.away_crest, split && r.awayPlayers.isEmpty() && !r.homePlayers.isEmpty());
+            // The place in the championship's table, small beside the name (operator, 20/10/2026).
+            pos(v, R.id.home_pos, split ? r.homePos : 0);
+            pos(v, R.id.away_pos, split ? r.awayPos : 0);
             v.setTextViewText(R.id.score, r.score);
             v.setViewVisibility(R.id.score, r.score.isEmpty() ? View.GONE : View.VISIBLE);
             // What the group's label does not already say (see `Matches.label`).
@@ -211,6 +214,11 @@ public class MatchesListService extends RemoteViewsService {
             return join(sides);
         }
 
+        private static void pos(RemoteViews v, int view, int position) {
+            v.setTextViewText(view, position > 0 ? String.valueOf(position) : "");
+            v.setViewVisibility(view, position > 0 ? View.VISIBLE : View.GONE);
+        }
+
         private void fade(RemoteViews v, int text, int crest, boolean faint) {
             int fg = context.getColor(R.color.fg);
             v.setTextColor(text, faint ? (fg & 0x00FFFFFF) | 0x73000000 : fg);
@@ -259,7 +267,7 @@ public class MatchesListService extends RemoteViewsService {
         }
 
         private void man(SpannableStringBuilder out, Matches.Man m) {
-            int fg = context.getColor(R.color.fg);
+            int fg = context.getColor(R.color.fg_men);
             int start = out.length();
             out.append(m.name);
             if (Boolean.FALSE.equals(m.played)) {

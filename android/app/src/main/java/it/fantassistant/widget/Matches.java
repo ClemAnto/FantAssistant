@@ -36,6 +36,9 @@ final class Matches {
         String away = "";
         long homeId;
         long awayId;
+        /** Each club's place in its championship's table, 0 when the Sheet does not know it. */
+        int homePos;
+        int awayPos;
         String score = "";
         String when = "";
         /** The label the widget groups this row under; see `groupLabel`. */
@@ -139,6 +142,8 @@ final class Matches {
                 row.away = r.optString("away");
                 row.homeId = r.optLong("homeId");
                 row.awayId = r.optLong("awayId");
+                row.homePos = r.optInt("homePos");
+                row.awayPos = r.optInt("awayPos");
                 // «2-1», the operator's spelling, whatever spacing the Sheet writes.
                 row.score = r.optString("score").replace(" ", "");
                 row.when = shortStatus(r.optString("when"));

@@ -140,7 +140,7 @@ il repository non pubblica niente su Apps Script da solo.
    e ridistribuire `widget.gs`, installare l'APK. Anteprima verificata sull'emulatore con dati inventati.
    Verificato poi sui dati VERI (10/10/2026 18:32: Gusto ▲88', Grimaldo un gol, Nyland e Baum non schierati).
    I calciatori di ogni squadra stanno dietro un pallino del colore predominante del suo stemma (20/10/2026,
-   `Crests.color`: il colore cromatico più frequente, il grigio solo per uno stemma bianco-nero, schiarito fino a luminanza 0,12; `side` nel JSON, con ripiego sul conto di `homePlayers`); sostituisce il bianco più scuro della trasferta. I gruppi sono ordinati per giorno con
+   `Crests.color`: il colore cromatico più frequente, il grigio solo per uno stemma bianco-nero, schiarito fino a luminanza 0,12; `side` nel JSON, con ripiego sul conto di `homePlayers`); sostituisce il bianco più scuro della trasferta. Se le due squadre non stanno su una riga la seconda va a capo (misurato sulla larghezza del widget, `OPTION_APPWIDGET_MIN_WIDTH`), e il pallino è legato al primo nome da uno spazio non separabile. I nomi dei calciatori sono un bianco più scuro di quelli delle squadre (`fg_men`), e accanto a ogni squadra c'è piccola la sua posizione in classifica (`homePos`/`awayPos`, da `widgetTables_`: `/unique-tournament/{ut}/season/{s}/standings/total`, tenuta un'ora). I gruppi sono ordinati per giorno con
    «più tardi» subito dopo «oggi» (`Row.rank`), così una partita delle 18:30 non ancora iniziata non spezza in due
    il gruppo di oggi. APK copiato in `android/builds/` (gitignorato da `*.apk`).
    **Code review del 10/10/2026 (sera), corretti:** il tetto di righe da 30 a 60 (con due account la lista finiva
