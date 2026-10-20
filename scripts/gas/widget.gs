@@ -394,11 +394,17 @@ function widgetInWindow_(ev, now, slackH) {
 
 function widgetBuild_(squads, byId, now, details, roundSpans) {
   details = details || {};
-  // My men by club, and which fantasquadra each belongs to when there are several.
+  // My men by club. A man owned by SEVERAL fantasquadre is listed ONCE (operator, 20/10/2026: «mostriamo sempre
+  // una sola volta i calciatori anche se stanno in più squadre») - keyed by his id, by name only where a squad
+  // sent none, never by the squad that sent him.
   var mine = {};
+  var seen = {};
   var keys = Object.keys(squads);
   keys.forEach(function (k) {
     squads[k].players.forEach(function (p) {
+      var who = p.team + '|' + (Number(p.id) > 0 ? 'id:' + p.id : 'name:' + p.name);
+      if (seen[who]) return;
+      seen[who] = true;
       (mine[p.team] = mine[p.team] || []).push(p);
     });
   });
