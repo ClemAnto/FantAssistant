@@ -19,7 +19,8 @@ import java.util.List;
 public class MatchesListService extends RemoteViewsService {
     @Override
     public RemoteViewsFactory onGetViewFactory(Intent intent) {
-        return new Factory(getApplicationContext());
+        return new Factory(getApplicationContext(),
+                intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, 0));
     }
 
     /**
@@ -63,8 +64,18 @@ public class MatchesListService extends RemoteViewsService {
         /** A dot's colour is lifted to at least this luminance: a navy or black dot vanishes on the dark rows. */
         private static final float DOT_MIN_LUMINANCE = 0.12f;
 
-        Factory(Context context) {
+        /** The widget this list belongs to, for its width (`menWidth`). */
+        private final int widgetId;
+        /** The px the men's line can use on one line, or 0 when the launcher has not said how wide the widget is. */
+        private float menWidth;
+        /** The men's line's own paint (11sp, `item.xml`), to measure whether both sides fit on one line. */
+        private final android.text.TextPaint menPaint = new android.text.TextPaint();
+        /** Horizontal padding between the widget's edge and the men's text: `widget.xml` 8+8, `item.xml` 8+8. */
+        private static final int MEN_INSET_DP = 32;
+
+        Factory(Context context, int widgetId) {
             this.context = context;
+            this.widgetId = widgetId;
         }
 
         @Override
@@ -81,6 +92,12 @@ public class MatchesListService extends RemoteViewsService {
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");
             men = Store.showMen(context);
+            android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+            menPaint.setTextSize(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 11, dm));
+            // In portrait a widget is MIN_WIDTH wide (AppWidgetManager's own definition of the option).
+            int dp = widgetId == 0 ? 0 : android.appwidget.AppWidgetManager.getInstance(context)
+                    .getAppWidgetOptions(widgetId).getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH);
+            menWidth = dp <= MEN_INSET_DP ? 0 : (dp - MEN_INSET_DP) * dm.density;
         }
 
         @Override
@@ -168,11 +185,11 @@ public class MatchesListService extends RemoteViewsService {
          * the away side's darker white. No crest on the phone yet: the plain foreground, so the dot still separates.
          */
         private void dot(SpannableStringBuilder out, long clubId) {
-            if (out.length() > 0) out.append("     ");
             Integer c = dots.get(clubId);
             if (c == null) dots.put(clubId, c = Crests.color(context, clubId, DOT_MIN_LUMINANCE));
             int start = out.length();
-            out.append("● ");
+            // A NO-BREAK space: the dot never ends a line with its first man on the next (operator, 20/10/2026).
+            out.append("● ");
             out.setSpan(new ForegroundColorSpan(c != 0 ? c : context.getColor(R.color.fg)), start, start + 1,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
@@ -180,16 +197,18 @@ public class MatchesListService extends RemoteViewsService {
         /** A list from a `widget.gs` without per-man detail: the two sides' names, each behind its club's dot. */
         private CharSequence plainLine(Matches.Row r) {
             if (r.homePlayers.isEmpty() && r.awayPlayers.isEmpty()) return r.players;
-            SpannableStringBuilder out = new SpannableStringBuilder();
+            List<SpannableStringBuilder> sides = new ArrayList<>();
             if (!r.homePlayers.isEmpty()) {
-                dot(out, r.homeId);
-                out.append(r.homePlayers);
+                SpannableStringBuilder s = new SpannableStringBuilder();
+                dot(s, r.homeId);
+                sides.add(s.append(r.homePlayers));
             }
             if (!r.awayPlayers.isEmpty()) {
-                dot(out, r.awayId);
-                out.append(r.awayPlayers);
+                SpannableStringBuilder s = new SpannableStringBuilder();
+                dot(s, r.awayId);
+                sides.add(s.append(r.awayPlayers));
             }
-            return out;
+            return join(sides);
         }
 
         private void fade(RemoteViews v, int text, int crest, boolean faint) {
@@ -207,22 +226,36 @@ public class MatchesListService extends RemoteViewsService {
          * Each side's men stand behind one dot in their club's colour (`dot`), home first.
          */
         private CharSequence menLine(Matches.Row r, List<Matches.Man> list) {
-            SpannableStringBuilder out = new SpannableStringBuilder();
+            List<SpannableStringBuilder> sides = new ArrayList<>();
             for (int side = 0; side < 2; side++) {
                 boolean away = side == 1;
-                boolean first = true;
+                SpannableStringBuilder out = null;
                 for (Matches.Man m : list) {
                     if (m.away != away) continue;
-                    if (first) {
+                    if (out == null) {
+                        out = new SpannableStringBuilder();
                         dot(out, away ? r.awayId : r.homeId);
-                        first = false;
                     } else {
                         out.append(",  ");
                     }
                     man(out, m);
                 }
+                if (out != null) sides.add(out);
             }
-            return out;
+            return join(sides);
+        }
+
+        /**
+         * The two sides on one line when they fit, the away side on a line of its own when they do not (operator,
+         * 20/10/2026: «quando i calciatori delle due squadre non vanno tutti su una riga, vai a capo con la
+         * seconda squadra»). Measured with the line's own paint on the widget's width; a launcher that does not say
+         * the width gets the break, because a side starting mid-line is the thing being avoided.
+         */
+        private CharSequence join(List<SpannableStringBuilder> sides) {
+            if (sides.size() < 2) return sides.isEmpty() ? "" : sides.get(0);
+            SpannableStringBuilder one = new SpannableStringBuilder(sides.get(0)).append("     ").append(sides.get(1));
+            if (menWidth > 0 && android.text.Layout.getDesiredWidth(one, menPaint) <= menWidth) return one;
+            return new SpannableStringBuilder(sides.get(0)).append("\n").append(sides.get(1));
         }
 
         private void man(SpannableStringBuilder out, Matches.Man m) {
