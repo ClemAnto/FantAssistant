@@ -10787,3 +10787,12 @@ sue occasioni tende a rientrare; è il caso Zaccagni (0,23). **Correzione a verb
 attaccanti» — falso, il marchio vale per ogni riga che non sia una porta (`goal ? null : …`); e le altre due icone
 basate su xG+xA (`promise`/`flop_risk`, `player-screens.ts`) sono un'altra cosa, per ruolo e prezzo. Nessun codice
 cambiato in questo blocco.
+
+## 20 ottobre 2026 — IL WIDGET: UNA VOLTA PER UOMO, PALLINI, CLASSIFICA (v0.3.5)
+
+Solo widget, nessun numero del motore. Un uomo in due fantasquadre compare una volta (`widget.gs`); davanti ai
+calciatori di ogni squadra un pallino del colore predominante dello stemma; la seconda squadra va a capo se non sta
+sulla riga; i nomi in un bianco più scuro; la posizione in classifica accanto a ogni squadra (`widgetTables_`);
+spazio fra le partite 8dp coi calciatori, 4dp senza. `widget.gs` aggiornato online dall'operatore e verificato
+sulla lista viva (11:47); APK 0.3.5 installato via debug wireless e verificato a schermo. Dettaglio e trappole:
+`widget-android-v1.md`, ultima sezione.
