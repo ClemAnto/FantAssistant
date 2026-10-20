@@ -10805,8 +10805,8 @@ foglio datava il turno da sabato, il pianificatore ha armato una seconda presa e
 (ScriptProperties), niente seconda presa su un turno già fotografato, `recover` che prende l'apertura anche dalle
 foto. Turno 7 riparato e riscorato dall'operatore (verificato sul foglio). Poi i «nomi non risolti»: iniziali
 (`pickMan_`, i due Martinez), ripiego sui titolari del tab Veri, soprannomi dichiarati in `NAME_ALIASES` (Pote =
-Goncalves P., Valde = Valdepenas — da confermare dall'operatore); lo scorer riprova i nomi senza id, quindi zero non
+Goncalves P., Valde = Valdepenas — confermati dall'operatore); lo scorer riprova i nomi senza id, quindi zero non
 risolti. Lo Stato scrive «ricopiando la giornata prima» al posto di «null». **Da fare dall'operatore:** reincollare
-l'ultima versione dello script (quella senza `repairRound7`) e confermare i due soprannomi. **Da verificare venerdì
+l'ultima versione dello script (quella senza `repairRound7`). **Da verificare venerdì
 23/10:** che il pianificatore armi la presa delle 20:30 e scriva «1 capture | opener ven 23/10 20:45». Dettaglio:
 `attendibilita-probabili-v1.md` §5-bis.
