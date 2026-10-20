@@ -80,6 +80,56 @@ final class Crests {
         }
     }
 
+    /**
+     * The crest's PREDOMINANT colour, for the dot before a club's men (operator, 20/10/2026), or 0 when the phone
+     * has no crest. Opaque pixels are counted in coarse buckets and the commonest CHROMATIC bucket wins: a crest
+     * is mostly a white field or a black outline around the club's colour, and «Roma = white» would say nothing.
+     * Only a crest that is mostly black-and-white (under a fifth of its pixels coloured, e.g. Juventus) takes its
+     * commonest grey - lifted to `minLuminance`, because a black dot vanishes on the widget's dark rows.
+     */
+    static int color(Context context, long id, float minLuminance) {
+        if (!has(context, id)) return 0;
+        Bitmap b = BitmapFactory.decodeFile(file(context, id).getPath());
+        if (b == null) return 0;
+        java.util.Map<Integer, int[]> chroma = new java.util.HashMap<>();
+        java.util.Map<Integer, int[]> grey = new java.util.HashMap<>();
+        int opaque = 0, coloured = 0;
+        float[] hsv = new float[3];
+        for (int y = 0; y < b.getHeight(); y++) {
+            for (int x = 0; x < b.getWidth(); x++) {
+                int p = b.getPixel(x, y);
+                if ((p >>> 24) < 200) continue;
+                opaque++;
+                int r = (p >> 16) & 0xFF, g = (p >> 8) & 0xFF, bl = p & 0xFF;
+                android.graphics.Color.RGBToHSV(r, g, bl, hsv);
+                boolean isColour = hsv[1] > 0.30f && hsv[2] > 0.20f;
+                if (isColour) coloured++;
+                // 3 bits a channel: close shades of one colour (antialiasing, gradients) fall in one bucket.
+                int key = ((r >> 5) << 6) | ((g >> 5) << 3) | (bl >> 5);
+                int[] acc = (isColour ? chroma : grey).computeIfAbsent(key, k -> new int[4]);
+                acc[0]++;
+                acc[1] += r;
+                acc[2] += g;
+                acc[3] += bl;
+            }
+        }
+        if (opaque == 0) return 0;
+        int[] best = null;
+        for (int[] acc : (coloured * 5 >= opaque ? chroma : grey).values()) {
+            if (best == null || acc[0] > best[0]) best = acc;
+        }
+        if (best == null) return 0;
+        int c = android.graphics.Color.rgb(best[1] / best[0], best[2] / best[0], best[3] / best[0]);
+        // Mixed toward white until its luminance reaches the floor (~2.7:1 on the rows): Inter's navy and
+        // Juventus's black would otherwise be a hole in the line, while Napoli's light blue stays as it is.
+        for (float t = 0.02f; android.graphics.Color.luminance(c) < minLuminance && t <= 1f; t += 0.02f) {
+            int r0 = best[1] / best[0], g0 = best[2] / best[0], b0 = best[3] / best[0];
+            c = android.graphics.Color.rgb(Math.round(r0 + (255 - r0) * t), Math.round(g0 + (255 - g0) * t),
+                    Math.round(b0 + (255 - b0) * t));
+        }
+        return c;
+    }
+
     /** Whether the crest is on the phone (the list then points the launcher at it through `CrestProvider`). */
     static boolean has(Context context, long id) {
         return id > 0 && file(context, id).exists();

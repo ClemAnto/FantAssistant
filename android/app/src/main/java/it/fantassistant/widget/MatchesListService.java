@@ -58,6 +58,10 @@ public class MatchesListService extends RemoteViewsService {
         private int served = -1;
         /** Which crests are on the phone, looked up once per data change instead of twice per row per bind. */
         private final java.util.Map<Long, Boolean> crests = new java.util.HashMap<>();
+        /** Each club's dot colour (`Crests.color`), read from its crest once per data change. */
+        private final java.util.Map<Long, Integer> dots = new java.util.HashMap<>();
+        /** A dot's colour is lifted to at least this luminance: a navy or black dot vanishes on the dark rows. */
+        private static final float DOT_MIN_LUMINANCE = 0.12f;
 
         Factory(Context context) {
             this.context = context;
@@ -73,6 +77,7 @@ public class MatchesListService extends RemoteViewsService {
             items = out;
             served = -1;
             crests.clear();
+            dots.clear();
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");
             men = Store.showMen(context);
@@ -151,21 +156,40 @@ public class MatchesListService extends RemoteViewsService {
                 if (!("done".equals(r.state) && Boolean.FALSE.equals(m.played))) shown.add(m);
             }
             boolean showMen = men && !r.players.isEmpty() && (r.men.isEmpty() || !shown.isEmpty());
-            v.setTextViewText(R.id.men, r.men.isEmpty() ? r.players
-                    : menLine(shown, bothSides(shown)));
+            v.setTextViewText(R.id.men, r.men.isEmpty() ? plainLine(r) : menLine(r, shown));
             v.setViewVisibility(R.id.men, showMen ? View.VISIBLE : View.GONE);
             if (!r.url.isEmpty()) v.setOnClickFillInIntent(R.id.row, new Intent().setData(Uri.parse(r.url)));
             return v;
         }
 
-        /** Men of mine on both sides among those drawn: only then is the away side's darker white needed. */
-        private static boolean bothSides(List<Matches.Man> list) {
-            boolean home = false, away = false;
-            for (Matches.Man m : list) {
-                if (m.away) away = true;
-                else home = true;
+        /**
+         * The dot before a side's men, in the predominant colour of that club's crest (operator, 20/10/2026: «un
+         * pallino prima dei nomi dei calciatori di ogni squadra ... del colore predominante del logo»). It replaced
+         * the away side's darker white. No crest on the phone yet: the plain foreground, so the dot still separates.
+         */
+        private void dot(SpannableStringBuilder out, long clubId) {
+            if (out.length() > 0) out.append("     ");
+            Integer c = dots.get(clubId);
+            if (c == null) dots.put(clubId, c = Crests.color(context, clubId, DOT_MIN_LUMINANCE));
+            int start = out.length();
+            out.append("● ");
+            out.setSpan(new ForegroundColorSpan(c != 0 ? c : context.getColor(R.color.fg)), start, start + 1,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        /** A list from a `widget.gs` without per-man detail: the two sides' names, each behind its club's dot. */
+        private CharSequence plainLine(Matches.Row r) {
+            if (r.homePlayers.isEmpty() && r.awayPlayers.isEmpty()) return r.players;
+            SpannableStringBuilder out = new SpannableStringBuilder();
+            if (!r.homePlayers.isEmpty()) {
+                dot(out, r.homeId);
+                out.append(r.homePlayers);
             }
-            return home && away;
+            if (!r.awayPlayers.isEmpty()) {
+                dot(out, r.awayId);
+                out.append(r.awayPlayers);
+            }
+            return out;
         }
 
         private void fade(RemoteViews v, int text, int crest, boolean faint) {
@@ -180,32 +204,43 @@ public class MatchesListService extends RemoteViewsService {
          * goal (penalties included), a boot for every assist, a cross for a penalty missed and a glove for one
          * saved. A man the Sheet knows nothing about (match not
          * started, or no SofaScore id) is written plainly: not knowing is not «did not play».
-         * When both sides have men of mine, the away side's are a darker white (operator, 10/10/2026).
+         * Each side's men stand behind one dot in their club's colour (`dot`), home first.
          */
-        private CharSequence menLine(List<Matches.Man> list, boolean bothSides) {
+        private CharSequence menLine(Matches.Row r, List<Matches.Man> list) {
             SpannableStringBuilder out = new SpannableStringBuilder();
-            for (Matches.Man m : list) {
-                if (out.length() > 0) out.append(",  ");
-                int fg = context.getColor(bothSides && m.away ? R.color.fg_away : R.color.fg);
-                int start = out.length();
-                out.append(m.name);
-                if (bothSides && m.away && !Boolean.FALSE.equals(m.played)) {
-                    out.setSpan(new ForegroundColorSpan(fg), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            for (int side = 0; side < 2; side++) {
+                boolean away = side == 1;
+                boolean first = true;
+                for (Matches.Man m : list) {
+                    if (m.away != away) continue;
+                    if (first) {
+                        dot(out, away ? r.awayId : r.homeId);
+                        first = false;
+                    } else {
+                        out.append(",  ");
+                    }
+                    man(out, m);
                 }
-                if (Boolean.FALSE.equals(m.played)) {
-                    out.setSpan(new ForegroundColorSpan((fg & 0x00FFFFFF) | 0x80000000), start, out.length(),
-                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    continue;
-                }
-                for (int i = 0; i < m.goals; i++) out.append(" ⚽");
-                for (int i = 0; i < m.assists; i++) out.append(" 👟");
-                // A penalty missed (a cross) and a penalty saved (a keeper's glove), one mark each.
-                for (int i = 0; i < m.penMissed; i++) out.append(" ❌");
-                for (int i = 0; i < m.penSaved; i++) out.append(" 🧤");
-                if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
-                if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
             }
             return out;
+        }
+
+        private void man(SpannableStringBuilder out, Matches.Man m) {
+            int fg = context.getColor(R.color.fg);
+            int start = out.length();
+            out.append(m.name);
+            if (Boolean.FALSE.equals(m.played)) {
+                out.setSpan(new ForegroundColorSpan((fg & 0x00FFFFFF) | 0x80000000), start, out.length(),
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                return;
+            }
+            for (int i = 0; i < m.goals; i++) out.append(" ⚽");
+            for (int i = 0; i < m.assists; i++) out.append(" 👟");
+            // A penalty missed (a cross) and a penalty saved (a keeper's glove), one mark each.
+            for (int i = 0; i < m.penMissed; i++) out.append(" ❌");
+            for (int i = 0; i < m.penSaved; i++) out.append(" 🧤");
+            if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
+            if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
         }
 
         private static void mark(SpannableStringBuilder out, String text, int color) {
