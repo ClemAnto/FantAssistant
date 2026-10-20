@@ -846,6 +846,50 @@ null** accanto alla percentuale, mai la percentuale da sola.
 
 ---
 
+
+## 5-bis. Turno 7 (16-19/10/2026): l'apertura sparita dal calendario
+
+**Cosa è successo.** La presa di venerdì 16/10 alle 20:31 era giusta (15' prima di Frosinone-Sassuolo), ma
+a quell'ora il Corriere aveva già tolto la partita (ufficiali uscite: 8 partite su 10), e il calendario si
+leggeva SOLO dal Corriere. Così nessuna riga portava l'orario dell'apertura e il foglio datava il turno da
+sabato 15:00 (Venezia-Napoli). Sabato mattina il pianificatore, che chiedeva al calendario e non al foglio,
+ha armato una SECONDA presa alle 14:45; il pruner ha tenuto quella (era «prima dell'apertura» che il foglio
+conosceva) e ha cancellato la fotografia di venerdì (814 righe). Lo scoring del turno 7 è quindi gonfio:
+Frosinone e Sassuolo lette a partita giocata, Venezia e Napoli a ufficiali uscite, 11/11 per tutte le
+fonti; senza quei quattro club fantacalcio 88,6 → 85,8%, sosfanta 89,5 → 86,9%, Sky 86,4 → 84,7%, Corriere
+77,3 → 76,1%. E il 20/10 lo Stato diceva «TURNO 8 PERSO» su un turno che apre il 23/10: la guardia del
+calendario vecchio cerca l'orario dell'apertura fra quelli salvati sotto i turni precedenti, e quello non
+era mai stato salvato.
+
+**Le quattro cure** (`probabili-sheet.gs`, da incollare nell'editor):
+- il calendario è l'UNIONE delle tre pagine (`mergeSchedules_`), partita per partita, col Corriere che
+  decide l'orario dove ce l'ha;
+- il pianificatore **ricorda l'apertura** su cui arma (`rememberOpener_`, per stagione e turno), e la
+  presa, la scadenza (`openerIndex_`) e la guardia del calendario la rileggono;
+- il pianificatore **non arma** se il turno che la pagina numera ha già una lettura (`hasReading_`), e
+  scarta dal calendario le partite di turni precedenti (`freshFixtures_`, una definizione letta anche
+  dallo Stato);
+- `recover` prende l'apertura anche dai calendari delle FOTOGRAFIE del turno, non solo dal foglio.
+La riparazione è stata fatta il 20/10 con una funzione usa-e-getta (`repairRound7`, poi tolta): apertura
+dichiarata (16/10 18:45Z), 814 righe rimesse dalla foto di venerdì 20:30, le 814 di sabato potate, riscorato.
+Verificato sul foglio riscaricato: Frosinone/Sassuolo portano ora il loro orario (lead 15'), Venezia/Napoli
+1.110' invece di 15', lo Stato dice «IN ATTESA – turno 8 ven 23/10 20:45». Turno 7 dopo la cura: sosfanta
+89,1%, Sky 86,4%, fantacalcio 85,9%, Corriere 75,6% (null 71,8 / 69,3). Il Corriere venerdì non portava
+Frosinone-Sassuolo né Parma-Torino: per quei due club gli resta la lettura di sabato, che lo scorer ignora.
+Verificato anche fuori da Google con `verify-parsers.mjs` (controlli nuovi, che cadono rimettendo i difetti).
+Lo Stato ora scrive «ricopiando la giornata prima: X%» al posto di «null X%», su richiesta dell'operatore.
+
+
+**E i «nomi non risolti»** (20/10/2026). Su tre turni erano 15 nomi distinti, di tre specie: i due
+Martinez dell'Inter (il token «martinez» appartiene a due uomini e l'indice lo rifiuta — le iniziali
+«Jo.»/«L.» e i nomi propri «Josep»/«Lautaro» lo sciolgono, `pickMan_`); uomini che la fonte nomina e la
+pagina di fantacalcio quel giorno non portava (Svilar, Koulierakis, Kossounou, Spinazzola, Haps, Basic,
+Tiago Gabriel: tutti nell'archivio Veri con lo stesso cognome, che ora fa da ripiego); e due SOPRANNOMI
+(«Pote», «Valde» alla Fiorentina) che nessuna regola di grafia raggiunge e che stanno in `NAME_ALIASES`
+come dichiarazione. Lo scorer riprova i nomi senza id con le regole di oggi, quindi la cura vale anche per
+i turni già nel foglio senza riscriverne le righe. Effetto dopo il riscoring: zero nomi non risolti, margini
+sosfanta +12,4 · fantacalcio +10,3 · Sky +9,4 · Corriere +2,5 sui tre turni.
+
 ## 6. Aperti
 
 - ~~**Le due fonti che l'operatore nomina e che restano fuori.**~~ **CHIUSA A METÀ il 18/09/2026**: SOS

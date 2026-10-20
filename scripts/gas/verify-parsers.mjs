@@ -228,6 +228,58 @@ console.log('\n=== the deadline is the round opener, for every club ===');
   // And the opener is per ROUND, read from the rows: the earliest kick-off, whichever club carries it.
   const openers = sandbox.openerIndex_(values);
   check(openers[5] === new Date(OPENER).getTime(), 'openerIndex_ did not read the round opener');
+
+  // ROUND 7 OF 2026-27: every page had dropped the opener's match before the capture, so no row
+  // carried its kick-off and the round was dated from its second fixture. The remembered opener must
+  // win, and the Saturday reading must then stop counting.
+  const SAT = '2026-10-17T13:00:00Z';
+  const FRI = '2026-10-16T18:45:00Z';
+  const r7 = (club, kickoff, taken) => { const r = row(club, kickoff, taken); r[0] = 7; return r; };
+  const lost = [H,
+    r7('frosinone', '', '2026-10-16T18:30:00Z'),
+    r7('frosinone', '', '2026-10-17T12:45:00Z'),
+    r7('napoli', SAT, '2026-10-16T18:30:00Z'),
+    r7('napoli', SAT, '2026-10-17T12:45:00Z'),
+  ];
+  const planned = [{ season: '2026-27', round: 7, kickoff: new Date(FRI), home: 'Frosinone', away: 'Sassuolo' }];
+  check(sandbox.openerIndex_(lost, [])[7] === new Date(SAT).getTime(), 'fixture: without the plan the opener is Saturday');
+  check(sandbox.openerIndex_(lost, planned)[7] === new Date(FRI).getTime(),
+    'the remembered opener did not move the deadline back to Friday');
+  check(sandbox.openerIndex_(lost, [{ ...planned[0], season: '2027-28' }])[7] === new Date(SAT).getTime(),
+    'a remembered opener of another season moved this one');
+}
+
+console.log('\n=== identity: initials, aliases, the truth roster ===');
+{
+  // The names that went unresolved on rounds 5-7 of 2026-27, against the men they are.
+  const inter = [{ id: '2764', name: 'Martinez L.' }, { id: '5116', name: 'Martinez Jo.' }];
+  const cases = [
+    ['Josep Martínez', '5116'], ['Lautaro Martínez', '2764'], ['Martinez Jo.', '5116'], ['Martinez L.', '2764'],
+    ['Martinez', ''],                                  // no initial: two men, no guess
+  ];
+  for (const [name, want] of cases) {
+    const got = sandbox.pickMan_(inter, name);
+    check(got === want, `pickMan_(Inter, ${name}) = '${got}', expected '${want}'`);
+  }
+  check(sandbox.pickMan_([{ id: '5841', name: 'Svilar' }], 'Svilar M.') === '5841', 'Svilar M. not joined to Svilar');
+  check(sandbox.pickMan_([{ id: '6989', name: 'Tiago Gabriel' }], 'Tiago Gabriel') === '6989', 'Tiago Gabriel not joined');
+  check(sandbox.resolve_({}, 'fiorentina', 'Pote', {}) === '7625', 'the declared alias Pote did not resolve');
+  check(sandbox.resolve_({}, 'fiorentina', 'Valde', {}) === '7294', 'the declared alias Valde did not resolve');
+  // The page index first, the truth roster second: a man missing from the page is found in the archive.
+  check(sandbox.resolve_({}, 'venezia', 'Haps R.', { venezia: [{ id: '5695', name: 'Haps' }] }) === '5695',
+    'the truth roster did not stand in for the page');
+}
+
+console.log('\n=== the calendar is the union of the pages ===');
+{
+  const fx = (home, away, iso) => ({ home, away, kickoff: new Date(iso) });
+  const corriere = [fx('Venezia', 'Napoli', '2026-10-17T13:00:00Z')];                 // the opener already dropped
+  const sky = [fx('Frosinone', 'Sassuolo', '2026-10-16T18:45:00Z'), fx('Napoli', 'Venezia', '2026-10-17T13:05:00Z')];
+  const merged = sandbox.mergeSchedules_([corriere, sky, []]);
+  check(merged.length === 2, `the union should hold 2 fixtures, holds ${merged.length}`);
+  check(sandbox.firstFixture_(merged).home === 'Frosinone', 'the opener a page dropped is not back in the calendar');
+  const vn = merged.find((f) => f.home === 'Venezia' || f.away === 'Venezia');
+  check(vn.kickoff.toISOString() === '2026-10-17T13:00:00.000Z', 'Corriere lost precedence on the instant it has');
 }
 
 console.log(failed ? `\n### ${failed} CHECK(S) FAILED ###` : '\n### all checks passed ###');
