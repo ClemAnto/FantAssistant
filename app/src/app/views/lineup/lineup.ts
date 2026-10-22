@@ -38,6 +38,7 @@ import {
   withLeagueModules,
 } from '../../core/lineup-advice';
 import { placesIn } from '../../core/mantra-legal';
+import { PillarCell, PillarRole, PillarState, pillarRecord, pillarState } from '../../core/pillars';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { ROLE_STEADY, steadyShareFor } from '../../core/swing';
 import { ExpectedPlay } from '../../core/expected-play';
@@ -116,6 +117,8 @@ export interface RosterLine extends NextMatchRow {
   trend: readonly TrendCell[];
   /** Goals and assists of this season's championship, as the player card counts them (`seasonTotals`). */
   ga: { goals: number; assists: number } | null;
+  /** A pillar (`core/pillars.ts`), one suspended by a bad streak, or neither: the star beside the name. */
+  pillar: PillarState;
 }
 
 /** The roster table's sortable columns. */
@@ -662,6 +665,45 @@ export class Lineup {
   });
 
   /**
+   * WHO IS A PILLAR this matchday (`core/pillars.ts`): his votes of the last season and this one, every club he played
+   * for - this platform's votes first, the other platform's for a club this one does not vote, never a synthetic
+   * vote - judged with the sheet's rung and, on a Mantra game, his first Mantra role (a mediano has his own bar).
+   */
+  private readonly pillars = computed(() => {
+    const out = new Map<number, PillarState>();
+    const md = this.md();
+    if (!md) return out;
+    const platform = this.platform();
+    const other = platform === 'euro' ? 'default' : 'euro';
+    const seasons = [this.store.inputSeason(), this.store.targetSeason()].filter((s): s is string => !!s);
+    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
+    const rows = this.bundleRows();
+    const voted = (fcId: number, on: typeof platform) =>
+      seasons.flatMap((season) =>
+        this.players.matchesOf(fcId, on, season).filter(
+          (one) => one.kind === 'league' && !one.voteSynthetic && one.vote != null && one.fantavoto != null,
+        ),
+      );
+    for (const r of md.roster) {
+      const own = voted(r.fcId, platform);
+      const teams = new Set(own.map((one) => one.team));
+      const cells: PillarCell[] = [...own, ...voted(r.fcId, other).filter((one) => !teams.has(one.team))].map(
+        (one) => ({ vote: one.vote!, fantavoto: one.fantavoto!, date: one.date }),
+      );
+      const role = rows.get(r.fcId)?.role;
+      const state = pillarState(
+        pillarRecord(cells),
+        role && ['P', 'D', 'C', 'A'].includes(role) ? (role as PillarRole) : null,
+        platform,
+        sheet?.get(r.fcId)?.titolarita ?? null,
+        md.rules.game === 'mantra' && r.roles[0]?.toLowerCase() === 'm',
+      );
+      if (state) out.set(r.fcId, state);
+    }
+    return out;
+  });
+
+  /**
    * WHAT EACH MAN'S STEADINESS IS WORTH TO THE LEAGUE'S MODIFIERS, per match (operator, 09/10/2026: «se il
    * modificatore di rendimento è attivo aggiungi una valutazione migliore per quelli che hanno una continuità
    * migliore (frequenza alta di voti con 6>=0); se il modificatore di difesa è attivo ... ai difensori ... e ricorda
@@ -760,6 +802,7 @@ export class Lineup {
         steadyBonus: steady?.rFactor ?? null,
         defenceBonus: steady?.defence ?? null,
         club: this.bundleRows().get(r.fcId)?.clubId ?? null,
+        pillar: this.pillars().get(r.fcId) === 'pillar',
         fmFromLeghe: fromSheet === null && fm !== null,
         // THE ELEVEN IS CHOSEN ON THE FVA ALONE (operator, 09/10/2026: «il modulo migliore è semplicemente la
         // somma dei singoli FVA, non pensare alla probabilità di prendere il voto»). Only a man Leghe marks OUT
@@ -1172,6 +1215,7 @@ export class Lineup {
         odds: oddsByMan.get(r.fcId) ?? null,
         trend: sheet?.get(r.fcId)?.recentVotes ?? [],
         ga: this.football().get(r.fcId)?.ga ?? null,
+        pillar: this.pillars().get(r.fcId) ?? null,
       };
     });
     const roleRank = (r: RosterLine) => {

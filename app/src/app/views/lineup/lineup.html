@@ -245,6 +245,17 @@
                 <span class="flex min-w-0 items-center gap-1">
                   <ui-crest class="shrink-0" [club]="man.clubName ?? man.club" [clubId]="man.clubId" [crests]="store.crests()" fallback="shield" size="xs" />
                   <button type="button" class="min-w-0 truncate text-left font-medium hover:underline" (click)="openPlayer(man.fcId)">{{ man.name }}</button>
+                  @if (man.pillar) {
+                    <span
+                      class="shrink-0 text-[10px]"
+                      [class.text-warning]="man.pillar === 'pillar'"
+                      [class.text-muted]="man.pillar === 'suspended'"
+                      [attr.data-pillar]="man.pillar"
+                      nz-tooltip
+                      [nzTooltipTitle]="man.pillar === 'pillar' ? 'Pilastro' : 'Pilastro sospeso: 3 delle ultime 4 sotto il 6'"
+                      ><nz-icon nzType="star" nzTheme="fill"
+                    /></span>
+                  }
                   <ui-flags class="shrink-0 text-[10px]" [playerId]="man.fcId" />
                   @if (man.outLabel) {
                     <span class="shrink-0 rounded bg-danger/20 px-1 text-[9px] leading-4 text-danger">{{ man.outLabel }}</span>
@@ -272,8 +283,10 @@
                 >
                 <span class="text-right font-semibold tabular-nums text-warning" nz-tooltip [nzTooltipTitle]="man.fvaWhy">{{ pts(man.fva) }}</span>
                 @if (man.odds; as o) {
+                  <!-- Two fixed-width sub-columns, both right-aligned, so the prices line up on their decimals and
+                       the percentages on theirs whatever the width of the other (operator, 22/10/2026). -->
                   <span
-                    class="text-right tabular-nums"
+                    class="flex justify-end gap-1 tabular-nums"
                     [class.text-success]="o.kind === 'clean-sheet'"
                     [attr.data-odds-match]="o.match"
                     [attr.data-odds-kickoff]="o.kickoff"
@@ -283,11 +296,10 @@
                     [attr.data-odds-price]="o.price"
                     nz-tooltip
                     [nzTooltipTitle]="oddsHint(o)"
-                    >{{ o.price | number: '1.2-2' }}@if (goalPct(man.fcId, o); as g) {<span
-                        class="ml-1 text-[10px] text-muted"
-                        data-odds-chance
-                        >{{ pct(g) }}</span
-                      >}</span
+                    ><span class="w-8 text-right">{{ o.price | number: '1.2-2' }}</span
+                    ><span class="w-7 text-right text-[10px] text-muted"
+                      >@if (goalPct(man.fcId, o); as g) {<span data-odds-chance>{{ pct(g) }}</span>}</span
+                    ></span
                   >
                 } @else {
                   <span class="text-right text-muted">–</span>

@@ -123,9 +123,19 @@ export function readByDefence(roles: readonly string[], game: LegheGame | null, 
 export function weightOn(defence: boolean): (man: LineupMan) => number | null {
   return (man) => {
     const base = fieldWeight(man);
-    return base === null ? null : base + (man.steadyBonus ?? 0) + (defence ? (man.defenceBonus ?? 0) : 0);
+    return base === null
+      ? null
+      : base + (man.steadyBonus ?? 0) + (defence ? (man.defenceBonus ?? 0) : 0) + (man.pillar ? PILLAR_PRIORITY : 0);
   };
 }
+
+/**
+ * WHAT A PILLAR WEIGHS ON TOP OF HIS POINTS when the eleven is chosen: more than any FVA can separate, so the legal
+ * assignment fields every pillar it can place before anybody else, and between two pillars for one place the FVA
+ * still decides. A CONSTRAINT dressed as a weight, so it is taken back out of every total that is SHOWN
+ * (`bestOnModules`): it buys a place, never points. Under `fieldWeight`'s floor it adds nothing.
+ */
+export const PILLAR_PRIORITY = 100;
 
 /**
  * THE BEST ELEVEN WHEN THE WEIGHT DEPENDS ON THE MODULE: one `bestEleven` per module with that module's weight
@@ -138,6 +148,7 @@ export function bestOnModules(
   game: LegheGame | null,
 ): Eleven<LineupMan> | null {
   let best: Eleven<LineupMan> | null = null;
+  let bestRank = 0;
   const scores: { module: string; total: number; placed: number }[] = [];
   // Here and not in `adviseLineup`, so the module menu's totals obey the same rule as the pitch.
   const barred = clubmateKeepers(men);
@@ -149,8 +160,13 @@ export function bestOnModules(
       scores.push({ module: name, total: 0, placed: 0 });
       continue;
     }
-    scores.push({ module: name, total: eleven.total, placed: eleven.men.length });
-    if (eleven.total > (best?.total ?? 0)) best = eleven;
+    // The module that fields more pillars wins (`eleven.total` carries their priority); what is SHOWN is the points.
+    const worth = eleven.total - PILLAR_PRIORITY * eleven.men.filter((man) => man.pillar).length;
+    scores.push({ module: name, total: worth, placed: eleven.men.length });
+    if (eleven.total > bestRank) {
+      best = { ...eleven, total: worth };
+      bestRank = eleven.total;
+    }
   }
   if (best) best.scores = [...scores].sort((left, right) => right.total - left.total);
   return best;
@@ -205,6 +221,8 @@ export interface LineupMan extends Placeable {
   defenceBonus?: number | null;
   /** The bundle's club id (`fc_club_id`): two keepers of one club never share the pitch (`clubmateKeepers`). Absent = unknown. */
   club?: number | null;
+  /** A PILLAR (`core/pillars.ts`): fielded before anybody the FVA ranks, if the module has his place. */
+  pillar?: boolean;
 }
 
 export interface LineupPlace {

@@ -92,6 +92,25 @@ describe('module names', () => {
   });
 });
 
+describe('pillars on the pitch', () => {
+  it('a pillar is fielded over a man with a higher FVA, and the shown total stays the points', () => {
+    const rice = { ...man('C', 6.6), pillar: true };
+    const promel = man('C', 6.64);
+    const squad = [man('P', 5), ...[6, 6, 6, 6].map((p) => man('D', p)), ...[7, 7, 7].map((p) => man('C', p)), rice, promel, man('A', 7), man('A', 7)];
+    const plan = adviseLineup(squad, CLASSIC, ['442'], FREE_BENCH, 'classic')!;
+    const onPitch = plan.rows.flatMap((row) => row.places.map((place) => place.man?.id));
+    expect(onPitch).toContain(rice.id);
+    expect(onPitch).not.toContain(promel.id);
+    expect(plan.total).toBeCloseTo(5 + 24 + 21 + 6.6 + 14, 6);
+    expect(plan.scores[0].total).toBeCloseTo(plan.total, 6);
+  });
+
+  it('a pillar under the chance floor is not fielded', () => {
+    const out = { ...man('C', 6.6, MIN_CHANCE_ON_PITCH / 2), pillar: true };
+    expect(fieldWeight(out)).toBeNull();
+  });
+});
+
 describe('adviseLineup', () => {
   const squad343 = () => [
     man('P', 4),
