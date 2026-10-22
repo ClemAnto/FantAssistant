@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PlayerRow } from './players-store';
-import { RosterFile, SavedRoster, guessPlatform, leagueOfFile, matchdayFromFile, mergeRosters, parseRosterFile, readSaved, rosterKey } from './roster-file';
+import { RosterFile, SavedRoster, guessPlatform, leagueOfFile, matchdayFromFile, mergeRosters, parseRosterFile, matchingRoster, newRosterId, readSaved } from './roster-file';
 
 const CSV = ['$,$,$', 'Kane & ten others,10,0', 'Kane & ten others,11,0', '$,$,$', 'Piangi, Meno FC,12,1', 'Piangi, Meno FC,99,0', ''].join('\n');
 
@@ -90,12 +90,21 @@ describe('many rosters, one per fantasquadra, merged between devices', () => {
     ...extra,
   });
 
-  it('the league is the export file name prefix, and a newer export of it lands on the same key', () => {
+  it('the league is the export file name prefix', () => {
     expect(leagueOfFile("'neuroseghe_rosters_1792146043476.csv")).toBe('neuroseghe');
     expect(leagueOfFile('C:/x/Lega Amici_rosters_12.csv')).toBe('Lega Amici');
-    const a = rosterKey({ platform: 'euro', fileName: 'neuroseghe_rosters_1.csv', team: 'Kane' });
-    expect(rosterKey({ platform: 'euro', fileName: 'neuroseghe_rosters_2.csv', team: 'Kane' })).toBe(a);
-    expect(rosterKey({ platform: 'classic', fileName: 'neuroseghe_rosters_2.csv', team: 'Kane' })).not.toBe(a);
+  });
+
+  it('a new squad gets a new id every time, so a name never is the key', () => {
+    expect(newRosterId()).not.toBe(newRosterId());
+  });
+
+  it('a newer export finds the squad it updates by listone, league and name - and only as a default', () => {
+    const stored = [entry('r-1', 't', { fileName: 'neuroseghe_rosters_1.csv', team: 'A' }), entry('r-2', 't', { team: 'B' })];
+    expect(matchingRoster(stored, { platform: 'euro', fileName: "'neuroseghe_rosters_9.csv", team: 'A' })?.key).toBe('r-1');
+    expect(matchingRoster(stored, { platform: 'classic', fileName: 'neuroseghe_rosters_9.csv', team: 'A' })).toBeNull();
+    expect(matchingRoster(stored, { platform: 'euro', fileName: 'other_rosters_9.csv', team: 'A' })).toBeNull();
+    expect(matchingRoster([{ ...stored[0], removed: true }], { platform: 'euro', fileName: 'neuroseghe_rosters_9.csv', team: 'A' })).toBeNull();
   });
 
   it('per key the later entry wins, a removal included, newest first', () => {

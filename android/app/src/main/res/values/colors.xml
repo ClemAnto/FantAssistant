@@ -3,7 +3,8 @@
     <color name="bg">#E617171F</color>
     <color name="row">#FF20202A</color>
     <color name="fg">#FFECECF2</color>
-    <color name="fg_away">#FFB4B4C0</color>
+    <!-- The men under a match, a shade darker than the clubs' names (operator, 20/10/2026). -->
+    <color name="fg_men">#FFC9C9D3</color>
     <color name="muted">#FF9A9AA8</color>
     <color name="live">#FFFF5C93</color>
     <color name="later">#FF4ADE80</color>

@@ -19,7 +19,8 @@ import java.util.List;
 public class MatchesListService extends RemoteViewsService {
     @Override
     public RemoteViewsFactory onGetViewFactory(Intent intent) {
-        return new Factory(getApplicationContext());
+        return new Factory(getApplicationContext(),
+                intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, 0));
     }
 
     /**
@@ -58,9 +59,26 @@ public class MatchesListService extends RemoteViewsService {
         private int served = -1;
         /** Which crests are on the phone, looked up once per data change instead of twice per row per bind. */
         private final java.util.Map<Long, Boolean> crests = new java.util.HashMap<>();
+        /** Each club's dot colour (`Crests.color`), read from its crest once per data change. */
+        private final java.util.Map<Long, Integer> dots = new java.util.HashMap<>();
+        /** A dot's colour is lifted to at least this luminance: a navy or black dot vanishes on the dark rows. */
+        private static final float DOT_MIN_LUMINANCE = 0.12f;
 
-        Factory(Context context) {
+        /** The widget this list belongs to, for its width (`menWidth`). */
+        private final int widgetId;
+        /** The px the men's line can use on one line, or 0 when the launcher has not said how wide the widget is. */
+        private float menWidth;
+        /** The men's line's own paint (11sp, `item.xml`), to measure whether both sides fit on one line. */
+        private final android.text.TextPaint menPaint = new android.text.TextPaint();
+        /** Horizontal padding between the widget's edge and the men's text: `widget.xml` 8+8, `item.xml` 8+8. */
+        private static final int MEN_INSET_DP = 32;
+        /** The space between two items, with my men shown and without. */
+        private static final int GAP_WITH_MEN_DP = 8;
+        private static final int GAP_DP = 4;
+
+        Factory(Context context, int widgetId) {
             this.context = context;
+            this.widgetId = widgetId;
         }
 
         @Override
@@ -73,9 +91,16 @@ public class MatchesListService extends RemoteViewsService {
             items = out;
             served = -1;
             crests.clear();
+            dots.clear();
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");
             men = Store.showMen(context);
+            android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+            menPaint.setTextSize(android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 11, dm));
+            // In portrait a widget is MIN_WIDTH wide (AppWidgetManager's own definition of the option).
+            int dp = widgetId == 0 ? 0 : android.appwidget.AppWidgetManager.getInstance(context)
+                    .getAppWidgetOptions(widgetId).getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH);
+            menWidth = dp <= MEN_INSET_DP ? 0 : (dp - MEN_INSET_DP) * dm.density;
         }
 
         @Override
@@ -113,6 +138,10 @@ public class MatchesListService extends RemoteViewsService {
             Object item = items.get(position);
             // One layout, one view type (see `item.xml`): a label shows its half and hides the match's.
             RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.item);
+            // The gap under each item (the list's divider is 0): wider when my men are shown under the matches,
+            // the old 4dp when they are hidden (operator, 20/10/2026).
+            int gap = Math.round((men ? GAP_WITH_MEN_DP : GAP_DP) * context.getResources().getDisplayMetrics().density);
+            v.setViewPadding(R.id.item, 0, 0, 0, gap);
             boolean label = item instanceof String;
             v.setViewVisibility(R.id.group_box, label ? View.VISIBLE : View.GONE);
             v.setViewVisibility(R.id.row, label ? View.GONE : View.VISIBLE);
@@ -138,6 +167,9 @@ public class MatchesListService extends RemoteViewsService {
             // A side with none of my men reads fainter (operator, 10/10/2026), so the eye goes to the clubs that matter.
             fade(v, R.id.home, R.id.home_crest, split && r.homePlayers.isEmpty() && !r.awayPlayers.isEmpty());
             fade(v, R.id.away, R.id.away_crest, split && r.awayPlayers.isEmpty() && !r.homePlayers.isEmpty());
+            // The place in the championship's table, small beside the name (operator, 20/10/2026).
+            pos(v, R.id.home_pos, split ? r.homePos : 0);
+            pos(v, R.id.away_pos, split ? r.awayPos : 0);
             v.setTextViewText(R.id.score, r.score);
             v.setViewVisibility(R.id.score, r.score.isEmpty() ? View.GONE : View.VISIBLE);
             // What the group's label does not already say (see `Matches.label`).
@@ -151,21 +183,47 @@ public class MatchesListService extends RemoteViewsService {
                 if (!("done".equals(r.state) && Boolean.FALSE.equals(m.played))) shown.add(m);
             }
             boolean showMen = men && !r.players.isEmpty() && (r.men.isEmpty() || !shown.isEmpty());
-            v.setTextViewText(R.id.men, r.men.isEmpty() ? r.players
-                    : menLine(shown, bothSides(shown)));
+            v.setTextViewText(R.id.men, r.men.isEmpty() ? plainLine(r) : menLine(r, shown));
             v.setViewVisibility(R.id.men, showMen ? View.VISIBLE : View.GONE);
             if (!r.url.isEmpty()) v.setOnClickFillInIntent(R.id.row, new Intent().setData(Uri.parse(r.url)));
             return v;
         }
 
-        /** Men of mine on both sides among those drawn: only then is the away side's darker white needed. */
-        private static boolean bothSides(List<Matches.Man> list) {
-            boolean home = false, away = false;
-            for (Matches.Man m : list) {
-                if (m.away) away = true;
-                else home = true;
+        /**
+         * The dot before a side's men, in the predominant colour of that club's crest (operator, 20/10/2026: «un
+         * pallino prima dei nomi dei calciatori di ogni squadra ... del colore predominante del logo»). It replaced
+         * the away side's darker white. No crest on the phone yet: the plain foreground, so the dot still separates.
+         */
+        private void dot(SpannableStringBuilder out, long clubId) {
+            Integer c = dots.get(clubId);
+            if (c == null) dots.put(clubId, c = Crests.color(context, clubId, DOT_MIN_LUMINANCE));
+            int start = out.length();
+            // A NO-BREAK space: the dot never ends a line with its first man on the next (operator, 20/10/2026).
+            out.append("● ");
+            out.setSpan(new ForegroundColorSpan(c != 0 ? c : context.getColor(R.color.fg)), start, start + 1,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        /** A list from a `widget.gs` without per-man detail: the two sides' names, each behind its club's dot. */
+        private CharSequence plainLine(Matches.Row r) {
+            if (r.homePlayers.isEmpty() && r.awayPlayers.isEmpty()) return r.players;
+            List<SpannableStringBuilder> sides = new ArrayList<>();
+            if (!r.homePlayers.isEmpty()) {
+                SpannableStringBuilder s = new SpannableStringBuilder();
+                dot(s, r.homeId);
+                sides.add(s.append(r.homePlayers));
             }
-            return home && away;
+            if (!r.awayPlayers.isEmpty()) {
+                SpannableStringBuilder s = new SpannableStringBuilder();
+                dot(s, r.awayId);
+                sides.add(s.append(r.awayPlayers));
+            }
+            return join(sides);
+        }
+
+        private static void pos(RemoteViews v, int view, int position) {
+            v.setTextViewText(view, position > 0 ? String.valueOf(position) : "");
+            v.setViewVisibility(view, position > 0 ? View.VISIBLE : View.GONE);
         }
 
         private void fade(RemoteViews v, int text, int crest, boolean faint) {
@@ -180,32 +238,57 @@ public class MatchesListService extends RemoteViewsService {
          * goal (penalties included), a boot for every assist, a cross for a penalty missed and a glove for one
          * saved. A man the Sheet knows nothing about (match not
          * started, or no SofaScore id) is written plainly: not knowing is not «did not play».
-         * When both sides have men of mine, the away side's are a darker white (operator, 10/10/2026).
+         * Each side's men stand behind one dot in their club's colour (`dot`), home first.
          */
-        private CharSequence menLine(List<Matches.Man> list, boolean bothSides) {
-            SpannableStringBuilder out = new SpannableStringBuilder();
-            for (Matches.Man m : list) {
-                if (out.length() > 0) out.append(",  ");
-                int fg = context.getColor(bothSides && m.away ? R.color.fg_away : R.color.fg);
-                int start = out.length();
-                out.append(m.name);
-                if (bothSides && m.away && !Boolean.FALSE.equals(m.played)) {
-                    out.setSpan(new ForegroundColorSpan(fg), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        private CharSequence menLine(Matches.Row r, List<Matches.Man> list) {
+            List<SpannableStringBuilder> sides = new ArrayList<>();
+            for (int side = 0; side < 2; side++) {
+                boolean away = side == 1;
+                SpannableStringBuilder out = null;
+                for (Matches.Man m : list) {
+                    if (m.away != away) continue;
+                    if (out == null) {
+                        out = new SpannableStringBuilder();
+                        dot(out, away ? r.awayId : r.homeId);
+                    } else {
+                        out.append(",  ");
+                    }
+                    man(out, m);
                 }
-                if (Boolean.FALSE.equals(m.played)) {
-                    out.setSpan(new ForegroundColorSpan((fg & 0x00FFFFFF) | 0x80000000), start, out.length(),
-                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                    continue;
-                }
-                for (int i = 0; i < m.goals; i++) out.append(" ⚽");
-                for (int i = 0; i < m.assists; i++) out.append(" 👟");
-                // A penalty missed (a cross) and a penalty saved (a keeper's glove), one mark each.
-                for (int i = 0; i < m.penMissed; i++) out.append(" ❌");
-                for (int i = 0; i < m.penSaved; i++) out.append(" 🧤");
-                if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
-                if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
+                if (out != null) sides.add(out);
             }
-            return out;
+            return join(sides);
+        }
+
+        /**
+         * The two sides on one line when they fit, the away side on a line of its own when they do not (operator,
+         * 20/10/2026: «quando i calciatori delle due squadre non vanno tutti su una riga, vai a capo con la
+         * seconda squadra»). Measured with the line's own paint on the widget's width; a launcher that does not say
+         * the width gets the break, because a side starting mid-line is the thing being avoided.
+         */
+        private CharSequence join(List<SpannableStringBuilder> sides) {
+            if (sides.size() < 2) return sides.isEmpty() ? "" : sides.get(0);
+            SpannableStringBuilder one = new SpannableStringBuilder(sides.get(0)).append("     ").append(sides.get(1));
+            if (menWidth > 0 && android.text.Layout.getDesiredWidth(one, menPaint) <= menWidth) return one;
+            return new SpannableStringBuilder(sides.get(0)).append("\n").append(sides.get(1));
+        }
+
+        private void man(SpannableStringBuilder out, Matches.Man m) {
+            int fg = context.getColor(R.color.fg_men);
+            int start = out.length();
+            out.append(m.name);
+            if (Boolean.FALSE.equals(m.played)) {
+                out.setSpan(new ForegroundColorSpan((fg & 0x00FFFFFF) | 0x80000000), start, out.length(),
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                return;
+            }
+            for (int i = 0; i < m.goals; i++) out.append(" ⚽");
+            for (int i = 0; i < m.assists; i++) out.append(" 👟");
+            // A penalty missed (a cross) and a penalty saved (a keeper's glove), one mark each.
+            for (int i = 0; i < m.penMissed; i++) out.append(" ❌");
+            for (int i = 0; i < m.penSaved; i++) out.append(" 🧤");
+            if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
+            if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
         }
 
         private static void mark(SpannableStringBuilder out, String text, int color) {

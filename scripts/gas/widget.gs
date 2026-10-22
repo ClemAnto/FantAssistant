@@ -55,6 +55,8 @@ var WIDGET_LIVE_FOR_H = 4;
 var WIDGET_DAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 /** How long a round's real span (all its matches, not only my clubs') is trusted. */
 var WIDGET_ROUND_TTL_H = 6;
+/** How long a championship's table is kept (operator, 20/10/2026: the position beside each club's name). */
+var WIDGET_TABLE_TTL_H = 1;
 
 // ==============================================================================================
 // 1. The squad, from the app
@@ -100,6 +102,25 @@ function doPost(e) {
     players: players.length,
     matches: out ? out.rows.length : 0
   }));
+}
+
+/**
+ * ONE-OFF CLEANUP, run by hand from the editor (Esegui -> widgetRemoveLoginTeams), 19/10/2026. Until 16/10 the Lineup
+ * page sent a squad under its Leghe LOGIN key (`euro:<user>:<league>`, two numbers); since then a squad is a roster
+ * file with its own id, so the same squad resent arrived as a second entry and the widget showed every man twice.
+ * This drops the login-era entries - and only those, recognised by the shape of their key - and logs what it took.
+ * Resend the squads from the Lineup page afterwards.
+ */
+function widgetRemoveLoginTeams() {
+  var squads = widgetSquads_();
+  var gone = Object.keys(squads).filter(function (key) { return /^(euro|classic):\d+:\d+$/.test(key); });
+  gone.forEach(function (key) {
+    Logger.log('tolta: ' + squads[key].label + ' (' + key + ')');
+    delete squads[key];
+  });
+  PropertiesService.getScriptProperties().setProperty('widget:squads', JSON.stringify(squads));
+  Logger.log(gone.length + ' squadre del vecchio login tolte, ' + Object.keys(squads).length + ' restano');
+  refreshWidget();
 }
 
 function widgetSquads_() {
@@ -188,7 +209,8 @@ function refreshWidget() {
 
     var details = widgetDetails_(props, squads, byId, now);
     var rounds = widgetRoundSpans_(props, byId, now);
-    var out = widgetBuild_(squads, byId, now, details, rounds);
+    var tables = widgetTables_(props, byId, now);
+    var out = widgetBuild_(squads, byId, now, details, rounds, tables);
     var body = JSON.stringify(out);
     // The property is the record (in chunks, because one value has a size limit of its own) and the cache only
     // spares a read; a cache that refuses a big list is logged and the property still serves it. A record that
@@ -373,13 +395,20 @@ function widgetInWindow_(ev, now, slackH) {
 // 3. The list, already formatted
 // ==============================================================================================
 
-function widgetBuild_(squads, byId, now, details, roundSpans) {
+function widgetBuild_(squads, byId, now, details, roundSpans, tables) {
   details = details || {};
-  // My men by club, and which fantasquadra each belongs to when there are several.
+  tables = tables || {};
+  // My men by club. A man owned by SEVERAL fantasquadre is listed ONCE (operator, 20/10/2026: «mostriamo sempre
+  // una sola volta i calciatori anche se stanno in più squadre») - keyed by his id, by name only where a squad
+  // sent none, never by the squad that sent him.
   var mine = {};
+  var seen = {};
   var keys = Object.keys(squads);
   keys.forEach(function (k) {
     squads[k].players.forEach(function (p) {
+      var who = p.team + '|' + (Number(p.id) > 0 ? 'id:' + p.id : 'name:' + p.name);
+      if (seen[who]) return;
+      seen[who] = true;
       (mine[p.team] = mine[p.team] || []).push(p);
     });
   });
@@ -418,6 +447,9 @@ function widgetBuild_(squads, byId, now, details, roundSpans) {
       away: ev.away,
       homeId: ev.homeId,
       awayId: ev.awayId,
+      // Each club's place in its championship's table, 0 when the table is not known (`widgetTables_`).
+      homePos: ((tables[ev.ut + ':' + ev.season] || {})[ev.homeId]) || 0,
+      awayPos: ((tables[ev.ut + ':' + ev.season] || {})[ev.awayId]) || 0,
       score: score,
       when: when,
       league: ev.league,
@@ -564,6 +596,51 @@ function widgetRoundSpans_(props, byId, now) {
     if (key.indexOf('widget:round:') === 0 && !wanted[key.slice(13)]) props.deleteProperty(key);
   });
   return spans;
+}
+
+/**
+ * The championship tables of the matches in the window, `{'ut:season': {teamId: position}}` (operator, 20/10/2026:
+ * «vicino al nome delle squadre ... il numero della posizione in classifica del campionato»). One request per
+ * championship, kept `WIDGET_TABLE_TTL_H`; an unanswered read keeps the table it had, and a table nobody asks
+ * for any more is dropped.
+ */
+function widgetTables_(props, byId, now) {
+  var wanted = {};
+  Object.keys(byId).forEach(function (k) {
+    var ev = byId[k];
+    if (!ev.season || WIDGET_LEAGUES.indexOf(ev.ut) < 0 || !widgetInWindow_(ev, now, 0)) return;
+    wanted[ev.ut + ':' + ev.season] = true;
+  });
+  var tables = {};
+  var stale = [];
+  Object.keys(wanted).forEach(function (key) {
+    var raw = props.getProperty('widget:table:' + key);
+    var one = null;
+    try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
+    if (one) tables[key] = one.pos;
+    if (!one || now - one.at > WIDGET_TABLE_TTL_H * 3600000) stale.push(key);
+  });
+  if (stale.length) {
+    var answers = widgetFetchAll_(stale.map(function (key) {
+      var p = key.split(':');
+      return WIDGET_API + '/unique-tournament/' + p[0] + '/season/' + p[1] + '/standings/total';
+    }));
+    stale.forEach(function (key, i) {
+      var pos = {};
+      ((answers[i] || {}).standings || []).forEach(function (table) {
+        (table.rows || []).forEach(function (row) {
+          if (row.team && row.team.id && row.position) pos[row.team.id] = row.position;
+        });
+      });
+      if (!Object.keys(pos).length) return;
+      tables[key] = pos;
+      props.setProperty('widget:table:' + key, JSON.stringify({ at: now, pos: pos }));
+    });
+  }
+  props.getKeys().forEach(function (key) {
+    if (key.indexOf('widget:table:') === 0 && !wanted[key.slice(13)]) props.deleteProperty(key);
+  });
+  return tables;
 }
 
 /** One match in Kustom's BBCode-like tags. Square brackets inside a name would read as a tag, so they are dropped. */

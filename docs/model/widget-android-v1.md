@@ -52,7 +52,7 @@ Questa pagina è il punto d'ingresso per riprendere il lavoro sul widget in un'a
 
 ## 2. L'app Android (`android/`)
 
-- Versione: `versionName` in `app/build.gradle` (0.2.0 dall'11/10/2026), scritta nell'intestazione del widget
+- Versione: `versionName` in `app/build.gradle` (0.3.5 dal 20/10/2026), scritta nell'intestazione del widget
   accanto a «agg.» e nella schermata dell'app; l'APK in `android/builds/` porta la versione nel nome. Va alzata
   (con `versionCode`) a ogni APK dato all'operatore, o uno screenshot non dice quale versione l'ha disegnato.
 - Build: `cd android; $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat assembleDebug`
@@ -139,8 +139,8 @@ il repository non pubblica niente su Apps Script da solo.
    **Serve, nell'ordine**: pubblicare la webapp, rimandare la squadra dalla pagina Formazione (per gli id), incollare
    e ridistribuire `widget.gs`, installare l'APK. Anteprima verificata sull'emulatore con dati inventati.
    Verificato poi sui dati VERI (10/10/2026 18:32: Gusto ▲88', Grimaldo un gol, Nyland e Baum non schierati).
-   Quando entrambe le squadre hanno miei calciatori, quelli della squadra in trasferta sono di un bianco più scuro
-   (`fg_away`; `side` nel JSON, con ripiego sul conto di `homePlayers`). I gruppi sono ordinati per giorno con
+   I calciatori di ogni squadra stanno dietro un pallino del colore predominante del suo stemma (20/10/2026,
+   `Crests.color`: il colore cromatico più frequente, il grigio solo per uno stemma bianco-nero, schiarito fino a luminanza 0,12; `side` nel JSON, con ripiego sul conto di `homePlayers`); sostituisce il bianco più scuro della trasferta. Se le due squadre non stanno su una riga la seconda va a capo (misurato sulla larghezza del widget, `OPTION_APPWIDGET_MIN_WIDTH`), e il pallino è legato al primo nome da uno spazio non separabile. I nomi dei calciatori sono un bianco più scuro di quelli delle squadre (`fg_men`), e accanto a ogni squadra c'è piccola la sua posizione in classifica (`homePos`/`awayPos`, da `widgetTables_`: `/unique-tournament/{ut}/season/{s}/standings/total`, tenuta un'ora). I gruppi sono ordinati per giorno con
    «più tardi» subito dopo «oggi» (`Row.rank`), così una partita delle 18:30 non ancora iniziata non spezza in due
    il gruppo di oggi. APK copiato in `android/builds/` (gitignorato da `*.apk`).
    **Code review del 10/10/2026 (sera), corretti:** il tetto di righe da 30 a 60 (con due account la lista finiva
@@ -286,3 +286,40 @@ scrivono una volta per PC e telefono; `deploy:pages` aggiorna anche il telefono 
   file (es. le rose esportate) vanno usate dal PC finché non serve.
 - La pagina Formazione è disegnata per lo schermo del PC: la versione da telefono è il passo successivo, poi gli
   scambi.
+
+## Le squadre del widget hanno un ID (19/10/2026)
+
+Il foglio tiene le squadre per CHIAVE, e la chiave la manda la pagina Formazione. Fino al 16/10 era quella del login a
+Leghe (`euro:<utente>:<lega>`), da allora è l'id della rosa caricata dal CSV (`formazione-leghe-v1.md` §4-undecies):
+la stessa squadra reinviata è arrivata come seconda voce e il widget mostrava ogni uomo due volte. Il nome non decide
+niente (una prima cura per nome è stata ritirata), e le voci dell'epoca del login si tolgono una volta lanciando
+`widgetRemoveLoginTeams` dall'editor dell'Apps Script, che le riconosce dalla forma della chiave e scrive nel log cosa ha
+tolto. Poi le squadre si reinviano dalla pagina.
+
+## La riga dei miei uomini e la classifica (20/10/2026, v0.3.1 → v0.3.5)
+
+Cinque richieste dell'operatore in una sessione, tutte sul disegno e nessuna sui dati del motore.
+- **Un uomo in più fantasquadre compare UNA volta** (`widget.gs`, `widgetBuild_`): chiave per club + id, e il nome
+  solo dove una squadra non ha mandato l'id. Mai per la squadra che lo ha mandato.
+- **Un pallino del colore dello stemma** davanti ai calciatori di ogni squadra (`Crests.color`): il colore CROMATICO
+  più frequente fra i pixel opachi (bianco, nero e grigi sono quasi sempre fondo o contorno, e «Roma = bianco» non
+  direbbe niente); il grigio solo per uno stemma per meno di un quinto colorato (Juventus); schiarito verso il bianco
+  fino a luminanza 0,12, o un blu notte sparisce sulle righe scure. Provato sugli stemmi veri: Roma rosso scuro,
+  Inter blu, Napoli celeste, Juventus grigio. Sostituisce il bianco più scuro della trasferta (`fg_away`, tolto).
+- **La seconda squadra va a capo se le due non stanno su una riga**, misurato con la vernice della riga (11sp) sulla
+  larghezza che il launcher dichiara (`OPTION_APPWIDGET_MIN_WIDTH` meno 32dp di margini); senza larghezza va sempre a
+  capo. Il pallino è legato al primo nome da uno spazio NON SEPARABILE (` `), così non chiude mai una riga.
+- **I nomi dei calciatori** sono un bianco più scuro dei nomi delle squadre (`fg_men` #C9C9D3).
+- **La posizione in classifica**, piccola e grigia accanto a ogni squadra (`home_pos`/`away_pos`): `widgetTables_`
+  legge `/unique-tournament/{ut}/season/{s}/standings/total`, una richiesta per campionato, tenuta un'ora
+  (`WIDGET_TABLE_TTL_H`), e la lista porta `homePos`/`awayPos` (0 = ignota, non disegnata). Verificata a schermo.
+- **Lo spazio fra le partite** è 8dp con i calciatori visibili e 4dp senza: il divisore della lista è 0 e lo spazio è
+  il padding in fondo a ogni voce (`setViewPadding(R.id.item, …)`), perché `setDividerHeight` non si chiama da
+  RemoteViews.
+
+Due cose pratiche. **Uno script aggiornato non arriva subito sul telefono**: senza partite in corso il telefono
+rilegge la lista ogni 30 minuti, quindi il primo controllo dopo un deploy di `widget.gs` è il bottone ↻ (o
+`adb shell am broadcast -a it.fantassistant.widget.REFRESH -n it.fantassistant.widget/.MatchesWidget`). E il
+**debug wireless** si ricollega con `ADB_MDNS_OPENSCREEN=1` (il backend mDNS di default non vedeva il telefono);
+se il dispositivo risulta `offline` l'associazione è scaduta e va rifatta con «Associa con codice». Il contenuto della
+lista sul telefono si legge con `adb shell run-as it.fantassistant.widget cat shared_prefs/widget.xml` (APK di debug).

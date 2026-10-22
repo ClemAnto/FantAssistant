@@ -400,9 +400,12 @@ function readAll_(pages, takenAt, how, anchor) {
         + ' of ' + anchor.season + ', the last one this Sheet recorded');
     }
   }
-  var cal = schedule_(pages);
+  // The remembered opener goes back in: its two clubs must carry their kick-off even when every page
+  // has already dropped the match, or the round's deadline moves to its second fixture.
+  var cal = withPlannedOpener_(schedule_(pages), anchor);
   var index = pages.fantacalcio.ok ? rosterIndex_(pages.fantacalcio.html) : null;
   if (!index) log_('capture', 'identity', 'fantacalcio not read: the other sources keep their names without ids');
+  var fallback = truthMen_();
   var already = writtenIndex_();
   var minute = iso_(takenAt).slice(0, 16);
   var written = 0;
@@ -429,7 +432,7 @@ function readAll_(pages, takenAt, how, anchor) {
     var out = [];
     rows.forEach(function (r) {
       if (already[anchor.round + '|' + src.label + '|' + r.clubKey + '|' + minute]) { skipped += 1; return; }
-      var fcId = r.fcId || (index ? resolve_(index, r.clubKey, r.player) : '');
+      var fcId = r.fcId || resolve_(index || {}, r.clubKey, r.player, fallback);
       if (!fcId) unmatched += 1;
       var kick = kickoffOf_(cal, r.clubKey);
       out.push([anchor.round, anchor.season, src.label, r.club, r.clubKey, r.formation, fcId, r.player,
@@ -478,23 +481,21 @@ function readAll_(pages, takenAt, how, anchor) {
  * simply stops reading them. Nothing measured under the old rule is destroyed by adopting the new one
  * - the two questions remain answerable from the same tab.
  *
- * THE OPENER IS READ FROM THE SHEET AND NOT FROM TODAY'S CALENDAR, because a round is recovered long
- * after its fixtures have left the sites. A round whose rows carry no kick-off has no opener, and
- * there this refuses rather than guessing: replaying every photograph would file readings taken
- * during the round as forecasts of it.
+ * THE OPENER IS READ FROM THE SHEET AND FROM THE PHOTOGRAPHS, NEVER FROM TODAY'S CALENDAR, because a
+ * round is recovered long after its fixtures have left the sites. The Sheet alone is not enough: on
+ * round 7 of 2026-27 the opener's two clubs had no kick-off on any row (the page that timed them had
+ * dropped the match), so the Sheet dated the round from Saturday and a replay on it would have taken
+ * Saturday's photograph - shot during the round - as the line. The photographs of the round carry
+ * their own calendars, and the earliest kick-off any of them shows is the opener. With neither, this
+ * refuses rather than guessing.
  */
 function recover(round) {
   round = Number(round);
   if (!round) { log_('recover', 'skipped', 'no round given'); return 0; }
   var v = tab_('Probabili').getDataRange().getValues();
-  var opener = openerIndex_(v)[round];
-  if (opener === undefined) {
-    log_('recover', 'round ' + round, 'REFUSED - no kick-off on any row of this round, so the opener'
-      + ' is unknown and a photograph cannot be told from one taken while the round was played');
-    return 0;
-  }
+  var sheetOpener = openerIndex_(v)[round];
 
-  // The photographs of that window, grouped by the instant they were taken.
+  // Every photograph, grouped by the instant it was taken.
   var byStamp = {};
   var it = folder_().getFiles();
   var seen = 0;
@@ -503,43 +504,64 @@ function recover(round) {
     var m = String(f.getName()).match(/^([a-z]+)_(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})Z\.html\.gz$/);
     if (!m || !SOURCES[m[1]]) continue;
     seen += 1;
-    var when = new Date(m[2] + 'T' + m[3] + ':' + m[4] + ':00Z');
-    if (when.getTime() >= opener) continue;                  // the round had already started
     var key = m[2] + 'T' + m[3] + '-' + m[4];
-    if (!byStamp[key]) byStamp[key] = { when: when, files: {} };
+    if (!byStamp[key]) byStamp[key] = { when: new Date(m[2] + 'T' + m[3] + ':' + m[4] + ':00Z'), files: {} };
     byStamp[key].files[m[1]] = f;
   }
-  var stamps = Object.keys(byStamp).sort();                  // oldest first, so the last one read wins
-  if (!stamps.length) {
-    log_('recover', 'round ' + round, 'nothing to replay - ' + seen + ' photographs on Drive and none'
-      + ' of them taken before ' + iso_(new Date(opener)));
+  // The SAME guard the live fetch applies, so a page refused then is refused now for the same reason:
+  // a replay that believed pages the capture refused would be measuring a different rule.
+  var load = function (file) {
+    if (!file) return { ok: false, why: 'no photograph at this instant', html: '' };
+    try { return believable_(Utilities.ungzip(file.getBlob()).getDataAsString()); }
+    catch (e) { return { ok: false, why: 'photograph unreadable (' + e.message + ')', html: '' }; }
+  };
+
+  // Which instants belong to this round: the photograph's own round number wins; where it cannot be
+  // read, an instant before the Sheet's opener is evidence enough.
+  var candidates = [];
+  var otherRound = 0;
+  Object.keys(byStamp).sort().forEach(function (key) {             // oldest first: the last one read wins
+    var fc = load(byStamp[key].files.fantacalcio);
+    var own = round_(fc);
+    if (own.round && own.round !== round) { otherRound += 1; return; }
+    if (!own.round && (sheetOpener === undefined || byStamp[key].when.getTime() >= sheetOpener)) return;
+    var pages = { fantacalcio: fc };
+    Object.keys(SOURCES).forEach(function (k) { if (k !== 'fantacalcio') pages[k] = load(byStamp[key].files[k]); });
+    candidates.push({ key: key, when: byStamp[key].when, pages: pages, own: own });
+  });
+
+  // The opener: the earliest of the Sheet's and of every photograph's calendar of this round.
+  var opener = sheetOpener;
+  candidates.forEach(function (c) {
+    var cal = freshFixtures_(schedule_(c.pages), round).fresh;
+    var first = firstFixture_(cal);
+    if (first && (opener === undefined || first.kickoff.getTime() < opener)) opener = first.kickoff.getTime();
+  });
+  if (opener === undefined) {
+    log_('recover', 'round ' + round, 'REFUSED - no kick-off on any row of this round nor in its'
+      + ' photographs, so the opener is unknown and a photograph cannot be told from one taken while'
+      + ' the round was played');
+    return 0;
+  }
+  if (sheetOpener !== undefined && opener !== sheetOpener) {
+    log_('recover', 'round ' + round, 'opener moved from ' + iso_(new Date(sheetOpener)) + ' (Sheet) to '
+      + iso_(new Date(opener)) + ' (photographs): the Sheet had lost the first fixture');
+  }
+  var before = candidates.filter(function (c) { return c.when.getTime() < opener; });
+  if (!before.length) {
+    log_('recover', 'round ' + round, 'nothing to replay - ' + seen + ' photographs on Drive ('
+      + otherRound + ' instants of other rounds) and none of this round taken before '
+      + iso_(new Date(opener)));
     return 0;
   }
 
   var written = 0;
-  stamps.forEach(function (key) {
-    var pages = {};
-    Object.keys(SOURCES).forEach(function (k) {
-      var f = byStamp[key].files[k];
-      if (!f) { pages[k] = { ok: false, why: 'no photograph at this instant', html: '' }; return; }
-      var html;
-      try { html = Utilities.ungzip(f.getBlob()).getDataAsString(); }
-      catch (e) { pages[k] = { ok: false, why: 'photograph unreadable (' + e.message + ')', html: '' }; return; }
-      // The SAME guard the live fetch applies, so a page refused then is refused now for the same
-      // reason: a replay that believed pages the capture refused would be measuring a different rule.
-      pages[k] = believable_(html);
-    });
-    // The photograph's own round wins over the one asked for; where it cannot be read, the window
-    // decides - the file was taken before this round opened, which is evidence enough.
-    var own = round_(pages.fantacalcio);
-    if (own.round && own.round !== round) {
-      log_('recover', key, 'skipped - this photograph carries round ' + own.round + ', not ' + round);
-      return;
-    }
-    var anchor = own.round ? own : { round: round, season: seasonOfRound_(v, round) };
-    written += readAll_(pages, byStamp[key].when, 'recovered from the photograph of ' + key, anchor).written;
+  var season = seasonOfRound_(v, round);
+  before.forEach(function (c) {
+    var anchor = c.own.round ? c.own : { round: round, season: season };
+    written += readAll_(c.pages, c.when, 'recovered from the photograph of ' + c.key, anchor).written;
   });
-  log_('recover', 'round ' + round, written + ' row(s) restored from ' + stamps.length
+  log_('recover', 'round ' + round, written + ' row(s) restored from ' + before.length
     + ' pre-opener photograph(s)');
   try { refreshStatus(); } catch (e) { log_('recover', 'status', 'not refreshed: ' + e.message); }
   return written;
@@ -590,6 +612,7 @@ function writtenIndex_() {
  */
 function rosterIndex_(html) {
   var idx = {};
+  Object.defineProperty(idx, '__men', { value: {}, enumerable: false });
   html.split(/class="[^"]*\bteam-card\b[^"]*"/).slice(1).forEach(function (card) {
     var name = card.match(/class="[^"]*\bteam-name\b[^"]*"[^>]*>([^<]+)</);
     if (!name) return;
@@ -599,6 +622,8 @@ function rosterIndex_(html) {
       var href = item.match(/\/squadre\/[^\/"]+\/[^\/"]+\/(\d+)/);
       var nm = item.match(/player-link[^>]*>[\s\S]*?<span[^>]*>([^<]+)</);
       if (!href || !nm) return;
+      // The whole roster is kept too, for the second pass (`pickMan_`) that the token map cannot do.
+      (idx.__men[key] = idx.__men[key] || []).push({ id: href[1], name: clean_(nm[1]) });
       tokens_(nm[1]).forEach(function (t) {
         if (!(t in idx[key])) idx[key][t] = href[1];
         else if (idx[key][t] !== href[1]) idx[key][t] = '';        // claimed twice: refused
@@ -608,13 +633,92 @@ function rosterIndex_(html) {
   return idx;
 }
 
-/** A name resolves when its tokens point at exactly one man of that club, else it stays unnamed. */
-function resolve_(idx, clubKey, name) {
+/**
+ * A name resolves when its tokens point at exactly one man of that club. When they do not, three more
+ * chances, in order, each of which can only NAME one man or give up - never pick among two:
+ *   1. the operator's declared alias (`NAME_ALIASES`), for a nickname no spelling rule can reach;
+ *   2. the page's own roster read again with the INITIALS (`pickMan_`): «Martinez Jo.» and «Josep
+ *      Martinez» are the same man, and the token map refuses both because Inter has two Martinez;
+ *   3. the same over `fallback`, the men of that club in the truth archive - for a man the source
+ *      names and fantacalcio's page did not carry that day (Svilar, Kossounou, Haps: measured on
+ *      rounds 5-7 of 2026-27, every one of them was on the truth page under the same surname).
+ */
+function resolve_(idx, clubKey, name, fallback) {
+  var alias = aliasOf_(clubKey, name);
+  if (alias) return alias;
   var per = idx[clubKey] || {};
   var hits = {};
   tokens_(name).forEach(function (t) { if (per[t]) hits[per[t]] = 1; });
   var ids = Object.keys(hits);
-  return ids.length === 1 ? ids[0] : '';
+  if (ids.length === 1) return ids[0];
+  var men = (idx.__men && idx.__men[clubKey]) || [];
+  return pickMan_(men, name) || pickMan_((fallback && fallback[clubKey]) || [], name);
+}
+
+/**
+ * Names that no spelling rule can join, DECLARED by the operator: {club_key: {name as written,
+ * folded: fc_id}}. A nickname is not a spelling - «Pote» shares no letter run with «Goncalves P.» -
+ * so it is a fact somebody has to state, like the board rulings and the player notes of the toolkit.
+ */
+var NAME_ALIASES = {
+  fiorentina: { pote: '7625', valde: '7294' }      // Goncalves P., Valdepenas - operator, 20/10/2026
+};
+
+function aliasOf_(clubKey, name) {
+  var per = NAME_ALIASES[clubKey];
+  if (!per) return '';
+  var k = words_(name).join(' ');
+  return per[k] ? String(per[k]) : '';
+}
+
+/** Every word of a name, folded, INCLUDING the short ones (`jo`, `l`) that `tokens_` drops. */
+function words_(s) {
+  return fold_(clean_(s).toLowerCase()).replace(/['’`\-]/g, '').replace(/[^a-z]+/g, ' ')
+    .split(' ').filter(function (w) { return w.length > 0; });
+}
+
+/**
+ * One man of `men` ([{id, name}]) for `name`, or '' - never a guess between two.
+ *
+ * The candidates share a surname token with the name. One candidate: him. Several: each is kept only
+ * if the words of his name that are NOT the shared surname agree with the remaining words of `name`
+ * as INITIALS - one a prefix of the other, both ways, so «jo» matches «josep» and «l» matches
+ * «lautaro», while «l» does not match «josep». A candidate with no such words cannot be told apart
+ * and stays in; two survivors still give ''.
+ */
+function pickMan_(men, name) {
+  var nt = tokens_(name);
+  var nw = words_(name);
+  var seen = {};
+  var cands = (men || []).filter(function (m) {
+    if (seen[m.id]) return false;
+    var hit = tokens_(m.name).some(function (t) { return nt.indexOf(t) >= 0; });
+    if (hit) seen[m.id] = true;
+    return hit;
+  });
+  if (cands.length === 1) return String(cands[0].id);
+  if (!cands.length) return '';
+  var left = cands.filter(function (m) {
+    var shared = tokens_(m.name).filter(function (t) { return nt.indexOf(t) >= 0; });
+    var extraM = words_(m.name).filter(function (w) { return shared.indexOf(w) < 0; });
+    var extraN = nw.filter(function (w) { return shared.indexOf(w) < 0; });
+    if (!extraM.length) return true;
+    return extraM.every(function (e) {
+      return extraN.some(function (w) { return w.indexOf(e) === 0 || e.indexOf(w) === 0; });
+    });
+  });
+  return left.length === 1 ? String(left[0].id) : '';
+}
+
+/** The men of each club in the truth archive, [{id, name}] per club_key - the fallback roster. */
+function truthMen_() {
+  var out = {};
+  var v = tab_('Veri').getDataRange().getValues();
+  for (var i = 1; i < v.length; i += 1) {
+    if (!v[i][3] || !v[i][4]) continue;
+    (out[v[i][3]] = out[v[i][3]] || []).push({ id: String(v[i][4]), name: String(v[i][5]) });
+  }
+  return out;
 }
 
 // ==============================================================================================
@@ -640,6 +744,27 @@ function planToday() {
   if (!cal.length) { log_('plan', 'skipped', 'schedule not read - no capture could be timed'); return 0; }
   dropTriggers_('capture');
   var now = new Date();
+  var anchor = round_();
+
+  // A ROUND THAT HAS A PHOTOGRAPH IS NOT PHOTOGRAPHED AGAIN. On Saturday 17/10/2026 the calendar no
+  // longer carried Friday's opener (played), so the earliest fixture left was Venezia-Napoli at 15:00
+  // and this function armed a second capture on round 7 - a reading taken during the round, which the
+  // pruner then kept in place of the opener's. Whether the round is photographed is a fact about the
+  // Sheet, so it is asked there and not of a calendar that forgets.
+  if (anchor.round && hasReading_(anchor)) {
+    log_('plan', 'armed', '0 capture(s) - round ' + anchor.round + ' already has its photograph');
+    try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
+    return 0;
+  }
+  // The previous round still on a page is not this round's opener.
+  var split = freshFixtures_(cal, anchor.round);
+  if (!split.fresh.length) {
+    log_('plan', 'armed', '0 capture(s) - the calendar still shows round ' + (anchor.round - 1)
+      + ', waiting for round ' + anchor.round);
+    try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
+    return 0;
+  }
+  cal = split.fresh;
   var opener = firstFixture_(cal);
   var when = new Date(opener.kickoff.getTime() - LEAD_MINUTES * 60000);
   if (when <= now) {
@@ -657,6 +782,7 @@ function planToday() {
     return 0;
   }
   ScriptApp.newTrigger('capture').timeBased().at(when).create();
+  rememberOpener_(anchor, opener);
   log_('plan', 'armed', '1 capture | opener ' + itDate_(opener.kickoff, true)
     + ' minus ' + LEAD_MINUTES + ' min (' + opener.home + '-' + opener.away + ')');
   try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
@@ -703,15 +829,105 @@ function round_(prefetched) {
  */
 function schedule_(pages) {
   pages = pages || {};
-  var out = fromCorriere_(pages.corriere);
-  if (!out.length) out = fromSky_(pages.sky);
-  // Third, and arguably the one that should be first: SOS Fanta states each kick-off as an ISO
-  // instant in an attribute (`<time datetime="2026-09-19T13:00:00.000Z">`), so it needs no date
-  // parsing and no locale at all. It is kept last because the other two are the ones verified against
-  // each other, and the schedule is what arms every capture - a reader that has never been wrong is
-  // not a reason to displace two that have been checked. Its own agreement is measured: all eight
-  // kick-off instants identical to Corriere's and Sky's.
-  return out.length ? out : fromSosfanta_(pages.sosfanta);
+  // THE UNION OF THE THREE, fixture by fixture, and not the first page that answers. A page drops a
+  // fixture the moment its official line-ups are out: on Friday 16/10/2026 at 20:31 Corriere carried
+  // 8 fixtures of 10 and NOT Frosinone-Sassuolo, the opener, so the capture of round 7 stored no
+  // kick-off for that match, the Sheet believed the round opened on Saturday at 15:00, the planner
+  // armed a SECOND capture on a round already under way, and the pruner kept that late one in place
+  // of the opener's photograph. Sky and SOS Fanta still carried the match at that instant.
+  // Corriere keeps precedence on the instant where it has the fixture (verified against Sky), then
+  // Sky, then SOS Fanta, which states an ISO instant and has agreed with both on every kick-off read.
+  return mergeSchedules_([fromCorriere_(pages.corriere), fromSky_(pages.sky), fromSosfanta_(pages.sosfanta)]);
+}
+
+/** One fixture per pair of clubs, the first list that names it decides its instant. Pure, so the
+ *  harness reaches it. */
+function mergeSchedules_(lists) {
+  var out = [];
+  var seen = {};
+  (lists || []).forEach(function (cal) {
+    (cal || []).forEach(function (f) {
+      var k = [clubKey_(f.home), clubKey_(f.away)].sort().join('|');
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push(f);
+    });
+  });
+  return out;
+}
+
+/**
+ * The opener the planner ARMED a capture on, remembered per (season, round).
+ *
+ * The calendar pages forget a fixture once it is under way, so the one instant every rule here hangs
+ * on - the round's first kick-off - cannot be left to whatever the pages still show later. The planner
+ * knew it on the morning it armed the capture; it is written down then and read back by the capture
+ * (so the opener's two clubs carry their kick-off even if every page dropped them), by the deadline
+ * (`openerIndex_`) and by the stale-calendar test of the Stato tab.
+ */
+function rememberOpener_(anchor, fx) {
+  if (!anchor || !anchor.round || !fx) return;
+  PropertiesService.getScriptProperties().setProperty('OPENER|' + anchor.season + '|' + anchor.round,
+    JSON.stringify({ kickoff: fx.kickoff.toISOString(), home: fx.home, away: fx.away }));
+}
+
+/** Every remembered opener, as [{season, round, kickoff (Date), home, away}]. Empty outside Google. */
+function plannedOpeners_() {
+  if (typeof PropertiesService === 'undefined') return [];
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var out = [];
+  Object.keys(props).forEach(function (k) {
+    var m = k.match(/^OPENER\|([^|]+)\|(\d+)$/);
+    if (!m) return;
+    try {
+      var o = JSON.parse(props[k]);
+      out.push({ season: m[1], round: Number(m[2]), kickoff: new Date(o.kickoff), home: o.home, away: o.away });
+    } catch (e) { /* a property nobody can parse is not an opener */ }
+  });
+  return out;
+}
+
+/** The calendar with the remembered opener of this round put back if the pages dropped it. */
+function withPlannedOpener_(cal, anchor) {
+  if (!anchor || !anchor.round) return cal;
+  var p = plannedOpeners_().filter(function (o) {
+    return o.round === Number(anchor.round) && o.season === anchor.season;
+  })[0];
+  return p ? mergeSchedules_([cal, [p]]) : cal;
+}
+
+/**
+ * Kick-off instants known to belong to a round BEFORE `round`: stored on its rows, or remembered as its
+ * opener. A calendar fixture at one of these instants is the previous round still on the page.
+ * ONE definition, read by the planner and by the Stato tab - the two used to disagree, and the cost
+ * was a false "TURNO 8 PERSO" on 20/10/2026 about a round that opens on the 23rd.
+ */
+function earlierRoundKickoffs_(round, values) {
+  var out = {};
+  if (!round) return out;
+  values = values || tab_('Probabili').getDataRange().getValues();
+  for (var i = 1; i < values.length; i += 1) {
+    if (values[i][12] && Number(values[i][0]) < round) out[new Date(values[i][12]).getTime()] = true;
+  }
+  plannedOpeners_().forEach(function (o) { if (o.round < round) out[o.kickoff.getTime()] = true; });
+  return out;
+}
+
+/** Does the Sheet hold any reading of this (season, round)? The season matters: round 1 of a new
+ *  season must not read as photographed because last August's round 1 is still in the tab. */
+function hasReading_(anchor) {
+  var v = tab_('Probabili').getDataRange().getValues();
+  for (var i = 1; i < v.length; i += 1) {
+    if (Number(v[i][0]) === Number(anchor.round) && String(v[i][1]) === String(anchor.season)) return true;
+  }
+  return false;
+}
+
+/** The calendar without the fixtures of earlier rounds, and how many were dropped. */
+function freshFixtures_(cal, round) {
+  var old = earlierRoundKickoffs_(round);
+  var fresh = cal.filter(function (f) { return !old[f.kickoff.getTime()]; });
+  return { fresh: fresh, dropped: cal.length - fresh.length };
 }
 
 function fromSosfanta_(prefetched) {
@@ -1076,6 +1292,7 @@ function score() {
   // six-minute-limit problem. It also stops Veri being rewritten: only rounds fetched THIS run are
   // appended, so a round whose captures were removed keeps its real elevens instead of losing them.
   var archive = truthArchive_();
+  var men = truthMen_();
   var freshRows = [];
   var fetched = 0;
   var truthOf = function (season, round) {
@@ -1120,8 +1337,12 @@ function score() {
       // token is claimed twice and therefore refused, plus two names one site spells differently.
       var said = {};
       var unresolved = 0;
+      // A name stored without an id is tried again HERE, with today's rules (initials, aliases, the
+      // truth archive's roster), so a fix to the identity reaches every round already in the Sheet
+      // without rewriting its rows - the row keeps the source's own spelling.
       best[k].rows.forEach(function (p) {
-        if (p.fcId) said[String(p.fcId)] = p.player; else unresolved += 1;
+        var id = (p.fcId && p.fcId !== 'undefined') ? p.fcId : resolve_({}, clubKey, p.player, men);
+        if (id) said[String(id)] = p.player; else unresolved += 1;
       });
       var nullSaid = {};
       nullEleven.forEach(function (p) { nullSaid[String(p.fcId)] = 1; });
@@ -1233,7 +1454,11 @@ function refreshStatus(pages) {
   // taken after it.
   var next = null;
   cal.forEach(function (f) { if (f.kickoff > now && (!next || f.kickoff < next.kickoff)) next = f; });
-  var first = firstFixture_(cal);
+  // The previous round still on a page is set aside before the opener is chosen (`freshFixtures_`):
+  // a calendar of round 7 under an anchor saying 8 is a calendar not yet updated, not a round 8 lost.
+  var split = anchor.round ? freshFixtures_(cal, anchor.round) : { fresh: cal, dropped: 0 };
+  var stale = cal.length > 0 && split.fresh.length === 0;
+  var first = firstFixture_(stale ? cal : split.fresh);
   var openPassed = first && first.kickoff <= now;
 
   var taken = captureSummary_(anchor.round);
@@ -1246,14 +1471,7 @@ function refreshStatus(pages) {
   // Sheet printed "TURNO 6 PERSO" about a round nobody had had the chance to capture. It is provable
   // from the Sheet rather than guessed: if the opener this calendar shows is a kick-off ALREADY stored
   // under an earlier round, the calendar is the old one.
-  var stale = false;
-  if (first) {
-    var t = first.kickoff.getTime();
-    var pv = tab_('Probabili').getDataRange().getValues();
-    for (var q = 1; q < pv.length && !stale; q += 1) {
-      if (pv[q][12] && Number(pv[q][0]) < anchor.round && new Date(pv[q][12]).getTime() === t) stale = true;
-    }
-  }
+  // (`stale` is decided above, by the same definition the planner uses.)
 
   // ---- the verdict -------------------------------------------------------------------------
   var verdict, colour;
@@ -1348,12 +1566,12 @@ function refreshStatus(pages) {
       'turni scorati: ' + rank[1][col('rounds')]);
     for (var i = 1; i < rank.length; i += 1) {
       note('  ' + rank[i][col('source')], (rank[i][col('share')] * 100).toFixed(1) + '% degli undici veri',
-        'null ' + (rank[i][col('null_share')] * 100).toFixed(1) + '% -> margine '
+        'ricopiando la giornata prima: ' + (rank[i][col('null_share')] * 100).toFixed(1) + '% -> margine '
         + (rank[i][col('margin_pt')] >= 0 ? '+' : '') + Number(rank[i][col('margin_pt')]).toFixed(1) + ' punti'
         + (rank[i][col('unresolved')] ? ' | ' + rank[i][col('unresolved')] + ' nomi non risolti' : ''));
     }
     note('  come si legge', 'il margine, non la percentuale',
-      'il null e\' l\'undici della partita precedente: una fonte vale solo quanto lo batte');
+      'il riferimento e\' ricopiare l\'undici della partita precedente: una fonte vale solo quanto lo batte');
     // What the number is ABOUT, said where it is read: with the capture fifteen minutes out, the
     // official eleven is already public, so this largely measures who copies it soonest.
     var afterAll = 0, clubsAll = 0, unknownAll = 0;
@@ -1543,15 +1761,25 @@ function kickoffIndex_(values) {
  * A round whose rows carry no kick-off at all has no opener, and there `chosenTakes_` keeps the
  * newest reading rather than none: an unknown deadline must not silently delete a prediction.
  */
-function openerIndex_(values) {
+function openerIndex_(values, planned) {
   var out = {};
+  var seasonOf = {};
   for (var i = 1; i < values.length; i += 1) {
     var r = values[i];
+    if (r[0] !== '' && r[0] !== null) seasonOf[Number(r[0])] = String(r[1]);
     if (!r[12]) continue;
     var round = Number(r[0]);
     var t = new Date(r[12]).getTime();
     if (out[round] === undefined || t < out[round]) out[round] = t;
   }
+  // The opener the planner armed on counts too: a round whose opener's clubs were dropped by every
+  // page before the capture would otherwise date its deadline from its SECOND fixture (round 7 of
+  // 2026-27, 16/10/2026). Only for a round of the same season the rows are in.
+  (planned === undefined ? plannedOpeners_() : planned).forEach(function (o) {
+    if (seasonOf[o.round] !== o.season) return;
+    var t = o.kickoff.getTime();
+    if (out[o.round] === undefined || t < out[o.round]) out[o.round] = t;
+  });
   return out;
 }
 

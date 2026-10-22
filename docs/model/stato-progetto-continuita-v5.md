@@ -1,5 +1,14 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXVII): 11 ottobre 2026 — IL WIDGET PROVATO SUL TELEFONO VERO, E LA GIORNATA CORRENTE.**
+**Aggiornato (XXVIII): 19 ottobre 2026 — LA PAGINA FORMAZIONE LEGGE IL CSV DELLE ROSE, NIENTE PIÙ LOGIN.**
+Il login a Leghe ed EuroLeghe risponde `403 FAIL` (non `ATH018`) sia diretto sia dal Worker pubblicato il 16/10, quindi
+per decisione dell'operatore la rosa arriva dall'export CSV della lega («Carica rosa», `core/roster-file.ts`,
+`ui/roster-upload/`). Più rose, una per fantasquadra, sincronizzate fra dispositivi tramite il foglio delle probabili
+(`scripts/gas/rosters.gs`, stessa `WIDGET_SECRET` del widget, verificato distribuito); ogni squadra ha un ID e non un
+nome, e un export più recente aggiorna la squadra scelta. Pubblicato v0.1.57. **Da fare dall'operatore**: ridistribuire
+`widget.gs`, lanciare una volta `widgetRemoveLoginTeams` (toglie i doppioni del widget dell'epoca del login), reinviare
+le squadre al widget. Dettaglio e aperti: **`formazione-leghe-v1.md`** §4-undecies e §5.
+
+· precedente: **Aggiornato (XXVII): 11 ottobre 2026 — IL WIDGET PROVATO SUL TELEFONO VERO, E LA GIORNATA CORRENTE.**
 Collegato in debug wireless il telefono dell'operatore (moto g85 5G, Android 16, launcher Motorola) si è trovata la
 causa delle partite che non comparivano: gli stemmi passati come bitmap nelle righe (`views_bitmap_memory` 764.928
 byte) facevano fermare la lista alla 13ª riga di 48; ora passano per URI (`CrestProvider`) e arrivano tutte. Poi, su
@@ -10778,3 +10787,25 @@ sue occasioni tende a rientrare; è il caso Zaccagni (0,23). **Correzione a verb
 attaccanti» — falso, il marchio vale per ogni riga che non sia una porta (`goal ? null : …`); e le altre due icone
 basate su xG+xA (`promise`/`flop_risk`, `player-screens.ts`) sono un'altra cosa, per ruolo e prezzo. Nessun codice
 cambiato in questo blocco.
+
+## 20 ottobre 2026 — IL WIDGET: UNA VOLTA PER UOMO, PALLINI, CLASSIFICA (v0.3.5)
+
+Solo widget, nessun numero del motore. Un uomo in due fantasquadre compare una volta (`widget.gs`); davanti ai
+calciatori di ogni squadra un pallino del colore predominante dello stemma; la seconda squadra va a capo se non sta
+sulla riga; i nomi in un bianco più scuro; la posizione in classifica accanto a ogni squadra (`widgetTables_`);
+spazio fra le partite 8dp coi calciatori, 4dp senza. `widget.gs` aggiornato online dall'operatore e verificato
+sulla lista viva (11:47); APK 0.3.5 installato via debug wireless e verificato a schermo. Dettaglio e trappole:
+`widget-android-v1.md`, ultima sezione.
+
+## 20 ottobre 2026 — IL FOGLIO DELLE PROBABILI: TURNO 7 RIPARATO, NOMI RISOLTI
+Lo Stato diceva «TURNO 8 PERSO» (falso: il turno 8 apre il 23/10). Causa: la presa del turno 7 (ven 16/10 20:31)
+era giusta, ma il Corriere aveva già tolto la partita d'apertura e il calendario si leggeva solo da lui, quindi il
+foglio datava il turno da sabato, il pianificatore ha armato una seconda presa e il pruner ha tenuto quella. Curato in
+`scripts/gas/probabili-sheet.gs`: calendario = unione delle tre pagine, apertura ricordata dal pianificatore
+(ScriptProperties), niente seconda presa su un turno già fotografato, `recover` che prende l'apertura anche dalle
+foto. Turno 7 riparato e riscorato dall'operatore (verificato sul foglio). Poi i «nomi non risolti»: iniziali
+(`pickMan_`, i due Martinez), ripiego sui titolari del tab Veri, soprannomi dichiarati in `NAME_ALIASES` (Pote =
+Goncalves P., Valde = Valdepenas — confermati dall'operatore); lo scorer riprova i nomi senza id, quindi zero non
+risolti. Lo Stato scrive «ricopiando la giornata prima» al posto di «null». Script reincollato dall'operatore il 20/10. **Da verificare venerdì
+23/10:** che il pianificatore armi la presa delle 20:30 e scriva «1 capture | opener ven 23/10 20:45». Dettaglio:
+`attendibilita-probabili-v1.md` §5-bis.

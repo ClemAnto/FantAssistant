@@ -221,6 +221,15 @@ try {
   check(!!(await until(`[...document.querySelectorAll('[data-lineup-roster] li[data-fc-id]')].every((r) => ${JSON.stringify(squads.get(names[0]))}.includes(Number(r.getAttribute('data-fc-id'))))`, 20000)), `choosing «${names[0]}» brings its roster back`);
   await shot('2-roster.png');
 
+  // 3b. A NEWER EXPORT of a squad already stored updates it under the SAME id (the default «Aggiorna» is the stored
+  // squad of that league and name), instead of adding a twin - which is how the widget once showed every man twice.
+  const keysBefore = await ev(`JSON.parse(localStorage.getItem('fantassistant.lineup.rosters') ?? '[]').filter((r) => !r.removed).map((r) => r.key).sort()`);
+  await upload(0);
+  await wait(800);
+  const keysAfter = await ev(`JSON.parse(localStorage.getItem('fantassistant.lineup.rosters') ?? '[]').filter((r) => !r.removed).map((r) => r.key).sort()`);
+  check(JSON.stringify(keysBefore) === JSON.stringify(keysAfter) && keysAfter.length === 2,
+    `re-loading «${names[0]}» keeps the same ids (${keysAfter.length} squads, ${keysAfter.filter((k) => /^r-/.test(k)).length} minted ids)`);
+
   // 4. Every device: the sheet holds both; a browser that forgets its own list gets them back from the sheet.
   await until(`/sincronizzate/.test(document.body.innerText) || true`, 2000);
   await wait(1500);
