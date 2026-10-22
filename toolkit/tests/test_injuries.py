@@ -236,3 +236,74 @@ def test_an_open_spell_leaves_its_forecast_dated_and_a_closed_one_does_not(tmp_p
         "SELECT observed_on, expected_end FROM injury_forecasts ORDER BY observed_on").fetchall()]
     assert rows == [("2025-09-05", "2025-11-30"), ("2025-10-20", "2025-12-14")]
     assert tuple(conn.execute("SELECT end_date FROM injuries").fetchone()) == ("2025-12-14",)
+
+
+# The league's roster export as Leghe writes it (16/10/2026): `$,$,$` between squads, a BOM in front.
+_ROSTER_CSV = "\ufeff$,$,$\nBarciolona,2001,15\nBarciolona,2002,37\n$,$,$\nKane, ten others,2003,0\n"
+
+
+def test_a_roster_file_names_only_the_squads_asked_for(tmp_path):
+    """«Solo delle mie rose»: the file carries every squad of the league, so the squad is NAMED.
+
+    Read the way `sealed-bid.parseAwards` reads it - the LAST two commas split the line, so a squad called
+    «Kane, ten others» is one squad - and a name the file does not carry is an error that lists the squads it
+    does carry: a typo that walked nobody would read as «none of my men is injured».
+    """
+    path = tmp_path / "lega_rosters_1.csv"
+    path.write_text(_ROSTER_CSV, encoding="utf-8")
+    assert injuries.roster_file_players([path], ["barciolona"]) == [2001, 2002]
+    assert injuries.roster_file_players([path], ["Kane, ten others", " BARCIOLONA "]) == [2001, 2002, 2003]
+    try:
+        injuries.roster_file_players([path], ["Barcelona"])
+    except RuntimeError as exc:
+        assert "Barcelona".casefold() in str(exc) and "Barciolona" in str(exc)
+    else:
+        raise AssertionError("an unknown squad must not walk nobody in silence")
+
+
+def test_refreshing_named_players_touches_them_and_nobody_else(tmp_path, monkeypatch):
+    """The targeted path replaces the NAMED men's rows from their own pages, and only theirs.
+
+    The full `reingest_from_cache` deletes every Transfermarkt row and rebuilds them from the cache, which is
+    right on the DB's machine and ruinous anywhere the cache is not the DB's. Here: Kean (named, page in the
+    cache) loses the spell his page no longer carries; Lukaku (named, no page anywhere and the page does not
+    answer) keeps his rows - an empty read is «we did not look»; Dybala (not named) is not touched.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    for fc_id, name, tm_id in ((2001, "Moise Kean", "300716"), (7, "Lukaku", "96341"),
+                               (8, "Dybala", "206050")):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, name))
+        conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'transfermarkt', ?)",
+                     (fc_id, tm_id))
+        conn.execute("INSERT INTO injuries(fc_id, start_date, end_date, source) "
+                     "VALUES (?, '2019-01-01', '2019-02-01', 'transfermarkt')", (fc_id,))
+    conn.commit()
+    (ctx.config.cache_dir / "transfermarkt_injuries_300716.html").write_text(_INJURY_HTML, encoding="utf-8")
+    # A different player whose id starts with Kean's: the prefix glob must not hand his page to Kean.
+    (ctx.config.cache_dir / "transfermarkt_injuries_3007160.html").write_text(
+        _INJURY_HTML.replace("06/10/2025", "03/03/2023"), encoding="utf-8")
+    asked: list[str] = []
+    monkeypatch.setattr(injuries, "_fetch_player", lambda ctx, session, tm_id: asked.append(tm_id) or False)
+
+    out = injuries.refresh_players(ctx, [2001, 7])
+
+    assert asked == ["96341"], "Kean's page was read today: only the man with no page is asked for"
+    kean = {r[0] for r in conn.execute("SELECT start_date FROM injuries WHERE fc_id = 2001")}
+    assert kean == {"2025-10-06", "2025-01-18", "2024-12-29"}, "his rows come from his page, the stale one goes"
+    assert conn.execute("SELECT COUNT(*) FROM injuries WHERE fc_id = 7").fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM injuries WHERE fc_id = 8").fetchone()[0] == 1
+    assert out["read"] == 1 and out["failed"] == 1
+
+
+def test_the_targeted_run_refuses_what_it_cannot_honour(tmp_path):
+    ctx = _ctx(tmp_path)
+    path = tmp_path / "lega_rosters_1.csv"
+    path.write_text(_ROSTER_CSV, encoding="utf-8")
+    for kwargs in ({"roster_files": [path]}, {"teams": ["Barciolona"]},
+                   {"fc_ids": [2001], "limit": 10}, {"fc_ids": [2001], "layer": "ids"}):
+        try:
+            injuries.run(ctx, **kwargs)
+        except RuntimeError:
+            continue
+        raise AssertionError(f"{kwargs} must be refused, not half-honoured")

@@ -436,6 +436,14 @@ def build_parser() -> argparse.ArgumentParser:
                            help="re-download only the pages last read N or more days ago. This is how "
                                 "an INTERRUPTED --refresh is resumed: --stale-days 1 re-reads "
                                 "everything not read today, and pays nothing for the half already done")
+            p.add_argument("--fc-id", type=int, action="append", dest="fc_id", metavar="ID",
+                           help="re-read ONLY this player's injuries (repeatable): minutes instead of "
+                                "hours, and nobody else's rows are touched")
+            p.add_argument("--roster-file", action="append", dest="roster_file", metavar="CSV",
+                           help="a league's roster export (team,fc_id,credits - the file the Lineup "
+                                "page loads); with --team, re-read only those squads (repeatable)")
+            p.add_argument("--team", action="append", metavar="NAME",
+                           help="your squad's name in the --roster-file(s) (repeatable, case ignored)")
 
     return parser
 
@@ -520,7 +528,8 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "injuries":
                 load("injuries").run(ctx, seasons=args.season, layer=args.layer,
                                      limit=args.limit, refresh=args.refresh,
-                                     stale_days=args.stale_days)
+                                     stale_days=args.stale_days, fc_ids=args.fc_id,
+                                     roster_files=args.roster_file, teams=args.team)
             elif args.command == "performance":
                 if args.from_cache:
                     load("performance").reingest_from_cache(ctx)

@@ -757,6 +757,7 @@ export class Lineup {
         fvaWhy: fvaWords(fva, keeper) + (steady?.words ? ` · ${steady.words}` : ''),
         steadyBonus: steady?.rFactor ?? null,
         defenceBonus: steady?.defence ?? null,
+        club: this.bundleRows().get(r.fcId)?.clubId ?? null,
         fmFromLeghe: fromSheet === null && fm !== null,
         // THE ELEVEN IS CHOSEN ON THE FVA ALONE (operator, 09/10/2026: «il modulo migliore è semplicemente la
         // somma dei singoli FVA, non pensare alla probabilità di prendere il voto»). Only a man Leghe marks OUT

@@ -19,6 +19,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import vm from 'node:vm';
+import { gunzipSync } from 'node:zlib';
 
 const CSV = process.argv[2];
 if (!CSV || !existsSync(CSV)) throw new Error('usage: node scripts/e2e-lineup-file.mjs <export.csv>');
@@ -177,6 +178,35 @@ try {
   const pitch = await ev(`(() => { const p = [...document.querySelectorAll('[data-lineup-pitch] [data-place]')]; return { places: p.length, filled: p.filter((x) => x.hasAttribute('data-filled')).length, module: document.querySelector('[data-lineup-pitch] [data-module]')?.innerText ?? null }; })()`);
   check(pitch.places === 11 && pitch.filled === 11, `the pitch fields ${pitch.filled} of ${pitch.places} (${pitch.module})`);
   check(!(await ev(`!!document.querySelector('[data-lineup-save]')`)), 'no «Salva su Leghe» without Leghe');
+
+  // 2b. ONE KEEPER OF A CLUB (operator, 16/10/2026, Kohn fielded over Hradecky): every keeper on the pitch is the
+  //     likeliest of his club in this roster, by the chance the page shows. Roles and clubs come from the BUNDLE
+  //     (the club is a fact per platform, `listone_quotes`), and the step says how many clubs it judged.
+  {
+    const table = (name) => JSON.parse(gunzipSync(readFileSync(join(DIST, 'data', name))).toString('utf8'));
+    const latest = (t, keep) => {
+      const col = Object.fromEntries(t.columns.map((c, i) => [c, i]));
+      const out = new Map();
+      for (const row of t.rows) {
+        if (!keep(row, col)) continue;
+        const held = out.get(row[col.fc_id]);
+        if (!held || row[col.season] > held[col.season]) out.set(row[col.fc_id], row);
+      }
+      return { out, col };
+    };
+    const platform = first.platform === 'EuroLeghe' ? 'euro' : 'default';
+    const quotes = latest(table('listone_quotes.json.gz'), (row, col) => row[col.platform] === platform);
+    const roles = latest(table('rosters.json.gz'), () => true);
+    const keeper = (id) => roles.out.get(id)?.[roles.col.role_classic] === 'P';
+    const clubOf = (id) => quotes.out.get(id)?.[quotes.col.fc_club_id] ?? null;
+    const chances = new Map(await ev(`[...document.querySelectorAll('[data-lineup-roster] li[data-fc-id]')].map((r) => [Number(r.getAttribute('data-fc-id')), Number(r.getAttribute('data-chance'))])`));
+    const fielded = await ev(`[...document.querySelectorAll('[data-lineup-pitch] [data-place-man]')].map((m) => Number(m.getAttribute('data-place-man')))`);
+    const keepers = [...chances.keys()].filter(keeper);
+    const judged = fielded.filter(keeper).filter((id) => clubOf(id) !== null);
+    const wrong = judged.filter((id) => keepers.some((k) => k !== id && clubOf(k) === clubOf(id) && chances.get(k) > chances.get(id)));
+    check(judged.length > 0 && wrong.length === 0,
+      `fielded keepers judged ${judged.length} (roster keepers ${keepers.length}): ${wrong.length} with a likelier clubmate`);
+  }
 
   // 3. A second squad of the same file: two entries, and the selector switches between them.
   await upload(1);

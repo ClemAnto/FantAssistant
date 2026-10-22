@@ -140,6 +140,30 @@ describe('adviseLineup', () => {
     expect(fieldWeight(man('A', 7, MIN_CHANCE_ON_PITCH - 0.001))).toBeNull();
   });
 
+  it('fields only the keeper of a club most likely to play, and the FVA still decides between clubs', () => {
+    // Operator, 16/10/2026: Kohn (Monaco, 31%, FVA 5.06) was fielded over Hradecky (Monaco, 67%, FVA 5.05) - the
+    // same match and the same clean-sheet price, so only noise in the expected base vote separated them.
+    const outfield = [man('D', 6), man('D', 6), man('D', 6), man('C', 6), man('C', 6), man('C', 6), man('C', 6), man('A', 7), man('A', 7), man('A', 7)];
+    const hradecky = { ...man('P', 5.05, 0.67), club: 1 };
+    const kohn = { ...man('P', 5.06, 0.31), club: 1 };
+    const pitch = (squad: LineupMan[]) => {
+      const plan = adviseLineup(squad, CLASSIC, ['343'], FREE_BENCH, 'classic')!;
+      return { plan, ids: plan.rows.flatMap((r) => r.places).filter((p) => p.man).map((p) => p.man!.id) };
+    };
+    const same = pitch([...outfield, hradecky, kohn]);
+    expect(same.ids).toContain(hradecky.id);
+    expect(same.ids).not.toContain(kohn.id);
+    expect(same.plan.bench.map((m) => m.id)).toContain(kohn.id);
+    // The module menu reads the same rule: its total is the pitch's.
+    expect(same.plan.scores[0].total).toBeCloseTo(same.plan.total);
+    // A keeper of ANOTHER club with a better FVA still beats both: the constraint is inside a club only.
+    const other = { ...man('P', 5.3, 0.4), club: 2 };
+    expect(pitch([...outfield, hradecky, kohn, other]).ids).toContain(other.id);
+    // A keeper whose club is unknown is never barred.
+    const unknown = { ...man('P', 5.06, 0.31), club: null };
+    expect(pitch([...outfield, hradecky, unknown]).ids).toContain(unknown.id);
+  });
+
   it('never fields a man nobody can price, and does not drop him either', () => {
     const squad = [man('P', 4), man('D', null), man('D', 5)];
     const plan = adviseLineup(squad, CLASSIC, [], FREE_BENCH, 'classic')!;

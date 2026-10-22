@@ -827,6 +827,37 @@ PERSO».
 riga da leggere è il margine. Con un turno solo l'unica affermazione che regge il test dei segni è
 quella sul Corriere.
 
+### 5.6 Il secondo turno, e il primo verdetto fra le prime tre
+
+**16/10/2026, letto dal foglio** (schede `Report` e `Attendibilita`, scorate il 16/10 alle 07:11 UTC; i
+turni scorati sono il 5 e il 6, il 7 è da prendere stasera). ✅ verificato rifacendo le somme dalle righe di
+`Report`, che tornano con `Attendibilita` al decimo.
+
+| fonte | turno 5 | turno 6 | **insieme** | null | margine | uomini in più per club | non risolti |
+|---|---|---|---|---|---|---|---|
+| sosfanta.com | 90,9% | 81,8% | **86,4%** (380/440) | 77,0% | **+9,3** | +1,0 | 4 |
+| fantacalcio.it | 89,1% | 81,8% | **85,5%** (376/440) | 77,0% | +8,4 | +0,9 | 0 |
+| sport.sky.it | 89,1% | 76,8% | **83,0%** (365/440) | 77,0% | +5,9 | +0,6 | 10 |
+| corrieredellosport.it | 81,4% | 73,7% | **77,8%** (325/418) | 77,5% | +0,2 | 0,0 | 8 |
+
+Il turno 6 è più difficile per tutti (null 73% contro 81%: più cambi fra una giornata e l'altra), quindi le
+percentuali scendono; il margine sul null di sosfanta e fantacalcio resta lo stesso (+8,6 tutt'e due), Sky
+scende a +3,6 e il Corriere sta a zero per il secondo turno di fila (18 club su 20 presi).
+
+**Il test dei segni, club per club sui due turni** (vinte-perse-pari): sosfanta-Sky **11-3-26**
+(p ≈ 0,06), fantacalcio-Sky 14-8-18 (p ≈ 0,29), sosfanta-fantacalcio 11-7-22 (p ≈ 0,48); contro il Corriere
+le altre tre vincono **20-2, 21-2, 18-4** (p ≤ 0,004). Contro il null del proprio club: sosfanta 23-3,
+fantacalcio 21-3, Sky 20-5, Corriere **8-8**.
+
+Quello che regge e quello che no:
+- **Il Corriere vale il null, ed è confermato.** Due turni su due e 8-8 contro «l'undici della giornata
+  prima»: preso a 30-50 ore dall'apertura, non aggiunge informazione.
+- **sosfanta e fantacalcio sono appaiati.** 11-7 è rumore.
+- **Sky resta un po' indietro** (11-3 contro sosfanta, al limite della significatività), **ma una parte del
+  ritardo è nostra**: ha 10 nomi che la nostra identità non risolve, contati come sbagliati. Se fossero
+  tutti giusti leggerebbe 85,2%, a ridosso delle altre due. Il verdetto su Sky aspetta altri turni, o una
+  cura dell'identità.
+
 ### 5.4 Quello che il primo turno non potrà dire comunque
 
 *Scritto il 18/09/2026, prima che si giocasse: tenuto com'era, perché è la previsione a cui i numeri di
@@ -882,6 +913,9 @@ null** accanto alla percentuale, mai la percentuale da sola.
   turno comincia, perché non ci sono più prese: è quello che la regola chiede. Se un giorno servisse, la
   strada è il PRUNER — fargli tenere anche l'ultima lettura oltre l'apertura, che lo scorer già ignora
   per definizione — e mai lo scorer, o si rimette dentro la contaminazione appena tolta.
-- **Il secondo turno è il primo preso davvero con la regola nuova.** Con uno solo, l'unica affermazione
+- ~~**Il secondo turno è il primo preso davvero con la regola nuova.** Con uno solo, l'unica affermazione
   che regge il test dei segni è quella sul Corriere; il resto è una banda di tre fonti larga meno del
-  costo della nostra identità.
+  costo della nostra identità.~~ **Letto il 16/10/2026, §5.6**: il Corriere resta al null, sosfanta e
+  fantacalcio appaiati, Sky un passo indietro con 10 nomi non risolti che ne spiegano una parte.
+- **I nomi non risolti di Sky** (10 su 440, contro 0 di fantacalcio): sono quelli che separano Sky dalle
+  altre due più di quanto faccia la previsione. Da guardare uno per uno nella scheda `Report`.

@@ -40,6 +40,7 @@ import os
 import random
 import re
 import time
+from pathlib import Path
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests as curl_requests
@@ -585,21 +586,8 @@ def fetch_injury_pages(ctx: Context, seasons: tuple[str, ...], limit: int | None
     done = 0
     try:
         for fc_id, tm_id in todo:
-            if ctx.cancelled():
-                raise KeyboardInterrupt
-            _polite_sleep(ctx.cancel_event)
-            html = _get_html(session, INJURIES_ENDPOINT.format(pid=tm_id))
-            if not html:
+            if not _fetch_player(ctx, session, tm_id):
                 continue
-            _atomic_write_text(_cache(ctx.config, "injuries", tm_id), html)
-            for page in range(2, parse_max_page(html) + 1):
-                if ctx.cancelled():
-                    raise KeyboardInterrupt
-                _polite_sleep(ctx.cancel_event)
-                extra = _get_html(session, INJURIES_PAGE_ENDPOINT.format(pid=tm_id, page=page))
-                if not extra:
-                    break
-                _atomic_write_text(_cache(ctx.config, "injuries", f"{tm_id}_p{page}"), extra)
             done += 1
             if done % 25 == 0 or done == len(todo):
                 print(f"[injuries] {done}/{len(todo)} players fetched")
@@ -608,6 +596,174 @@ def fetch_injury_pages(ctx: Context, seasons: tuple[str, ...], limit: int | None
         print("[injuries] interrupted - every fetched player is cached, rerun to continue")
     finally:
         session.close()
+
+
+def _fetch_player(ctx: Context, session, tm_id: str) -> bool:
+    """One player's injury page plus its pager, into the cache. False = the first page did not answer.
+
+    One definition for the long walk and for `refresh_players`: two copies of «how a player's pages are
+    read» would cache two different sets of files for the same man.
+    """
+    if ctx.cancelled():
+        raise KeyboardInterrupt
+    _polite_sleep(ctx.cancel_event)
+    html = _get_html(session, INJURIES_ENDPOINT.format(pid=tm_id))
+    if not html:
+        return False
+    _atomic_write_text(_cache(ctx.config, "injuries", tm_id), html)
+    for page in range(2, parse_max_page(html) + 1):
+        if ctx.cancelled():
+            raise KeyboardInterrupt
+        _polite_sleep(ctx.cancel_event)
+        extra = _get_html(session, INJURIES_PAGE_ENDPOINT.format(pid=tm_id, page=page))
+        if not extra:
+            break
+        _atomic_write_text(_cache(ctx.config, "injuries", f"{tm_id}_p{page}"), extra)
+    return True
+
+
+def _records_of(paths) -> tuple[list[dict], str | None]:
+    """The dated absences on one player's cached pages, and the day the freshest of them was read."""
+    records: list[dict] = []
+    read_on: str | None = None
+    for path in paths:
+        try:
+            records += parse_injury_history(path.read_text(encoding="utf-8"))
+        except Exception as exc:   # noqa: BLE001 - a corrupt page must not abort the rest
+            print(f"[injuries] skipping unreadable {path.name}: {exc}")
+            continue
+        # The FRESHEST of his pages: a player with three pages was read in one pass, and if a
+        # re-read only refreshed the first the honest answer is still «we looked that day».
+        when = _read_on(path)
+        if read_on is None or when > read_on:
+            read_on = when
+    return records, read_on
+
+
+def roster_file_players(paths, teams) -> list[int]:
+    """The fc_ids of the NAMED squads in the league's roster export(s).
+
+    The file is the one the Lineup page loads (`app/src/app/core/roster-file.ts`): `team,fc_id,credits`, one
+    line per man, `$,$,$` between two squads - read the way `sealed-bid.parseAwards` reads it (the last two
+    commas split the line, so a squad name may itself contain a comma). It carries EVERY squad of the league,
+    so the squads are named: «solo delle mie rose» (operator, 16/10/2026). A name is matched ignoring case and
+    surrounding spaces; a name no file carries is an error that lists what the files do carry, because a typo
+    that silently walked nobody would read as «none of my men is injured».
+    """
+    by_team: dict[str, list[int]] = {}
+    for path in paths:
+        for raw in Path(path).read_text(encoding="utf-8-sig").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("$"):
+                continue
+            last = line.rfind(",")
+            prev = line.rfind(",", 0, last) if last > 0 else -1
+            if prev < 0:
+                continue
+            team = line[:prev].strip()
+            try:
+                fc_id = int(line[prev + 1:last])
+            except ValueError:
+                continue
+            if team:
+                by_team.setdefault(team, []).append(fc_id)
+    wanted = {str(name).strip().casefold() for name in teams}
+    found = {name for name in by_team if name.casefold() in wanted}
+    missing = sorted(wanted - {name.casefold() for name in found})
+    if missing:
+        raise RuntimeError(f"no squad named {', '.join(missing)} in the roster file(s); they carry: "
+                           f"{' | '.join(sorted(by_team))}")
+    out: list[int] = []
+    for name in sorted(found):
+        out += [fc_id for fc_id in by_team[name] if fc_id not in out]
+    return out
+
+
+def refresh_players(ctx: Context, fc_ids, *, refresh: bool = False,
+                    stale_days: int | None = None) -> dict:
+    """Re-read the injury pages of THESE players only, and re-ingest only them. Minutes, not hours.
+
+    Operator, 16/10/2026: «aggiornare gli infortuni solo delle mie rose». The long walk reads ~3,700 pages
+    (~3 h) and the full `reingest_from_cache` re-parses 4,000+ files and DELETES every Transfermarkt row
+    before rebuilding them from the cache - which on a machine whose cache is not the DB's would leave only
+    the men just read. So this path touches each named player and nobody else: his rows are replaced from
+    his own cached pages, and a man whose page neither answered today nor sits in the cache keeps his rows
+    as they were (an empty read is «we did not look», never «he has no injuries»).
+
+    Default staleness is ONE day: re-run after an interruption, the men already read today cost nothing.
+    """
+    conn = ctx.require_conn()
+    ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
+    if stale_days is None and not refresh:
+        stale_days = 1
+    wanted = list(dict.fromkeys(int(one) for one in fc_ids))
+    names = dict(conn.execute(
+        f"SELECT fc_id, canonical_name FROM players WHERE fc_id IN ({','.join('?' * len(wanted))})",
+        wanted)) if wanted else {}
+    tm_of: dict[int, list[str]] = {}
+    for fc_id, tm_id in conn.execute(
+            f"SELECT fc_id, source_id FROM player_xref WHERE source = 'transfermarkt' "
+            f"AND fc_id IN ({','.join('?' * len(wanted))})", wanted) if wanted else ():
+        tm_of.setdefault(int(fc_id), []).append(str(tm_id))
+    no_id = [fc_id for fc_id in wanted if fc_id not in tm_of]
+    todo = [tm_id for fc_id in wanted for tm_id in tm_of.get(fc_id, ())
+            if refresh or _stale(_cache(ctx.config, "injuries", tm_id), stale_days)]
+    print(f"[injuries] {len(wanted)} players named · {len(wanted) - len(no_id)} with a Transfermarkt id"
+          f" · {len(todo)} pages to read (~{len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60:.0f} min)")
+    if no_id:
+        print(f"[injuries] {len(no_id)} without a Transfermarkt id, left as they are: "
+              + ", ".join(names.get(fc_id, str(fc_id)) for fc_id in no_id))
+
+    session = _client()
+    failed: list[str] = []
+    done = 0
+    try:
+        for tm_id in todo:
+            if not _fetch_player(ctx, session, tm_id):
+                failed.append(tm_id)
+            done += 1
+            ctx.progress("injuries", done, len(todo), "players fetched")
+    except KeyboardInterrupt:
+        print("[injuries] interrupted - every fetched player is cached, rerun to continue")
+    finally:
+        session.close()
+
+    stored = players = 0
+    unread: list[int] = []
+    for fc_id in wanted:
+        # The glob is a prefix (id 3007 also matches 300716's files): the cache name decides.
+        paths = [path for tm_id in tm_of.get(fc_id, ())
+                 for path in sorted(ctx.config.cache_dir.glob(f"transfermarkt_injuries_{tm_id}*.html"))
+                 if (key := _INJURY_CACHE.search(path.name)) and key.group(1) == tm_id]
+        if not paths:
+            if fc_id in tm_of:
+                unread.append(fc_id)
+            continue
+        records, read_on = _records_of(paths)
+        conn.execute("DELETE FROM injuries WHERE source = 'transfermarkt' AND fc_id = ?", (fc_id,))
+        stored += upsert_injuries(conn, fc_id, records, read_on)
+        players += 1
+    conn.commit()
+    if failed:
+        print(f"[injuries] {len(failed)} pages did not answer today (their men are re-read from the cache "
+              f"where it has them)")
+    if unread:
+        print(f"[injuries] {len(unread)} players have no page at all and keep their rows: "
+              + ", ".join(names.get(fc_id, str(fc_id)) for fc_id in unread))
+
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    open_now = conn.execute(
+        f"""SELECT fc_id, start_date, end_date, detail FROM injuries
+            WHERE source = 'transfermarkt' AND fc_id IN ({','.join('?' * len(wanted))})
+              AND start_date <= ? AND (end_date IS NULL OR end_date >= ?)
+            ORDER BY start_date DESC""", (*wanted, today, today)).fetchall() if wanted else []
+    print(f"[injuries] {stored} dated absences re-read over {players} players · "
+          f"{len(open_now)} open today:")
+    for fc_id, start, end, detail in open_now:
+        print(f"[injuries]   {names.get(fc_id, fc_id)}: {detail or '?'} dal {start}"
+              f" · rientro {end or 'senza data'}")
+    return {"named": len(wanted), "read": players, "no_id": len(no_id), "failed": len(failed),
+            "open": len(open_now)}
 
 
 def reingest_from_cache(ctx: Context) -> None:
@@ -659,19 +815,7 @@ def reingest_from_cache(ctx: Context) -> None:
         if fc_id is None:
             orphans += 1
             continue
-        records: list[dict] = []
-        read_on: str | None = None
-        for path in paths:
-            try:
-                records += parse_injury_history(path.read_text(encoding="utf-8"))
-            except Exception as exc:   # noqa: BLE001
-                print(f"[injuries] skipping unreadable {path.name}: {exc}")
-                continue
-            # The FRESHEST of his pages: a player with three pages was read in one pass, and if a
-            # re-read only refreshed the first the honest answer is still «we looked that day».
-            when = _read_on(path)
-            if read_on is None or when > read_on:
-                read_on = when
+        records, read_on = _records_of(paths)
         stored += upsert_injuries(conn, fc_id, records, read_on)
         players += 1
     conn.commit()
@@ -723,13 +867,28 @@ def ingest_contract_snapshot(ctx: Context) -> None:
 
 
 def run(ctx: Context, *, seasons=None, limit: int | None = None, refresh: bool = False,
-        layer: str = "all", stale_days: int | None = None, **kwargs) -> None:
+        layer: str = "all", stale_days: int | None = None, fc_ids=None, roster_files=None,
+        teams=None, **kwargs) -> None:
     """layer='ids' (squad pages), 'injuries' (the long per-player walk), 'all', or 'reparse'.
 
     Resumable: anything already cached is not downloaded again unless refresh=True - or unless it is
     older than `stale_days`, which is how an INTERRUPTED refresh is resumed without paying twice for
     the half already re-read.
+
+    `fc_ids` and/or `roster_files` + `teams` name the players instead: only their pages are read and only
+    their rows re-ingested (`refresh_players`), and nothing else of the run happens.
     """
+    if fc_ids or roster_files or teams:
+        if roster_files and not teams:
+            raise RuntimeError("a roster file carries every squad of the league: name yours with --team")
+        if teams and not roster_files:
+            raise RuntimeError("--team names a squad of a roster file: give the file with --roster-file")
+        if seasons or limit or layer not in ("all", "injuries"):
+            raise RuntimeError("--season/--limit/--layer choose WHICH players the long walk reads: "
+                               "--fc-id/--team already named them")
+        named = list(fc_ids or []) + (roster_file_players(roster_files, teams) if roster_files else [])
+        refresh_players(ctx, named, refresh=refresh, stale_days=stale_days)
+        return
     conn = ctx.require_conn()
     if isinstance(seasons, str):
         seasons = [seasons]

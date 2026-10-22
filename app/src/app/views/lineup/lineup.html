@@ -232,6 +232,7 @@
             @for (man of shown(); track man.fcId) {
               <li
                 [attr.data-fc-id]="man.fcId"
+                [attr.data-chance]="man.chance"
                 class="lineup-grid cursor-grab items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
                 [class.opacity-50]="!!man.outLabel"
                 cdkDrag

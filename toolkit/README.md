@@ -136,6 +136,8 @@ python -m euroleghe_ingest positions --layer roles       # the granular real rol
 python -m euroleghe_ingest positions --layer crosstab    # provider slot vs listone role (offline report)
 python -m euroleghe_ingest injuries --layer ids          # Transfermarkt ids + contract expiry
 python -m euroleghe_ingest injuries --layer injuries     # the injury history, one request per player
+python -m euroleghe_ingest injuries --roster-file lega_rosters_123.csv --team "La mia squadra"
+                                                         # ...only YOUR squads (repeatable), minutes not hours
 python -m euroleghe_ingest transfers                     # clubs, coach spells, transfer fees
 python -m euroleghe_ingest elo                           # ClubElo: one request per auction date
 python -m euroleghe_ingest fc_site                       # today's probabili/indisponibili snapshot

@@ -413,6 +413,23 @@ Tre richieste dell'operatore sulla tabella, nessuna di motore (`engine_*` fermo,
   all'1% con FVA 5,2 che la regola «solo FVA» schierava): `lineup-advice.MIN_CHANCE_ON_PITCH` = 0,15 sulla
   probabilità che la pagina MOSTRA, letta da `fieldWeight` per il campo E per i totali del menù dei moduli (una
   regola, due lettori). Resta in panchina in ordine di FVA. Soglia dichiarata, non misurata.
+- **Un portiere per club in campo** (16/10/2026, sul caso Kohn schierato al posto di Hradecky, tutti e due del
+  Monaco; regola concordata con l'operatore): `lineup-advice.clubmateKeepers` - fra i portieri della rosa che
+  hanno lo STESSO club (`fc_club_id` del pacchetto) può stare in campo solo quello con la probabilità di giocare
+  più alta (a parità, l'FVA migliore); gli altri restano disponibili per la panchina. È un VINCOLO e non un peso:
+  fra portieri di club diversi decide ancora soltanto l'FVA. Applicato in `bestOnModules`, quindi vale anche per i
+  totali del menù dei moduli. Perché serviva, ✅ verificato sul pacchetto del 09/10 e sull'export della rosa:
+  - due portieri dello stesso club hanno la stessa partita e la stessa quota porta inviolata (2,76, cioè −1,02
+    gol attesi), quindi il loro FVA differisce solo per il voto base atteso, che per tutti e due sta all'ancora
+    del ruolo: Kohn 6,078 − 1,015 = **5,06**, Hradecky 6,066 − 1,015 = **5,05**. Il campo ha scelto sul rumore;
+  - il pavimento del 15% non l'ha fermato perché, con la rosa dal CSV (16/10), non c'è più la percentuale di
+    Leghe sulla partita e la «% voto» è la quota di STAGIONE del foglio (`pv / giornate`, Kohn 8,5/27 = 31%): un
+    secondo portiere gioca quando il titolare si fa male, quindi la sua quota di stagione supera il 15%. La
+    soglia era stata dichiarata su un'altra quantità.
+  Non scelta: alzare il pavimento per i soli portieri (sarebbe una seconda soglia non misurata, tarata su un caso).
+  Banco: il test unitario cade togliendo la regola (controprova fatta); il passo 2b di `e2e-lineup-file.mjs` la
+  verifica sulla pagina, ma senza quote (il banco non le serve) l'FVA del portiere è la fantamedia del foglio e lì
+  Hradecky vince comunque, quindi quel passo non separa regola accesa e spenta.
 - **Le W ai lati, la Pc al centro**: un posto che OFFRE un ruolo largo (`W/A`, `W/T`, `E/W`) va sulle fasce,
   anche se ammette altro; prima doveva essere tutto largo, e il 3-4-3 disegnava `W/A, W/A, A/PC` con la punta su
   una fascia. Nessuno slot del regolamento offre insieme un ruolo largo e `PC`, quindi la punta non esce mai.

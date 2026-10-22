@@ -495,6 +495,30 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.107 (16 ottobre 2026 — GLI INFORTUNI DELLE SOLE MIE ROSE, `injuries --team`)
+
+Dalla richiesta dell'operatore: «puoi aggiornare gli infortuni/infortunati solo delle mie rose?». Il giro
+lungo di `injuries` legge ~3.700 pagine (~3 h) e poi `reingest_from_cache`, che **cancella tutte le righe
+Transfermarkt e le ricostruisce dalla cache**: giusto sulla macchina del DB, rovinoso dove la cache non è
+quella del DB (su una macchina senza cache lascerebbe in tabella solo gli uomini appena letti).
+
+- **`injuries --roster-file CSV --team NOME`** (ripetibili) e **`--fc-id N`**: il file è l'export delle rose
+  che la pagina Formazione carica (`team,fc_id,credits`, `$,$,$` fra due squadre), letto come lo legge
+  `sealed-bid.parseAwards` (le ultime due virgole). Il file porta TUTTE le squadre della lega, quindi la
+  squadra si NOMINA; un nome che il file non porta è un errore che elenca le squadre che porta.
+- **`refresh_players`**: legge le pagine dei soli uomini nominati (staleness di default un giorno, quindi
+  una corsa interrotta riparte senza ripagare) e **re-ingerisce solo loro**, ciascuno dalle sue pagine.
+  Chi non ha una pagina né oggi né in cache **tiene le sue righe** («vuoto = ignoto»), chi non è nominato
+  non viene toccato. Stampa gli stop aperti oggi, nome per nome.
+- Una definizione per «come si leggono le pagine di un uomo» (`_fetch_player`) e una per «cosa portano»
+  (`_records_of`): il giro lungo e quello mirato le condividono. `--season/--limit/--layer` insieme ai nomi
+  sono rifiutati invece di essere ignorati.
+- **Da fare sulla macchina col DB** (la cache e il DB stanno lì): la corsa mirata, poi `export`, poi
+  `data:pull` + `deploy:pages` (o `data:pack` → `data:import`). Non serve rifare i fogli: i marchi
+  d'infortunio dell'app leggono la tabella `injuries` del bundle. Accanto, il canale veloce
+  `fc_site` (la pagina *indisponibili*, sei richieste in tutto) resta per campionato e non per uomo.
+  `engine_*` fermo, `SHEET_REVISION` fermo.
+
 ## Novità v9.106 (9 ottobre 2026 — I CLUB DI FANTACALCIO.IT PER IL LORO ID, `fc_teams`)
 
 Dalla domanda dell'operatore sulla pagina Formazione: «PSG-MAN ... MAN che squadra è?». È **Le Mans**

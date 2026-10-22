@@ -61,6 +61,38 @@ export function fieldWeight(man: LineupMan): number | null {
   return man.chance >= MIN_CHANCE_ON_PITCH ? man.points : null;
 }
 
+/** A keeper, classic `p` or Mantra `por` (lowercase codes, as `LineupMan.roles` holds them). */
+function isKeeper(man: LineupMan): boolean {
+  return man.roles.includes('p') || man.roles.includes('por');
+}
+
+/**
+ * ONE KEEPER OF A CLUB PLAYS, SO ONLY ONE OF A CLUB MAY BE FIELDED (operator, 16/10/2026, on Kohn fielded over
+ * Hradecky). Two keepers of one club share the match and its clean-sheet price, so their FVA differs only by the
+ * base vote the sheet expects of each - 6.078 against 6.066 there, i.e. noise - and since the eleven ignores the
+ * chance of a vote above `MIN_CHANCE_ON_PITCH`, the noise picked the deputy. The floor did not stop him because,
+ * without Leghe's per-match percentage, his chance is the sheet's SEASON share (31%: a deputy plays when the
+ * starter is hurt). So among the keepers of a club only the one most likely to play can stand on the pitch (the
+ * better FVA breaks a tie); the others stay eligible for the bench. A CONSTRAINT, not a weight: between keepers of
+ * different clubs the FVA still decides alone. Returns the ids barred from the pitch; a keeper whose club is not
+ * known is never barred.
+ */
+export function clubmateKeepers(men: readonly LineupMan[]): Set<number> {
+  const likeliest = new Map<number, LineupMan>();
+  for (const man of men) {
+    if (man.club == null || !isKeeper(man)) continue;
+    const held = likeliest.get(man.club);
+    if (!held || man.chance > held.chance || (man.chance === held.chance && byPoints(man, held) < 0)) {
+      likeliest.set(man.club, man);
+    }
+  }
+  const barred = new Set<number>();
+  for (const man of men) {
+    if (man.club != null && isKeeper(man) && likeliest.get(man.club) !== man) barred.add(man.id);
+  }
+  return barred;
+}
+
 /**
  * DOES THIS MODULE EARN THE DEFENCE MODIFIER? Classic: only with at least FOUR defenders (operator, 09/10/2026: «le
  * difese con < 4 difensori non ottengono questo bonus»; Leghe's `ModificatoriHelper.ModificatoreDifesa` returns 0
@@ -107,9 +139,12 @@ export function bestOnModules(
 ): Eleven<LineupMan> | null {
   let best: Eleven<LineupMan> | null = null;
   const scores: { module: string; total: number; placed: number }[] = [];
+  // Here and not in `adviseLineup`, so the module menu's totals obey the same rule as the pitch.
+  const barred = clubmateKeepers(men);
   for (const [name, shape] of Object.entries(rules.modules)) {
     const one = { ...rules, modules: { [name]: shape } };
-    const eleven = bestEleven(men, one, weightOn(earnsDefence(placesIn(rules, name), game)));
+    const weight = weightOn(earnsDefence(placesIn(rules, name), game));
+    const eleven = bestEleven(men, one, (man) => (barred.has(man.id) ? null : weight(man)));
     if (!eleven) {
       scores.push({ module: name, total: 0, placed: 0 });
       continue;
@@ -168,6 +203,8 @@ export interface LineupMan extends Placeable {
    */
   steadyBonus?: number | null;
   defenceBonus?: number | null;
+  /** The bundle's club id (`fc_club_id`): two keepers of one club never share the pitch (`clubmateKeepers`). Absent = unknown. */
+  club?: number | null;
 }
 
 export interface LineupPlace {
