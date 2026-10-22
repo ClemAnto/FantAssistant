@@ -417,7 +417,26 @@ def matchday_dates(conn: sqlite3.Connection, platform: str, season: str) -> dict
                WHERE season = ? AND competition = 'serie_a' AND source = 'sofascore'
                  AND real_md IS NOT NULL AND match_date IS NOT NULL
                GROUP BY real_md""", (season,))
-    return {int(md): date for md, date in rows if md is not None and date}
+    dates = {int(md): date for md, date in rows if md is not None and date}
+    # IL CALENDARIO COME RIPIEGO, solo per le giornate che il livello per-partita non porta (22/10/2026). Quel
+    # livello viene da un provider che risponde 403 dal 24/09/2026, quindi le giornate giocate dopo hanno i voti
+    # in archivio e nessuna data: non erano mai «viste», e il bersaglio delle presenze si calcolava su quelle
+    # che restano DOPO la 5a mentre se ne erano giocate 7. `fixtures` porta la data PROGRAMMATA di ogni turno
+    # (l'ultima partita, per la stessa ragione di sopra); un rinvio deciso dopo l'ultima lettura non si vede, e
+    # vale meno di una giornata intera ignorata. Riempie e non sovrascrive: dove il livello c'e', decide lui.
+    if platform == "euro":
+        fallback = conn.execute(
+            """SELECT m.euro_md, MAX(f.date) FROM matchday_map m
+               JOIN fixtures f ON f.season = m.season AND f.league = m.league AND f.round = m.real_md
+               WHERE m.season = ? GROUP BY m.euro_md""", (season,))
+    else:
+        fallback = conn.execute(
+            """SELECT round, MAX(date) FROM fixtures
+               WHERE season = ? AND league = 'serie_a' AND round IS NOT NULL GROUP BY round""", (season,))
+    for md, date in fallback:
+        if md is not None and date and int(md) not in dates:
+            dates[int(md)] = date
+    return dates
 
 
 def matchdays_before(conn: sqlite3.Connection, platform: str, season: str, date: str) -> set[int]:
@@ -1894,6 +1913,9 @@ def feature_availability(observations: list[Observation]) -> dict[str, dict[str,
             for name, _description in FEATURE_CHECKS}
 
 
+IN_PROGRESS_SHARE = 0.8
+
+
 def target_matchdays(target_rounds: int, prev_rounds: int, seen: int) -> tuple[int, bool]:
     """Le giornate che il modello sta PREVEDENDO, e se sono un ripiego: (giornate, ripiego?).
 
@@ -1915,9 +1937,20 @@ def target_matchdays(target_rounds: int, prev_rounds: int, seen: int) -> tuple[i
     numero crudo, e un calendario negativo moltiplicato dentro una colonna non si lamenta. Il gate non e'
     toccato ne' qui ne' li': le sue finestre hanno la stagione bersaglio COMPLETA in archivio - una
     pre-stagione non ha giornate viste e una in-season legge 38 - k - quindi questo ramo non scatta mai.
+
+    E UNA STAGIONE A META' NON E' «COMPLETA PIU' CORTA» (22/10/2026, trovato dall'operatore sullo Scout: Gvardiol
+    valeva meno di Veiga). Il primo ramo leggeva il conteggio in archivio come il TOTALE della stagione appena le
+    giornate votate superavano quelle viste: alla 7a di Serie A in archivio, con le date per-partita ferme alla 5a
+    (il provider risponde 403 dal 24/09), il bersaglio era **7 - 5 = 2** su tutti e tre i fogli, e ogni presenza
+    attesa una previsione su due giornate - arrotondata a un decimale e poi riportata su 38, cioe' passi del 5% di
+    stagione. Una stagione con meno di `IN_PROGRESS_SHARE` delle giornate della precedente e' IN CORSO, e il suo
+    totale e' quello della precedente. La soglia separa senza ambiguita': le stagioni complete in archivio
+    differiscono dalla precedente di al piu' due giornate (euro 27-31), quindi nessuna finestra del gate cambia.
     """
-    if target_rounds - seen > 0:
-        return target_rounds - seen, False
+    in_progress = prev_rounds > 0 and target_rounds < IN_PROGRESS_SHARE * prev_rounds
+    total = prev_rounds if in_progress else target_rounds
+    if total - seen > 0:
+        return total - seen, in_progress
     return max(prev_rounds - seen, 1), True
 
 

@@ -77,6 +77,12 @@ export const routes: Routes = [
     loadComponent: () => import('./views/lineup/lineup').then((m) => m.Lineup),
   },
   {
+    // LO SCOUT (22/10/2026): gli scambi che migliorano la sua rosa E quella dell'altro, accanto alla formazione.
+    path: 'scout',
+    data: { nav: { label: 'Scout', title: 'Scout scambi', icon: 'swap' } satisfies NavDeclaration },
+    loadComponent: () => import('./views/scout/scout').then((m) => m.Scout),
+  },
+  {
     path: 'why',
     data: {
       // L'etichetta e' corta perche' e' il tooltip di un'icona; il titolo e' la domanda intera.

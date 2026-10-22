@@ -7429,6 +7429,19 @@ fielding a bonus player with a same-role cover on the bench costs only the 15-30
 EMPTY; now a browser pushes on opening when it holds what the sheet lacks), and **a test against a live store
 leaves tombstones, not deletions** - the store has no delete.
 
+## The SCOUT page and the 2-round presences, 22/10/2026
+`/scout` (`app/src/app/core/scout.ts`, `views/scout/`) proposes 1x1 and 2x2 trades on the rosters loaded for the
+Lineup page. Every rule is a CONSTRAINT born from a case the operator named, and the list is in
+`docs/model/scout-scambi-v1.md` §2. Two lessons that outlive the page. **A comparison that names a man must name one
+who STAYS**: comparing the target with the man being given away is a like-for-like swap, not a need filled (Semenyo
+«better than» Barnes, who was the payment). **A guard built on a word measured for another question hides the right
+answers**: a category filter, written for Gvardiol (`top`) against Veiga (`scarto`), blocked Pedro Neto because his
+category is measured among FORWARDS - and the Gvardiol case was a data bug, not a category one.
+That bug: `features.target_matchdays` read the ARCHIVED rounds of a season in progress as its total, so with the
+per-match dates stuck at round 5 (SofaScore 403) every sheet predicted presences on **2 rounds** (7 − 5). A season
+under 80% of the previous one's rounds is now IN PROGRESS and takes the previous total; missing round dates fall
+back to `fixtures`. `--verify` 22/22. *A wrong denominator four steps upstream looked, on screen, like a bad trade.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

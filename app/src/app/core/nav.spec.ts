@@ -29,6 +29,7 @@ describe('core/nav', () => {
       '/auction',
       '/sealed-bid',
       '/lineup',
+      '/scout',
       '/why',
       '/hello',
     ]);

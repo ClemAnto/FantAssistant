@@ -1084,6 +1084,13 @@ def test_un_calendario_NEGATIVO_e_una_stagione_senza_calendario_come_lo_zero():
     # ...e un calendario che non esiste da nessuna parte non scende sotto UNA giornata: una previsione
     # si divide per quel numero
     assert target_matchdays(0, 0, 0) == (1, True)
+    # UNA STAGIONE A META' (22/10/2026): 7 giornate votate su 38, 5 viste - il bersaglio era 7 - 5 = 2, cioe' due
+    # giornate prezzate come una stagione. Il totale di una stagione in corso e' quello della precedente.
+    assert target_matchdays(7, 38, 5) == (33, True)
+    assert target_matchdays(7, 38, 7) == (31, True)
+    # ...e una stagione COMPLETA piu' corta della precedente (euro 29 dopo 30) resta la sua: il gate non cambia
+    assert target_matchdays(29, 30, 0) == (29, False)
+    assert target_matchdays(29, 30, 6) == (23, False)
 
     # il consumatore scrive la NOTA e non rifa' il conto
     source = inspect.getsource(snap.engine_predictions)

@@ -10854,3 +10854,22 @@ Dettaglio e numeri: `formazione-leghe-v1.md` §4-duodecies. Commit `21a3ae6` + `
 - Banco: `e2e-lineup-file.mjs <csv> [odds.json]` (il secondo argomento semina una cattura della scheda `Quote`).
   `e2e-lineup-offline.mjs` è ROSSO e lo era già prima: simula il login a Leghe, che la pagina non fa dal 16/10.
 - La chiave del widget è stata scritta in chat dall'operatore: non salvata da nessuna parte, consigliato cambiarla.
+
+## 22 ottobre 2026 (sera) — LO SCOUT SCAMBI E LE PRESENZE SU 2 GIORNATE (non pubblicato)
+
+Dettaglio completo: [scout-scambi-v1.md](scout-scambi-v1.md).
+
+- **Nuova pagina `/scout`** (nav dopo Lineup): sulle rose caricate per la Formazione propone scambi 1x1 e 2x2 che
+  migliorano SUBITO l'undici di entrambe le squadre. Regole come vincoli, ognuna nata da un caso dell'operatore
+  (Rice/Stiller, Cunha/Marmoush, Yamal, Olise/Baku, Semenyo, Kane/Romulo, Ezzalzouli): chi dai è cedibile; chi
+  ricevi batte un tuo titolare che resta e chi dai batte un loro titolare; entrambi gli undici guadagnano ≥ 0,1 e in
+  modo paragonabile; i due calciatori valgono più o meno lo stesso; supertop solo per supertop; la FORMA (media voto
+  ultime 5) di chi offri non è peggiore di più di 0,25 di quella di chi chiedi. Riga sintetica «A × B», «+ dettagli»
+  con la tabella MIEI | SUOI per sostituzione, stagioni, stampa e trend. Ultima ricerca 2x2 salvata al refresh.
+- **Bug del toolkit trovato dallo Scout (Gvardiol contro Veiga)**: `features.target_matchdays` prevedeva le presenze
+  su **2 giornate** su tutti e tre i fogli (archivio 7 − viste 5, con le date per-partita ferme dal 24/09). Curato
+  (stagione in corso = totale della precedente; date di ripiego da `fixtures`): Serie A 31 giornate, EuroLeghe 25.
+  `--verify` 22/22, toolkit 1042 verdi, app 1573+ verdi. Fogli, export e `data:pull` rifatti; **Pages NON
+  aggiornato**: il sito pubblicato ha ancora i fogli con le presenze su 2 giornate.
+- **Prossimi passi**: pubblicare (decisione dell'operatore); ridurre le varianti quasi-uguali del 2x2; valutare se le
+  soglie dichiarate (forma −0,25, valore 80%, equilibrio 50%) vanno strette.

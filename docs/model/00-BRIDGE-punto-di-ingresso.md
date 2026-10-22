@@ -1,5 +1,11 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato (VIII): 9 ottobre 2026 — LINEUP, IL PRIMO CONSIGLIO E LE QUOTE DEI BOOKMAKER.** La pagina della formazione
+**Aggiornato (IX): 22 ottobre 2026 — LO SCOUT SCAMBI e LE PRESENZE SU 2 GIORNATE.** Nuova pagina `/scout`: scambi
+1x1 e 2x2 che migliorano subito l'undici di entrambe le squadre, con le regole dell'operatore come vincoli e la tabella
+MIEI | SUOI («+ dettagli»). Lungo la strada trovato e curato nel toolkit un bug che prevedeva le presenze su 2
+giornate in tutti i fogli (`features.target_matchdays`). In `scout-scambi-v1.md` e nella continuità del 22/10 (sera).
+Fogli ed export rigenerati, **Pages non aggiornato**.
+
+· precedente: **Aggiornato (VIII): 9 ottobre 2026 — LINEUP, IL PRIMO CONSIGLIO E LE QUOTE DEI BOOKMAKER.** La pagina della formazione
 si chiama LINEUP (tabella della rosa, campo, panchina, consiglio di primo taglio), mostra la quota gol e la porta
 inviolata prese da oddschecker.com/it dal foglio probabili (`scripts/gas/odds.gs`), e riconosce la partita che Leghe
 nomina dalle ROSE e non dalle sigle. In `stato-progetto-continuita-v5.md` (XXII) e `formazione-leghe-v1.md` §4-bis,
