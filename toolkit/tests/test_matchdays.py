@@ -139,3 +139,15 @@ def test_derive_from_external_maps_a_foreign_league(tmp_path):
     assert matchdays.derive_from_external(ctx) == 1
     row = conn.execute("SELECT euro_md, real_md, league, source FROM matchday_map").fetchone()
     assert tuple(row) == (1, 3, "premier_league", "sofascore")
+
+
+def test_align_season_refuses_a_round_whose_real_round_is_not_on_file_yet():
+    # Bundesliga 2026-27: the layer stops at real 4, euro 6 (really real 6) reproduces 85% of real 4
+    # because the same men play - it must not be drawn on euro 4's match (the Kane case, 22/10/2026).
+    men = range(1, 21)
+    default = {3: _scored(men, set(range(1, 7))), 4: _scored(men, {14})}
+    euro = {3: _scored(men, set(range(1, 7))), 4: _scored(men, {14}),
+            6: _scored(men, {14, 15, 16})}
+    mapped, skipped = matchdays.align_season(euro, default)
+    assert {md: real for md, (real, _c) in mapped.items()} == {3: 3, 4: 4}
+    assert len(skipped) == 1 and skipped[0].startswith("euro 6:")

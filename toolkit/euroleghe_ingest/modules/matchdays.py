@@ -109,6 +109,25 @@ def align_season(euro: dict[int, set[tuple]], default: dict[int, set[tuple]]
         if low < real_md < high and not repeated:
             best = ambiguous.pop(euro_md)[0]
             mapped[euro_md] = (best[1], round(best[0], 3))
+    # ONE REAL ROUND BELONGS TO ONE EURO ROUND. Found 22/10/2026: with
+    # the per-match layer stopped at Bundesliga round 4 (the provider answering 403), euro 6 - whose
+    # real round was not on file - matched round 4 at 85%, because week to week the same men play, and
+    # the first pass accepted it beside euro 4 at 100%. Two euro rounds then pointed at one match, so
+    # Kane's euro-6 vote was drawn on the Union Berlin game. A round that repeats one a stronger round
+    # holds is the calendar the layer has not read yet - refused, «vuoto = ignoto». The ORDER is NOT a
+    # rule here: a postponed real round is played late (La Liga 2025-26 euro 27 -> real 33 and euro 28
+    # -> real 32, both at 100%), which is why the order is only a witness for the ambiguous ones above.
+    strongest: dict[int, int] = {}
+    for euro_md, (real_md, confidence) in mapped.items():
+        held = strongest.get(real_md)
+        if held is None or confidence > mapped[held][1]:
+            strongest[real_md] = euro_md
+    for euro_md in sorted(mapped):
+        real_md, confidence = mapped[euro_md]
+        if strongest[real_md] != euro_md:
+            skipped.append(f"euro {euro_md}: real {real_md} ({confidence:.0%}) is already euro "
+                           f"{strongest[real_md]}'s - its own real round is not on file yet")
+            del mapped[euro_md]
     for euro_md, scores in sorted(ambiguous.items()):
         best, runner_up = scores[0], (scores[1] if len(scores) > 1 else (0.0, None))
         skipped.append(f"euro {euro_md}: ambiguous (best real {best[1]} {best[0]:.0%}, "
@@ -215,6 +234,13 @@ def derive_from_external(ctx: Context, leagues=None) -> int:
             "AND source = 'derived'", (season, league))}
         agree = sum(1 for euro_md, (real_md, _c) in mapped.items()
                     if derived.get(euro_md) == real_md)
+        # A round this run refuses must not keep the map an earlier run wrote (Bundesliga 2026-27
+        # euro 6 -> real 4): replacing only what is mapped would leave the wrong row standing.
+        stale = [md for md in euro if md not in mapped and md not in derived]
+        if stale:
+            conn.execute(
+                f"DELETE FROM matchday_map WHERE season = ? AND league = ? AND source = 'sofascore' "
+                f"AND euro_md IN ({','.join('?' * len(stale))})", (season, league, *stale))
         for euro_md, (real_md, confidence) in mapped.items():
             if euro_md in derived:
                 continue
