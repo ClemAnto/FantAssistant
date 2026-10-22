@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, groupTrades, pairSwaps, quotasHold, rivalReports, runSearch, simpleSwaps, strengthOf, withoutPadding } from './scout';
+import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, groupTrades, pairSwaps, quotasHold, rivalReports, simpleSwaps, strengthOf } from './scout';
 
 /** A classic rulebook with two shapes, enough to make the matching choose. */
 const RULES = {
@@ -60,110 +60,42 @@ describe('scout', () => {
     expect(quotasHold(men, [...men.filter((m) => m !== d), otherA], true)).toBe(true);
   });
 
-  it('finds the trade that helps both: our idle striker for their missing defender', () => {
-    const mine = squad(6);
-    // We have a great forward stuck on the bench (four strong forwards for three places) and a weak defence.
-    const ourA = mine.filter((m) => m.role === 'A');
-    ourA.forEach((m, i) => { m.fm = 8 - i * 0.2; m.pv = 32; });
-    mine.filter((m) => m.role === 'D').forEach((m) => { m.fm = 5; });
-    const theirs = squad(6);
-    // They lack forwards and are deep at the back.
-    theirs.filter((m) => m.role === 'A').forEach((m) => { m.fm = 5; });
-    theirs.filter((m) => m.role === 'D').forEach((m, i) => { m.fm = 7.5 - i * 0.1; m.pv = 32; });
-    const trades = runSearch({
-      mine: { name: 'Noi', men: mine },
-      rivals: [{ name: 'Loro', men: theirs }],
-      rules: RULES,
-      rounds: 38,
-      mantra: false,
-      maxSize: 2,
-    });
-    expect(trades.length).toBeGreaterThan(0);
-    for (const trade of trades) {
-      expect(trade.ours).toBeGreaterThanOrEqual(0.1);
-      expect(trade.theirs).toBeGreaterThanOrEqual(0.1);
-    }
-    // Role-for-role totals hold on a full classic squad.
-    const top = trades[0];
-    const roles = (men: ScoutMan[]) => men.map((m) => m.role).sort().join('');
-    expect(roles(top.give)).toBe(roles(top.take));
-  });
-
-  it('groups the variants of one offer under its main pair, the rival once', () => {
+  it('groups the lines of one offer under its target, the rival once, best line first', () => {
     const big = man('C', 7, 34);
     const ours = man('A', 7, 30);
     const s1 = man('D', 5, 10);
     const s2 = man('D', 5.1, 10);
     const t1 = man('D', 5, 10);
     const t2 = man('D', 5.2, 10);
-    const trade = (give: ScoutMan[], take: ScoutMan[], gain: number, rival = 'R') =>
-      ({ rival, give, take, ours: gain, theirs: 0.2, fvmGive: null, fvmTake: null, spare: [], legal: true });
-    const groups = groupTrades(
-      [trade([ours, s1], [big, t1], 0.8), trade([ours, s2], [big, t2], 0.9), trade([ours], [t1], 0.3, 'S')],
-      (t) => t.ours,
-    );
+    const trade = (give: ScoutMan[], take: ScoutMan[], gain: number, rival = 'R') => ({ rival, give, take, ours: gain });
+    const a = trade([ours, s1], [big, t1], 0.8);
+    const b = trade([ours, s2], [big, t2], 0.9);
+    const groups = groupTrades([a, b, trade([ours], [t1], 0.3, 'S')], (t) => t.ours);
     expect(groups.map((g) => g.rival)).toEqual(['R', 'S']);
     expect(groups[0].offers.length).toBe(1);
-    const offer = groups[0].offers[0];
-    expect(offer.take.id).toBe(big.id);
-    expect(offer.giveCore.map((m) => m.id)).toEqual([ours.id]);
-    // Best variant first, and only the SECONDARY men on each line.
-    expect(offer.variants.map((v) => [v.give.map((m) => m.id), v.take.map((m) => m.id)])).toEqual([
-      [[s2.id], [t2.id]],
-      [[s1.id], [t1.id]],
-    ]);
-    expect(groups[1].offers[0].variants[0].give).toEqual([]);
+    expect(groups[0].offers[0].take.id).toBe(big.id);
+    expect(groups[0].offers[0].lines).toEqual([b, a]);
   });
 
-  it('one target, one offer: different ways of paying for him are its lines (and who replaces him for them)', () => {
-    const fernandez = man('C', 7.5, 34);
-    const sub = man('C', 6, 20);
-    const barnes = man('A', 6, 30);
-    const perez = man('A', 6.1, 30);
-    const standIns = new Map([[fernandez.id, sub]]);
-    const trade = (give: ScoutMan[], gain: number) =>
-      ({ rival: 'R', give, take: [fernandez], ours: gain, theirs: 0.2, fvmGive: null, fvmTake: null, spare: [], legal: true, standIns });
-    const [group] = groupTrades([trade([barnes], 0.5), trade([perez], 0.6)], (t) => t.ours);
-    expect(group.offers.length).toBe(1);
-    const offer = group.offers[0];
-    expect(offer.giveCore).toEqual([]);
-    expect(offer.variants.map((v) => v.give.map((m) => m.id))).toEqual([[perez.id], [barnes.id]]);
-    expect(offer.standIn?.id).toBe(sub.id);
-  });
-
-  it('never shows the same secondary man twice in one offer', () => {
+  it('never shows the same secondary man twice in one offer, and counts what it cuts', () => {
     const big = man('C', 7, 34);
     const ours = man('A', 7, 30);
     const chabot = man('D', 5, 20);
     const other = man('D', 5, 20);
     const t1 = man('D', 5, 10);
     const t2 = man('D', 5.2, 10);
-    const trade = (give: ScoutMan[], take: ScoutMan[], gain: number) =>
-      ({ rival: 'R', give, take, ours: gain, theirs: 0.2, fvmGive: null, fvmTake: null, spare: [], legal: true });
-    const [group] = groupTrades(
-      [trade([ours, chabot], [big, t1], 0.9), trade([ours, chabot], [big, t2], 0.8), trade([ours, other], [big, t2], 0.7)],
-      (t) => t.ours,
-    );
-    const lines = group.offers[0].variants.map((v) => [...v.give, ...v.take].map((m) => m.id));
-    // The second line would repeat Chabot and goes; the third repeats nobody kept and stays.
-    expect(lines).toEqual([[chabot.id, t1.id], [other.id, t2.id]]);
-  });
-
-  it('writes once, on the head line, the men every shown variant moves', () => {
-    const big = man('C', 7, 34);
-    const ours = man('A', 7, 30);
-    const always = man('D', 6, 20);
-    const t1 = man('D', 5, 10);
-    const t2 = man('D', 5.2, 10);
-    const t3 = man('D', 5.1, 10);
-    const trade = (take: ScoutMan[], gain: number) =>
-      ({ rival: 'R', give: [ours, always], take, ours: gain, theirs: 0.2, fvmGive: null, fvmTake: null, spare: [], legal: true });
-    const [group] = groupTrades([trade([big, t1], 0.9), trade([big, t2], 0.8), trade([big, t3], 0.1)], (t) => t.ours, 2);
-    const offer = group.offers[0];
-    expect(offer.giveCore.map((m) => m.id)).toEqual([ours.id, always.id]);
-    expect(offer.takeCore.map((m) => m.id)).toEqual([big.id]);
-    expect(offer.variants.map((v) => [v.give.length, v.take.map((m) => m.id)])).toEqual([[0, [t1.id]], [0, [t2.id]]]);
-    expect(offer.hidden).toBe(1);
+    const t3 = man('D', 5.3, 10);
+    const trade = (give: ScoutMan[], take: ScoutMan[], gain: number) => ({ rival: 'R', give, take, ours: gain });
+    const a = trade([ours, chabot], [big, t1], 0.9);
+    const b = trade([ours, chabot], [big, t2], 0.8);
+    const c = trade([ours, other], [big, t3], 0.7);
+    const [all] = groupTrades([a, b, c], (t) => t.ours);
+    // The second line would repeat Chabot and goes; the third repeats nobody kept and stays. `ours` moves on every
+    // line, so he is part of the offer and never a repeat.
+    expect(all.offers[0].lines).toEqual([a, c]);
+    const [cut] = groupTrades([a, b, c], (t) => t.ours, 1);
+    expect(cut.offers[0].lines).toEqual([a]);
+    expect(cut.offers[0].hidden).toBe(1);
   });
 
   it('lists a starter only against a reserve of his BASE role (Chabot is no reserve for Grimaldo)', () => {
@@ -240,10 +172,7 @@ describe('scout', () => {
     const stiller = theirs.find((m) => m.role === 'C')!;
     stiller.fm = 6.9; // better than our weakest starter, worse than Rice
     const swaps = simpleSwaps({ mine: { name: 'Noi', men: mine }, rivals: [{ name: 'Loro', men: theirs }], rules: only442, rounds: 38, mantra: true });
-    for (const s of swaps) {
-      if (s.giveCover) expect(s.ourCost).toBeGreaterThan(0);
-      expect(s.ours).toBeGreaterThanOrEqual(0.1);
-    }
+    for (const s of swaps) expect(s.ours).toBeGreaterThanOrEqual(0.1);
     expect(swaps.some((s) => s.take.id === stiller.id && s.give.id === rice.id)).toBe(false);
   });
 
@@ -324,13 +253,4 @@ describe('scout', () => {
     expect(FORM_TOLERANCE).toBeLessThan(0);
   });
 
-  it('drops a bigger trade that only carries a passenger', () => {
-    const a = man('A', 8, 30);
-    const b = man('D', 7, 30);
-    const c = man('C', 6, 30);
-    const d = man('C', 6, 30);
-    const small = { rival: 'R', give: [a], take: [b], ours: 1, theirs: 1, fvmGive: null, fvmTake: null, spare: [], legal: true };
-    const big = { rival: 'R', give: [a, c], take: [b, d], ours: 1.02, theirs: 1, fvmGive: null, fvmTake: null, spare: [], legal: true };
-    expect(withoutPadding([small, big])).toEqual([small]);
-  });
 });

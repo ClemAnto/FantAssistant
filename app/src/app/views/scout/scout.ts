@@ -27,7 +27,6 @@ import {
   PairSwap,
   FORM_TOLERANCE,
   SimpleSwap,
-  Trade,
   appealOf,
   contribution,
   groupTrades,
@@ -101,7 +100,6 @@ function restorePair(one: SavedPair, men: ReadonlyMap<number, ScoutMan>): PairSw
 
 /** One man of an offer in its comparison table. */
 export interface CompareRow {
-  side: 'Ricevi' | 'Dai';
   man: ScoutMan;
   last: SeasonLine | null;
   now: SeasonLine | null;
@@ -297,8 +295,8 @@ export class Scout {
     if (!squads || !rounds || !rules) return null;
     const strength = strengthOf(squads.mine.men, rules, rounds);
     const bench = squads.mine.men
-      .filter((man) => !strength.eleven.has(man.id) && man.fm != null && man.pv != null && man.fm * man.pv > 0)
-      .sort((a, b) => (b.fm! * b.pv!) - (a.fm! * a.pv!))
+      .filter((man) => !strength.eleven.has(man.id) && (this.perRound(man) ?? 0) > 0)
+      .sort((a, b) => this.perRound(b)! - this.perRound(a)!)
       .slice(0, 10)
       // What each is worth TO THE SQUAD: the cover he gives when a starter misses (`scout.contribution`).
       .map((man) => ({ man, worth: contribution(squads.mine.men, man, rules, rounds) }));
@@ -326,14 +324,18 @@ export class Scout {
    * THE 1x1 SWAPS (`scout.simpleSwaps`), as they are proposed: per rival, per man we go for, the men we can pay with.
    * Computed at once - a few hundred comparisons - so there is no search to launch.
    */
-  protected readonly swaps = computed(() => {
+  private readonly allSwaps = computed<SimpleSwap[]>(() => {
     const squads = this.squads();
     const rounds = this.rounds();
     const rules = this.rules();
     if (!squads || !rounds || !rules) return [];
+    return simpleSwaps({ mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() });
+  });
+
+  /** The 1x1 on screen: the rival filter and the order only regroup, they never rerun the comparisons. */
+  protected readonly swaps = computed(() => {
     const rival = this.rivalFilter();
-    const all = simpleSwaps({ mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() })
-      .filter((one) => !rival || one.rival === rival);
+    const all = this.allSwaps().filter((one) => !rival || one.rival === rival);
     // One offer per (target, starter of ours he beats): the head line names that starter, so lines paying with a
     // man who IS that starter (and therefore compare the target with somebody else) are a different offer.
     const byRival = new Map<string, Map<string, SimpleSwap[]>>();
@@ -397,11 +399,6 @@ export class Scout {
     return state.kind === 'running' && state.total ? Math.round((100 * state.done) / state.total) : 0;
   }
 
-  /**
-   * The 2x2 as they are read: per rival, one offer per TARGET (the most valuable man we take), its lines the ways of
-   * doing it - `scout.groupTrades`, the grouping the multi-trade list already had, so «nessun uomo due volte in
-   * un'offerta» and the shared core written once come with it.
-   */
   /** The 2x2 on screen: the search just run, or the last one saved for this fantasquadra. */
   protected readonly pairResult = computed<{ swaps: PairSwap[]; ms: number | null; at: string | null } | null>(() => {
     const state = this.pairState();
@@ -415,30 +412,19 @@ export class Scout {
     return { swaps, ms: null, at: saved.at };
   });
 
+  /**
+   * The 2x2 as they are read: per rival, one offer per TARGET (the most valuable man we take), its lines the ways of
+   * paying for him, no man twice in an offer (`scout.groupTrades`).
+   */
   protected readonly pairGroups = computed(() => {
     const state = this.pairResult();
     if (!state) return [];
     const rival = this.rivalFilter();
-    const byId = new Map(state.swaps.map((one, i) => [i, one]));
-    const trades: Trade[] = state.swaps
-      .map((one, i) => ({
-        rival: one.rival, give: one.give, take: one.take, ours: one.ours, theirs: one.theirs,
-        fvmGive: one.fvmGive, fvmTake: one.fvmTake, spare: one.spare, legal: true, index: i,
-      }))
-      .filter((one) => !rival || one.rival === rival);
-    const appeal = new Map(state.swaps.map((one, i) => [i, one.appeal]));
-    const groups = groupTrades(
-      trades,
-      (t) => this.rank({ ours: t.ours, theirs: t.theirs, appeal: appeal.get((t as Trade & { index: number }).index) ?? null }),
-      rival ? Infinity : 3,
-    );
-    return groups.map((group) => ({
+    const swaps = state.swaps.filter((one) => !rival || one.rival === rival);
+    return groupTrades(swaps, (one) => this.rank(one), rival ? Infinity : 3).map((group) => ({
       rival: group.rival,
       hidden: rival ? 0 : Math.max(0, group.offers.length - TARGETS_PER_RIVAL),
-      offers: (rival ? group.offers : group.offers.slice(0, TARGETS_PER_RIVAL)).map((offer) => ({
-        ...offer,
-        lines: offer.variants.map((v) => ({ ...v, swap: byId.get((v.trade as Trade & { index: number }).index)! })),
-      })),
+      offers: rival ? group.offers : group.offers.slice(0, TARGETS_PER_RIVAL),
     }));
   });
 
@@ -495,19 +481,18 @@ export class Scout {
     this.openOffer.set(this.openOffer() === key ? null : key);
   }
 
-  /** One row per man of the offer, those we ASK first: last season, this season, the press word, the strip. */
-  protected compare(take: readonly ScoutMan[], give: readonly ScoutMan[]): CompareRow[] {
+  /** One row per man of the offer: last season, this season, the press word, the strip. */
+  private compare(men: readonly ScoutMan[]): CompareRow[] {
     const r = this.readings.hasValue() ? this.readings.value() : null;
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
     const press = this.rulings.press();
-    const row = (man: ScoutMan, side: 'Ricevi' | 'Dai'): CompareRow => {
+    return men.map((man): CompareRow => {
       const mine = r?.lines.get(man.id);
       const last = (r?.last ? mine?.get(r.last) : undefined) ?? (r?.last ? r?.rebuilt.get(man.id) : undefined) ?? null;
       const now = (r?.now ? mine?.get(r.now) : undefined) ?? null;
       const word = press.get(man.id);
       const numbers = sheet?.get(man.id) ?? null;
       return {
-        side,
         man,
         last,
         now,
@@ -516,8 +501,7 @@ export class Scout {
         sheetRung: word ? null : (numbers?.titolarita ?? null),
         trend: numbers?.recentVotes ?? [],
       };
-    };
-    return [...take.map((m) => row(m, 'Ricevi')), ...give.map((m) => row(m, 'Dai'))];
+    });
   }
 
   /**
@@ -538,7 +522,7 @@ export class Scout {
     /** On a 2x2, who enters each eleven: a man with no partner who does NOT enter it stays on the bench. */
     enters?: { mine: readonly ScoutMan[]; theirs: readonly ScoutMan[] },
   ): MatrixRow[] {
-    const r = this.compare([...take, ...ourOut], [...give, ...theirOut]);
+    const r = this.compare([...take, ...ourOut, ...give, ...theirOut]);
     const of = (man: ScoutMan) => r.find((one) => one.man.id === man.id) ?? null;
     const pair = (from: readonly ScoutMan[], to: readonly ScoutMan[]): [ScoutMan | null, ScoutMan | null][] => {
       const left = [...to];

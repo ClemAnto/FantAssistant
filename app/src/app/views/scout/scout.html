@@ -119,11 +119,9 @@
           </nz-select>
         </div>
         <span class="text-xs text-muted">
-          Chi ricevi è migliore di un tuo titolare in quella posizione; chi dai è migliore di un loro titolare in quella
-          posizione; e l'undici di entrambi migliora davvero, contando anche chi parte. Nei 2x2 ogni calciatore scambiato
-          deve entrare o uscire da un undici, e lo scambio deve rendere più del 1x1 che contiene. I due guadagni sono paragonabili (nessuno più del doppio dell'altro), i due calciatori valgono più o
-          meno lo stesso (il meno forte almeno l'80% dell'altro) e un supertop si scambia solo con un supertop. Valori in punti a giornata (fantamedia × partite attese). La forma è la media voto delle ultime 5 di chi offri meno quella di chi chiedi: sotto −0,25 lo scambio non si propone, perché l'altro non lo accetterebbe.
-          <span class="text-success">★</span> = per loro è riserva.
+          Entrambi gli undici migliorano (contando chi parte), con guadagni paragonabili, calciatori di valore simile
+          (≥80%) e un supertop solo per un supertop; nei 2x2 ognuno entra o esce da un undici e lo scambio batte il 1x1
+          che contiene. Forma sotto −0.25: non proposto. Punti a giornata. <span class="text-success">★</span> = per loro è riserva.
         </span>
 
         @if (mode() === '1x1') {
@@ -153,7 +151,7 @@
             <span class="text-xs text-muted">Nessuno scambio 1x1 migliora subito entrambe le rose.</span>
           }
         } @else {
-          <!-- THE 2x2 (`scout.pairSwaps`), grouped by target as the old multi-trade list was (`scout.groupTrades`). -->
+          <!-- THE 2x2 (`scout.pairSwaps`), grouped by target (`scout.groupTrades`). -->
           @if (pairState().kind === 'idle' && !pairResult()) {
             <span class="text-xs text-muted">Premi «Cerca»: la ricerca dei 2x2 richiede qualche secondo.</span>
           }
@@ -170,10 +168,10 @@
                   @for (offer of group.offers; track offer.take.id) {
                     <div class="flex flex-col border-b border-border/50 py-1" data-scout-pair-offer>
                       @for (line of offer.lines; track $index) {
-                        @let key = offerKey(group.rival, line.swap.give, line.swap.take);
-                        <ng-container *ngTemplateOutlet="swapLine; context: { give: line.swap.give, take: line.swap.take, swap: line.swap, key: key, spare: line.swap.spare }" />
+                        @let key = offerKey(group.rival, line.give, line.take);
+                        <ng-container *ngTemplateOutlet="swapLine; context: { give: line.give, take: line.take, swap: line, key: key, spare: line.spare }" />
                         @if (openOffer() === key) {
-                          <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix(line.swap.give, line.swap.take, pushed(line.swap.theirChange, line.swap.take), pushed(line.swap.ourChange, line.swap.give), { mine: line.swap.ourChange.enter, theirs: line.swap.theirChange.enter }) }" />
+                          <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix(line.give, line.take, pushed(line.theirChange, line.take), pushed(line.ourChange, line.give), { mine: line.ourChange.enter, theirs: line.theirChange.enter }) }" />
                         }
                       }
                       @if (offer.hidden) {

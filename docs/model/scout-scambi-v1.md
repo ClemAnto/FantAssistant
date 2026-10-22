@@ -81,5 +81,7 @@ toolkit 1042 verdi, fogli + export + `data:pull` rifatti il 22/10 sera. **Non pu
 - Le soglie `FORM_TOLERANCE` (−0,25), `VALUE_RATIO` (0,8), `BALANCE_RATIO` (0,5) sono scelte DICHIARATE, non misure.
 - Nel 2x2 le varianti con la stessa coppia data e un secondo ricevuto diverso sono ancora molte (es. «Anton + Maguire
   × Stiller + …»): il nucleo comune non le fonde.
-- La ricerca 2x2 dura ~8 s nel browser; 3x3 non è esposto (il codice `searchTrades` resta).
+- La ricerca 2x2 dura ~8 s nel browser; 3x3 non è esposto. La vecchia ricerca a più uomini (`searchTrades`,
+  `withoutPadding`, `roleTilt`) e i campi che nessuna riga disegnava (`takeCover`, `giveCover`, `ourCost`, i «core»
+  delle offerte) sono stati tolti il 22/10/2026 sera nella code-review: se servirà un 3x3 si ripartirà da `pairSwaps`.
 - Banco: `node app/scripts/e2e-scout.mjs <export.csv> <squadra> [classic|mantra] [classic|euro]`.

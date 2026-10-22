@@ -95,11 +95,6 @@ export const MANTRA_KEEPERS = 3;
 /** A trade is shown when BOTH squads gain at least this much, in points a matchday. */
 export const MIN_GAIN = 0.1;
 
-/** How wide the search is: the operator's bench seeds, the beam kept per size, the men tried per extension. */
-export const SEEDS = 8;
-export const BEAM = 12;
-export const EXTEND = 10;
-
 export interface Strength {
   /** Points a matchday: starters + cover. */
   perRound: number;
@@ -187,37 +182,15 @@ export function quotasHold(before: readonly ScoutMan[], after: readonly ScoutMan
   });
 }
 
-export interface Trade {
-  rival: string;
-  give: ScoutMan[];
-  take: ScoutMan[];
-  /** Our gain and theirs, in points a matchday. */
-  ours: number;
-  theirs: number;
-  /** The FVM of what goes and what comes: how the rival is likely to read it. */
-  fvmGive: number | null;
-  fvmTake: number | null;
-  /** The men we take that sit OUTSIDE his eleven: the easier part of the ask. */
-  spare: number[];
-  /** Whether both rosters respect their quotas after it. */
-  legal: boolean;
-  /** For each starter of the rival: who plays in his place once he is gone (one map per rival, shared). */
-  standIns?: ReadonlyMap<number, ScoutMan>;
-  /**
-   * WHAT CHANGES IN EACH ELEVEN (operator, 22/10/2026, on Barnes for Valverde: «ha senso solo se lui non ha una W o A
-   * più forte di Barnes ... è così?»): the reason a trade helps a squad, said instead of left to guess. Filled only
-   * for the trades shown.
-   *
-   * The first version paired every newcomer with «whose place he takes», and read «Barnes titolare al posto di
-   * Fernandez E. e Leweling e Cucurella» (operator: «che significa?»): the rebuilt eleven had CHANGED SHAPE, so two
-   * men left it and two others of the bench came in, and pinning all of it on Barnes was false. One place does not map
-   * to one man when the module moves: the honest statement is the eleven's own difference, both ways, and the module.
-   */
-  ourChange?: ElevenChange;
-  theirChange?: ElevenChange;
-}
-
-/** How a squad's best eleven moves with a trade. */
+/**
+ * HOW A SQUAD'S BEST ELEVEN MOVES WITH A TRADE (operator, 22/10/2026, on Barnes for Valverde: «ha senso solo se lui non
+ * ha una W o A più forte di Barnes ... è così?»): the reason a trade helps a squad, said instead of left to guess.
+ *
+ * The first version paired every newcomer with «whose place he takes», and read «Barnes titolare al posto di Fernandez
+ * E. e Leweling e Cucurella» (operator: «che significa?»): the rebuilt eleven had CHANGED SHAPE, so two men left it and
+ * two others of the bench came in, and pinning all of it on Barnes was false. One place does not map to one man when
+ * the module moves: the honest statement is the eleven's own difference, both ways, and the module.
+ */
 export interface ElevenChange {
   moduleBefore: string;
   moduleAfter: string;
@@ -253,8 +226,6 @@ export interface ScoutInput {
   rules: MantraModules | null;
   rounds: number;
   mantra: boolean;
-  /** Largest trade tried: 1 = one for one, 3 = three for three. */
-  maxSize: number;
 }
 
 export interface ScoutProgress {
@@ -265,142 +236,6 @@ export interface ScoutProgress {
 const priced = (man: ScoutMan) => (valueOf(man) ?? 0) > 0;
 const fvmSum = (men: readonly ScoutMan[]) =>
   men.every((man) => man.fvm == null) ? null : men.reduce((sum, man) => sum + (man.fvm ?? 0), 0);
-
-/**
- * THE SEARCH, a beam over trade sizes, yielding its progress so a page can draw a bar and keep the browser alive.
- *
- * Size 1 starts from HIS bench (`SEEDS` strongest men outside his best eleven, which is the operator's starting
- * point) against every priced man of a rival. A partial trade is kept for the next size on the TOTAL it creates
- * (ours + theirs) and whatever the quotas say, because a one-for-one that breaks a quota or favours one side is
- * exactly what a second pair balances. Each size adds one of his `EXTEND` best men and one of the rival's.
- * Only complete trades that respect both squads' quotas and improve BOTH by `MIN_GAIN` are returned.
- */
-export function* searchTrades(input: ScoutInput): Generator<ScoutProgress, Trade[], void> {
-  const { rules, rounds, mantra } = input;
-  const cache = new Map<string, number>();
-  const strength = (men: readonly ScoutMan[]) => {
-    const key = men.map((man) => man.id).sort((a, b) => a - b).join(',');
-    let value = cache.get(key);
-    if (value === undefined) {
-      value = strengthOf(men, rules, rounds).perRound;
-      cache.set(key, value);
-    }
-    return value;
-  };
-  const mineMen = input.mine.men;
-  const baseMine = strengthOf(mineMen, rules, rounds);
-  const ourBase = baseMine.perRound;
-  const byValue = (men: readonly ScoutMan[]) => men.filter(priced).sort((a, b) => (valueOf(b) ?? 0) - (valueOf(a) ?? 0));
-  // The seeds are his strong men on the bench AND the starters he can do without (a reserve at their level): both are
-  // what he can offer without weakening his own eleven much.
-  const seeds = [
-    ...byValue(mineMen).filter((man) => !baseMine.eleven.has(man.id)).slice(0, SEEDS),
-    ...expendableStarters(mineMen, rules, rounds).map((one) => one.man),
-  ];
-  const ourExtend = byValue(mineMen).slice(0, EXTEND + SEEDS);
-
-  const perRival = input.rivals.map((rival) => byValue(rival.men));
-  const sizes = Math.max(1, Math.min(3, input.maxSize));
-  const total =
-    perRival.reduce((sum, pool) => sum + seeds.length * pool.length, 0) +
-    perRival.reduce((sum, pool) => sum + (sizes - 1) * BEAM * Math.min(EXTEND, pool.length) * ourExtend.length, 0);
-  let done = 0;
-  const out = new Map<string, Trade>();
-
-  for (let r = 0; r < input.rivals.length; r += 1) {
-    const rival = input.rivals[r];
-    const theirBase = strength(rival.men);
-    const theirEleven = strengthOf(rival.men, rules, rounds).eleven;
-    const standIns = standInsOf(rival.men, rules, rounds);
-    const evaluate = (give: ScoutMan[], take: ScoutMan[]) => {
-      const gone = new Set(give.map((m) => m.id));
-      const come = new Set(take.map((m) => m.id));
-      const ourMen = [...mineMen.filter((m) => !gone.has(m.id)), ...take];
-      const theirMen = [...rival.men.filter((m) => !come.has(m.id)), ...give];
-      const trade: Trade = {
-        rival: rival.name,
-        give,
-        take,
-        ours: strength(ourMen) - ourBase,
-        theirs: strength(theirMen) - theirBase,
-        fvmGive: fvmSum(give),
-        fvmTake: fvmSum(take),
-        spare: take.filter((m) => !theirEleven.has(m.id)).map((m) => m.id),
-        legal: quotasHold(mineMen, ourMen, mantra) && quotasHold(rival.men, theirMen, mantra),
-        standIns,
-      };
-      if (trade.ours >= MIN_GAIN && trade.theirs >= MIN_GAIN && trade.legal) {
-        const key = `${rival.name}|${give.map((m) => m.id).sort().join(',')}|${take.map((m) => m.id).sort().join(',')}`;
-        if (!out.has(key)) {
-          trade.ourChange = changeOf(mineMen, ourMen, take, rules, rounds);
-          trade.theirChange = changeOf(rival.men, theirMen, give, rules, rounds);
-          out.set(key, trade);
-        }
-      }
-      return trade;
-    };
-
-    let beam: Trade[] = [];
-    for (const give of seeds) {
-      for (const take of perRival[r]) beam.push(evaluate([give], [take]));
-      done += perRival[r].length;
-      yield { done, total };
-    }
-    for (let size = 2; size <= sizes; size += 1) {
-      beam = beam.sort((a, b) => b.ours + b.theirs - (a.ours + a.theirs)).slice(0, BEAM);
-      const theirExtend = perRival[r].slice(0, EXTEND);
-      const next: Trade[] = [];
-      const seen = new Set<string>();
-      for (const partial of beam) {
-        // A partial that moves a role across (our forward for their defender) is repaired by the next pair: what
-        // we now hold too many of goes back, what we hold too few of comes in - searched in the WHOLE squads,
-        // because the man who balances a trade is rarely one of the strongest.
-        const tilt = roleTilt(partial, mantra);
-        const repairing = !partial.legal && Object.values(tilt).some((n) => n !== 0);
-        const gives = repairing
-          ? byValue(mineMen).filter((m) => (tilt[m.role] ?? 0) > 0).slice(0, EXTEND + SEEDS)
-          : ourExtend;
-        const takes = repairing ? perRival[r].filter((m) => (tilt[m.role] ?? 0) < 0).slice(0, EXTEND) : theirExtend;
-        for (const give of gives) {
-          if (partial.give.some((m) => m.id === give.id)) continue;
-          for (const take of takes) {
-            if (partial.take.some((m) => m.id === take.id)) continue;
-            const g = [...partial.give, give];
-            const t = [...partial.take, take];
-            const key = `${g.map((m) => m.id).sort().join(',')}|${t.map((m) => m.id).sort().join(',')}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            next.push(evaluate(g, t));
-          }
-        }
-        done += ourExtend.length * theirExtend.length;
-        yield { done, total };
-      }
-      beam = next;
-    }
-  }
-  return withoutPadding([...out.values()]).sort((a, b) => b.ours - a.ours);
-}
-
-/**
- * A bigger trade that contains a smaller one and gives us no more is PADDING: the extra pair only moves men. It goes,
- * or the list fills with the same good swap carrying a passenger.
- */
-export function withoutPadding(trades: readonly Trade[]): Trade[] {
-  const inside = (small: readonly ScoutMan[], big: readonly ScoutMan[]) => small.every((m) => big.some((b) => b.id === m.id));
-  return trades.filter(
-    (trade) =>
-      !trades.some(
-        (other) =>
-          other !== trade &&
-          other.rival === trade.rival &&
-          other.give.length < trade.give.length &&
-          inside(other.give, trade.give) &&
-          inside(other.take, trade.take) &&
-          other.ours >= trade.ours - 0.05,
-      ),
-  );
-}
 
 /**
  * STARTERS WITH A RESERVE AT THEIR LEVEL (operator, 22/10/2026: «titolari con riserva all'altezza, ovvero giocatori
@@ -468,125 +303,76 @@ export function expendableStarters(men: readonly ScoutMan[], rules: MantraModule
 }
 
 /**
- * THE LIST AS IT IS READ (operator, 22/10/2026: «è inutile ripetere sempre la squadra ... evita di ripetere lo stesso
- * scambio in mille varianti: metti in evidenza i calciatori principali dello scambio ed elenca solo i secondari da
- * aggiungere»).
+ * THE LIST AS IT IS READ (operator, 22/10/2026: «evita di ripetere lo stesso scambio in mille varianti»).
  *
  * An offer is ONE TARGET (operator, same day: «raggruppiamo questi scambi, hanno tutti lo stesso obiettivo»): the most
  * valuable man we take (fantamedia x appearances). Every trade with that rival for that target is one offer, and its
- * lines are the ways of paying for him - each with its own two gains, because which man goes with which is what keeps
- * the quotas and the gains true (a «pick any of these» list would lose the pairing). Offers are grouped by rival, the
- * rival heading once; every order is by the key the page sorts on, best first.
+ * lines are the ways of paying for him - each a whole trade with its own two gains, because which man goes with which
+ * is what keeps the quotas and the gains true. Offers are grouped by rival, the rival heading once; every order is by
+ * the key the page sorts on, best first.
+ *
+ * (A version that wrote the men common to every line once, on a head line, was dropped with the multi-trade search
+ * it served: the page draws every line whole.)
  */
-export interface TradeVariant {
-  trade: Trade;
-  /** The men besides the core, each side. */
+export interface Tradeable {
+  rival: string;
   give: ScoutMan[];
   take: ScoutMan[];
 }
 
-export interface TradeOffer {
+export interface TradeOffer<T extends Tradeable> {
   /** The target: the most valuable man we take. */
   take: ScoutMan;
-  /**
-   * Who plays in HIS place in the rival's eleven once he is gone (operator: «quando l'obiettivo è molto forte
-   * indicami anche quale sarebbe l'alternativa che poi entrerebbe nell'altra squadra»). Null when he is not one of
-   * their starters, or nobody enters.
-   */
-  standIn: ScoutMan | null;
-  /**
-   * THE CORE: everybody EVERY shown line moves, each side - the target first on his side. A man common to all the lines
-   * is part of the offer and not a variant, so he is written once on the head line (the first version repeated
-   * «+ Casadei + Dovbyk» on every line). The give side may be empty: then every line pays differently.
-   */
-  giveCore: ScoutMan[];
-  takeCore: ScoutMan[];
-  /** Best line first, each with only what is NOT in the core. */
-  variants: TradeVariant[];
-  /** Lines left out by `maxVariants`. */
+  /** Best line first. */
+  lines: T[];
+  /** Lines left out by `maxLines`. */
   hidden: number;
 }
 
-export interface RivalOffers {
+export interface RivalOffers<T extends Tradeable> {
   rival: string;
-  offers: TradeOffer[];
+  offers: TradeOffer<T>[];
 }
 
 const mainOf = (men: readonly ScoutMan[]): ScoutMan =>
   [...men].sort((a, b) => (valueOf(b) ?? 0) - (valueOf(a) ?? 0) || a.id - b.id)[0];
 
-export function groupTrades(
-  trades: readonly Trade[],
-  key: (trade: Trade) => number,
+export function groupTrades<T extends Tradeable>(
+  trades: readonly T[],
+  key: (trade: T) => number,
   /** Lines kept per offer, best first; the rest are counted in `hidden`. */
-  maxVariants = Infinity,
-): RivalOffers[] {
-  const rivals = new Map<string, Map<number, TradeOffer>>();
+  maxLines = Infinity,
+): RivalOffers<T>[] {
+  const rivals = new Map<string, Map<number, TradeOffer<T>>>();
   for (const trade of [...trades].sort((a, b) => key(b) - key(a))) {
     const take = mainOf(trade.take);
-    const offers = rivals.get(trade.rival) ?? new Map<number, TradeOffer>();
+    const offers = rivals.get(trade.rival) ?? new Map<number, TradeOffer<T>>();
     rivals.set(trade.rival, offers);
-    const offer = offers.get(take.id) ?? {
-      take,
-      standIn: trade.standIns?.get(take.id) ?? null,
-      giveCore: [],
-      takeCore: [],
-      variants: [],
-      hidden: 0,
-    };
+    const offer = offers.get(take.id) ?? { take, lines: [], hidden: 0 };
     offers.set(take.id, offer);
-    offer.variants.push({ trade, give: trade.give, take: trade.take });
+    offer.lines.push(trade);
   }
   for (const offers of rivals.values()) {
     for (const offer of offers.values()) {
       // NO MAN TWICE in one offer (operator, 22/10/2026: «evita doppioni nelle offerte (chabot x2)»): best line first,
-      // a line is kept only if none of its men besides the target - and those EVERY line moves, the offer's core - is
-      // already on a kept line. The same man for a different return is the same offer worse paid, so it goes.
-      const all = offer.variants;
-      const everywhere = (m: ScoutMan) =>
-        all.every((v) => v.trade.give.some((o) => o.id === m.id) || v.trade.take.some((o) => o.id === m.id));
-      const core = (m: ScoutMan) => m.id === offer.take.id || everywhere(m);
+      // a line is kept only if none of its men besides the target - and those EVERY line moves - is already on a kept
+      // line. The same man for a different return is the same offer worse paid, so it goes.
+      const all = offer.lines;
+      const moves = (t: T, m: ScoutMan) => t.give.some((o) => o.id === m.id) || t.take.some((o) => o.id === m.id);
+      const core = (m: ScoutMan) => m.id === offer.take.id || all.every((t) => moves(t, m));
       const seen = new Set<number>();
-      offer.variants = offer.variants.filter((v) => {
-        const extra = [...v.trade.give, ...v.trade.take].filter((m) => !core(m)).map((m) => m.id);
+      const kept = all.filter((t) => {
+        const extra = [...t.give, ...t.take].filter((m) => !core(m)).map((m) => m.id);
         if (extra.some((id) => seen.has(id))) return false;
         extra.forEach((id) => seen.add(id));
         return true;
       });
-      // The core is computed on the lines SHOWN: a man common to the lines on screen repeated on each of them is
-      // what the reader sees, whatever a hidden one does.
-      offer.hidden = Math.max(0, offer.variants.length - maxVariants);
-      offer.variants = offer.variants.slice(0, maxVariants);
-      const common = (side: (t: Trade) => ScoutMan[], first: ScoutMan | null) => {
-        const rest = side(offer.variants[0].trade).filter(
-          (m) => m.id !== first?.id && offer.variants.every((v) => side(v.trade).some((o) => o.id === m.id)),
-        );
-        return [...(first ? [first] : []), ...rest.sort((a, b) => (valueOf(b) ?? 0) - (valueOf(a) ?? 0))];
-      };
-      offer.giveCore = common((t) => t.give, null);
-      offer.takeCore = common((t) => t.take, offer.take);
-      const notIn = (kept: ScoutMan[]) => (m: ScoutMan) => !kept.some((c) => c.id === m.id);
-      offer.variants = offer.variants.map((v) => ({
-        trade: v.trade,
-        give: v.trade.give.filter(notIn(offer.giveCore)),
-        take: v.trade.take.filter(notIn(offer.takeCore)),
-      }));
+      offer.hidden = Math.max(0, kept.length - maxLines);
+      offer.lines = kept.slice(0, maxLines);
     }
   }
   // Insertion follows the sort, so the first rival and the first offer of each are the best ones.
   return [...rivals].map(([rival, offers]) => ({ rival, offers: [...offers.values()] }));
-}
-
-/**
- * How a partial trade tilts OUR roles: + = we now hold more of that role, - = fewer. On Mantra only the keepers are
- * bound, so the outfield roles do not tilt anything.
- */
-export function roleTilt(trade: Pick<Trade, 'give' | 'take'>, mantra: boolean): Partial<Record<ScoutRole, number>> {
-  const out: Partial<Record<ScoutRole, number>> = {};
-  const bound = (role: ScoutRole) => !mantra || role === 'P';
-  for (const man of trade.take) if (bound(man.role)) out[man.role] = (out[man.role] ?? 0) + 1;
-  for (const man of trade.give) if (bound(man.role)) out[man.role] = (out[man.role] ?? 0) - 1;
-  return out;
 }
 
 /**
@@ -624,14 +410,8 @@ export interface SimpleSwap {
   theirs: number;
   /** He is not in their eleven. */
   spare: boolean;
-  /** What he makes more than his reserve, a matchday, when he is a starter of ours (shown, already inside `ours`). */
-  ourCost: number;
-  /** When the man we take is one of THEIR starters: who of his base role plays in his place for them. */
-  takeCover: ScoutMan | null;
   /** The form we offer minus the form we ask (`appealOf`): how easily they will believe it. */
   appeal: number | null;
-  /** When the man we give is one of OUR starters: the reserve of his base role who takes his place. */
-  giveCover: ScoutMan | null;
   fvmGive: number | null;
   fvmTake: number | null;
 }
@@ -680,21 +460,36 @@ export const VALUE_RATIO = 0.8;
  * A word built for another question is not a guard on this one.
  */
 
-export function simpleSwaps(input: Omit<ScoutInput, 'maxSize'>): SimpleSwap[] {
+/** What we can offer: priced men outside our eleven, and starters with a reserve of their base role at their level. */
+function spareOf(men: readonly ScoutMan[], strength: Strength, rules: MantraModules | null, rounds: number): ScoutMan[] {
+  return [
+    ...men.filter((m) => !strength.eleven.has(m.id) && priced(m)),
+    ...expendableStarters(men, rules, rounds).map((one) => one.man),
+  ];
+}
+
+/** The two sides are worth about the same (`VALUE_RATIO`) and carry as many supertops each. */
+function worthAlike(give: readonly ScoutMan[], take: readonly ScoutMan[], per: (m: ScoutMan) => number): boolean {
+  const sum = (men: readonly ScoutMan[]) => men.reduce((acc, m) => acc + per(m), 0);
+  const supers = (men: readonly ScoutMan[]) => men.filter((m) => m.category === SUPER).length;
+  return (
+    supers(give) === supers(take) &&
+    Math.min(sum(give), sum(take)) >= VALUE_RATIO * Math.max(sum(give), sum(take))
+  );
+}
+
+/** Neither gain more than double the other (`BALANCE_RATIO`). */
+const balanced = (a: number, b: number) => Math.min(a, b) >= BALANCE_RATIO * Math.max(a, b);
+
+export function simpleSwaps(input: ScoutInput): SimpleSwap[] {
   const { rules, rounds, mantra } = input;
   if (rounds <= 0) return [];
   const per = (m: ScoutMan) => (valueOf(m) ?? 0) / rounds;
   const mine = strengthOf(input.mine.men, rules, rounds);
-  const expendable = expendableStarters(input.mine.men, rules, rounds);
-  const cover = new Map(expendable.map((one) => [one.man.id, one.replacement]));
-  const spareOurs = [
-    ...input.mine.men.filter((m) => !mine.eleven.has(m.id) && per(m) > 0),
-    ...expendable.map((one) => one.man),
-  ];
+  const spareOurs = spareOf(input.mine.men, mine, rules, rounds);
   const out: SimpleSwap[] = [];
   for (const rival of input.rivals) {
     const theirs = strengthOf(rival.men, rules, rounds);
-    const standIns = standInsOf(rival.men, rules, rounds);
     for (const take of rival.men.filter((m) => per(m) > 0)) {
       for (const give of spareOurs) {
         // THE STARTER HE BEATS IS ONE WHO STAYS (operator, 22/10/2026, Barnes for Semenyo: «ho Douè e Marmoush come
@@ -703,8 +498,7 @@ export function simpleSwaps(input: Omit<ScoutInput, 'maxSize'>): SimpleSwap[] {
         // skips the man we take.
         const ourSlot = weakestFor(mine.places, take, give.id);
         if (!ourSlot || per(take) - ourSlot.value / rounds < MIN_GAIN) continue;
-          if ((give.category === SUPER) !== (take.category === SUPER)) continue;
-        if (Math.min(per(give), per(take)) < VALUE_RATIO * Math.max(per(give), per(take))) continue;
+        if (!worthAlike([give], [take], per) || tooHot([give], [take])) continue;
         const theirSlot = weakestFor(theirs.places, give, take.id);
         if (!theirSlot || per(give) - theirSlot.value / rounds < MIN_GAIN) continue;
         const ourMen = [...input.mine.men.filter((m) => m.id !== give.id), take];
@@ -717,9 +511,7 @@ export function simpleSwaps(input: Omit<ScoutInput, 'maxSize'>): SimpleSwap[] {
         const ours = strengthOf(ourMen, rules, rounds).starters - mine.starters;
         const theirGain = strengthOf(theirMen, rules, rounds).starters - theirs.starters;
         if (ours < MIN_GAIN || theirGain < MIN_GAIN) continue;
-        if (Math.min(ours, theirGain) < BALANCE_RATIO * Math.max(ours, theirGain)) continue;
-        if (tooHot([give], [take])) continue;
-        const reserve = cover.get(give.id) ?? null;
+        if (!balanced(ours, theirGain)) continue;
         out.push({
           rival: rival.name,
           give,
@@ -727,11 +519,8 @@ export function simpleSwaps(input: Omit<ScoutInput, 'maxSize'>): SimpleSwap[] {
           ourOut: ourSlot.holder,
           theirOut: theirSlot.holder,
           ours,
-          ourCost: reserve ? Math.max(0, per(give) - per(reserve)) : 0,
           theirs: theirGain,
           spare: !theirs.eleven.has(take.id),
-          giveCover: reserve,
-          takeCover: standIns.get(take.id) ?? null,
           appeal: appealOf([give], [take]),
           fvmGive: give.fvm,
           fvmTake: take.fvm,
@@ -754,7 +543,7 @@ export function simpleSwaps(input: Omit<ScoutInput, 'maxSize'>): SimpleSwap[] {
  *
  * The search is a beam (the space is ~13,000 pairs of pairs per rival): every 1x1 that improves OUR eleven - their side
  * still free, since a second pair is what can fix it - kept by the total it creates, then extended with one more man
- * each way. Yields its progress, like the old search, so the page draws a bar.
+ * each way. Yields its progress so the page draws a bar.
  */
 export const PAIR_BEAM = 12;
 export const PAIR_EXTRA = 0.05;
@@ -776,21 +565,18 @@ export interface PairSwap {
   fvmTake: number | null;
 }
 
-export function* pairSwaps(input: Omit<ScoutInput, 'maxSize'>): Generator<ScoutProgress, PairSwap[], void> {
+export function* pairSwaps(input: ScoutInput): Generator<ScoutProgress, PairSwap[], void> {
   const { rules, rounds, mantra } = input;
   if (rounds <= 0) return [];
   const per = (m: ScoutMan) => (valueOf(m) ?? 0) / rounds;
   const starters = (men: readonly ScoutMan[]) => strengthOf(men, rules, rounds).starters;
   const mineMen = input.mine.men;
   const mine = strengthOf(mineMen, rules, rounds);
-  const spareOurs = [
-    ...mineMen.filter((m) => !mine.eleven.has(m.id) && per(m) > 0),
-    ...expendableStarters(mineMen, rules, rounds).map((one) => one.man),
-  ];
+  const spareOurs = spareOf(mineMen, mine, rules, rounds);
   const total = input.rivals.length * (1 + PAIR_BEAM);
   let done = 0;
   const out: PairSwap[] = [];
-  for (const rival of input.rivals) {
+  for (const [r, rival] of input.rivals.entries()) {
     const theirs = strengthOf(rival.men, rules, rounds);
     const pool = rival.men.filter((m) => per(m) > 0);
     const gains = new Map<string, [number, number]>();
@@ -838,20 +624,16 @@ export function* pairSwaps(input: Omit<ScoutInput, 'maxSize'>): Generator<ScoutP
           const key = `${give.map((m) => m.id).sort().join(',')}|${take.map((m) => m.id).sort().join(',')}`;
           if (seen.has(key)) continue;
           seen.add(key);
-          const sum = (men: ScoutMan[]) => men.reduce((acc, m) => acc + per(m), 0);
-          if (Math.min(sum(give), sum(take)) < VALUE_RATIO * Math.max(sum(give), sum(take))) continue;
-          const supers = (men: ScoutMan[]) => men.filter((m) => m.category === SUPER).length;
-          if (supers(give) !== supers(take)) continue;
-          const [ours, theirsGain] = gainOf(give, take);
-          if (ours < MIN_GAIN || theirsGain < MIN_GAIN) continue;
-          if (Math.min(ours, theirsGain) < BALANCE_RATIO * Math.max(ours, theirsGain)) continue;
-          if (tooHot(give, take)) continue;
-          // Not a 1x1 with a passenger.
-          const inner = give.flatMap((g) => take.map((t) => gainOf([g], [t])));
-          if (inner.some(([a, b]) => Math.min(a, b) >= Math.min(ours, theirsGain) - PAIR_EXTRA && a >= MIN_GAIN && b >= MIN_GAIN)) continue;
+          // The cheap tests first: the eleven rebuilt twice is what costs.
+          if (!worthAlike(give, take, per) || tooHot(give, take)) continue;
           const ourMen = [...mineMen.filter((m) => !give.includes(m)), ...take];
           const theirMen = [...rival.men.filter((m) => !take.includes(m)), ...give];
           if (!quotasHold(mineMen, ourMen, mantra) || !quotasHold(rival.men, theirMen, mantra)) continue;
+          const [ours, theirsGain] = gainOf(give, take);
+          if (ours < MIN_GAIN || theirsGain < MIN_GAIN || !balanced(ours, theirsGain)) continue;
+          // Not a 1x1 with a passenger.
+          const inner = give.flatMap((g) => take.map((t) => gainOf([g], [t])));
+          if (inner.some(([a, b]) => Math.min(a, b) >= Math.min(ours, theirsGain) - PAIR_EXTRA && a >= MIN_GAIN && b >= MIN_GAIN)) continue;
           const ourChange = changeOf(mineMen, ourMen, take, rules, rounds);
           const theirChange = changeOf(rival.men, theirMen, give, rules, rounds);
           const moves = (m: ScoutMan) =>
@@ -867,43 +649,15 @@ export function* pairSwaps(input: Omit<ScoutInput, 'maxSize'>): Generator<ScoutP
             theirChange,
             appeal: appealOf(give, take),
             spare: take.filter((m) => !theirs.eleven.has(m.id)).map((m) => m.id),
-            fvmGive: give.every((m) => m.fvm == null) ? null : give.reduce((acc, m) => acc + (m.fvm ?? 0), 0),
-            fvmTake: take.every((m) => m.fvm == null) ? null : take.reduce((acc, m) => acc + (m.fvm ?? 0), 0),
+            fvmGive: fvmSum(give),
+            fvmTake: fvmSum(take),
           });
         }
       }
     }
-    done = (input.rivals.indexOf(rival) + 1) * (1 + PAIR_BEAM);
+    done = (r + 1) * (1 + PAIR_BEAM);
   }
   return out;
-}
-
-/**
- * WHO TAKES EACH STARTER'S PLACE in a squad once he is gone: the best man of his BASE role outside the eleven (a
- * centre back is not «the alternative» to a wing back). None = no man of his role, said as such on screen.
- */
-export function standInsOf(men: readonly ScoutMan[], rules: MantraModules | null, rounds: number): Map<number, ScoutMan> {
-  const out = new Map<number, ScoutMan>();
-  const base = strengthOf(men, rules, rounds);
-  for (const man of men) {
-    if (!base.eleven.has(man.id)) continue;
-    const same = men
-      .filter((m) => m.id !== man.id && !base.eleven.has(m.id) && baseRole(m) === baseRole(man) && (valueOf(m) ?? 0) > 0)
-      .sort((a, b) => (valueOf(b) ?? 0) - (valueOf(a) ?? 0))[0];
-    // Only a man of his base role is «the alternative» (the operator's rule for our own reserves, 22/10/2026): when the
-    // rebuilt eleven fills the hole by changing shape, nobody is named.
-    if (same) out.set(man.id, same);
-  }
-  return out;
-}
-
-/** Drives the search to the end without yielding to anybody (tests). */
-export function runSearch(input: ScoutInput): Trade[] {
-  const it = searchTrades(input);
-  for (;;) {
-    const step = it.next();
-    if (step.done) return step.value;
-  }
 }
 
 /**
