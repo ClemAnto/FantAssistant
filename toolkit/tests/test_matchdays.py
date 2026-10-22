@@ -151,3 +151,31 @@ def test_align_season_refuses_a_round_whose_real_round_is_not_on_file_yet():
     mapped, skipped = matchdays.align_season(euro, default)
     assert {md: real for md, (real, _c) in mapped.items()} == {3: 3, 4: 4}
     assert len(skipped) == 1 and skipped[0].startswith("euro 6:")
+
+
+def test_derive_from_tm_fills_only_what_the_other_sources_do_not_map(tmp_path):
+    # SofaScore closed (22/10/2026): Transfermarkt + the calendar map euro 2; euro 1 keeps its map.
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(i, f"P{i}") for i in range(1, 25)])
+    conn.executemany("INSERT INTO rosters(fc_id, season, league) VALUES (?, '2026-27', 'premier_league')",
+                     [(i,) for i in range(1, 25)])
+    for md, scorer in ((1, 1), (2, 2)):
+        conn.executemany(
+            "INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, goals) "
+            "VALUES (?, '2026-27', ?, 'C', 'euro', 6.0, ?)",
+            [(i, md, 1 if i == scorer else 0) for i in range(1, 23)])
+    conn.execute("INSERT INTO matchday_map VALUES ('2026-27', 1, 'premier_league', 3, 'sofascore', 1.0)")
+    for rnd, date, scorer in ((3, "2026-09-19", 1), (4, "2026-10-10", 2)):
+        conn.execute("INSERT INTO fixtures(event_id, season, league, round, date, home_key, away_key, source, observed_on) "
+                     "VALUES (?, '2026-27', 'premier_league', ?, ?, 'a', 'b', 'sofascore', '2026-10-20')", (rnd, rnd, date))
+        conn.executemany(
+            "INSERT INTO tm_appearances(fc_id, tm_game_id, played_on, season, competition, minutes,"
+            " goals) VALUES (?, ?, ?, '2026-27', 'GB1', 90, ?)",
+            [(i, f"g{rnd}", date, 1 if i == scorer else 0) for i in range(1, 23)])
+    conn.commit()
+    assert matchdays.derive_from_tm(Context(config=cfg, conn=conn)) == 1
+    rows = sorted(tuple(r) for r in conn.execute(
+        "SELECT euro_md, real_md, source FROM matchday_map"))
+    assert rows == [(1, 3, "sofascore"), (2, 4, "transfermarkt")]

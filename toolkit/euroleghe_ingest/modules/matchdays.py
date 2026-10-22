@@ -17,6 +17,7 @@ The other 4 leagues have no `default` twin, so their rows come from the external
 
 from __future__ import annotations
 
+from euroleghe_ingest import config
 from euroleghe_ingest.context import Context
 
 NAME = "matchdays"
@@ -267,8 +268,82 @@ def derive_from_external(ctx: Context, leagues=None) -> int:
     return total
 
 
+def _tm_lineups(conn, season: str, league: str) -> dict[int, set[tuple]]:
+    """Per REAL matchday, (player, goals) from Transfermarkt's per-match rows - the BACKUP side.
+
+    Transfermarkt has no round number, so the round comes from the calendar (`fixtures`): each date
+    takes the round most of that league's fixtures on it belong to. A postponed catch-up played on a
+    date of another round is read as that round, which is the one way this side can be wrong - and a
+    wrong round is what the confidence and the margin of `align_season` refuse.
+    """
+    code = next((tm for tm, ours in config.TM_CHAMPIONSHIPS.items() if ours == league), None)
+    if code is None:
+        return {}
+    by_date: dict[str, dict[int, int]] = {}
+    for date, rnd in conn.execute(
+            "SELECT date, round FROM fixtures WHERE season = ? AND league = ? AND round IS NOT NULL",
+            (season, league)):
+        counts = by_date.setdefault(date, {})
+        counts[rnd] = counts.get(rnd, 0) + 1
+    round_of = {date: max(counts, key=counts.get) for date, counts in by_date.items()}
+    out: dict[int, set[tuple]] = {}
+    for fc_id, date, goals in conn.execute(
+            "SELECT fc_id, played_on, COALESCE(goals, 0) FROM tm_appearances "
+            "WHERE season = ? AND competition = ? AND COALESCE(minutes, 0) > 0",
+            (season, code)):
+        if date in round_of:
+            out.setdefault(round_of[date], set()).add((fc_id, goals))
+    return out
+
+
+def derive_from_tm(ctx: Context) -> int:
+    """Map what the per-match layer could not, from Transfermarkt: the backup for a closed SofaScore.
+
+    22/10/2026: SofaScore has answered 403 since late September, so the per-match layer stops at the
+    rounds of 20/09 and every euro round after it had no real round - its votes were drawn with no
+    opponent, or (Bundesliga euro 6) on the wrong match. Transfermarkt's per-match rows are read every
+    night and carry who played and who scored, which is the whole signature `align_season` needs.
+    Measured before adopting it on 2026-27: on every round BOTH sources map, the two agree on all five
+    championships, and it maps euro 5 and 6 everywhere. It only fills: a round the ratings or the
+    per-match layer already map keeps their map, so the day SofaScore reopens nothing changes but the
+    `source`. Only seasons the calendar knows, i.e. the current one.
+    """
+    conn = ctx.require_conn()
+    total = 0
+    seasons = [s for (s,) in conn.execute("SELECT DISTINCT season FROM fixtures")]
+    for season in seasons:
+        for league in config.TM_CHAMPIONSHIPS.values():
+            euro = _euro_lineups(conn, season, league)
+            real = _tm_lineups(conn, season, league)
+            if not euro or not real:
+                continue
+            mapped, skipped = align_season(euro, real)
+            held = {md for (md,) in conn.execute(
+                "SELECT euro_md FROM matchday_map WHERE season = ? AND league = ? "
+                "AND source != 'transfermarkt'", (season, league))}
+            conn.execute("DELETE FROM matchday_map WHERE season = ? AND league = ? "
+                         "AND source = 'transfermarkt'", (season, league))
+            filled = 0
+            for euro_md, (real_md, confidence) in mapped.items():
+                if euro_md in held:
+                    continue
+                conn.execute(
+                    """INSERT OR REPLACE INTO matchday_map(season, euro_md, league, real_md, source,
+                                                           confidence)
+                       VALUES (?, ?, ?, ?, 'transfermarkt', ?)""",
+                    (season, euro_md, league, real_md, confidence))
+                filled += 1
+            total += filled
+            print(f"[matchdays] {season} {league}: Transfermarkt backup fills {filled} euro "
+                  f"matchday(s) the other sources do not map")
+            for note in skipped:
+                print(f"[matchdays] {season} {league} (transfermarkt): {note}")
+    conn.commit()
+    return total
+
+
 def run(ctx: Context, **kwargs) -> None:
-    total = derive_from_ratings(ctx) + derive_from_external(ctx)
+    total = derive_from_ratings(ctx) + derive_from_external(ctx) + derive_from_tm(ctx)
     conn = ctx.require_conn()
     by_league = conn.execute(
         "SELECT league, COUNT(*) FROM matchday_map GROUP BY league ORDER BY league").fetchall()

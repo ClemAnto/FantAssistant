@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleManifest, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
 import { GlobalOptions } from './global-options';
+import { CalendarBook, calendarBookFrom } from './keeper-pairs';
 import { LineupMan, MatchPosition } from './match-lineup';
 import { roundVote, syntheticFantavoto } from './match-bonuses';
 import { PlayerFlag, PlayerStatus } from './player-status';
@@ -1376,7 +1377,7 @@ export class PlayersStore {
     try {
       const manifest = await this.bundle.manifest();
       const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring,
-        crests, coaches] = await Promise.all([
+        crests, coaches, calendar] = await Promise.all([
         this.bundle.table('players'),
         this.bundle.table('clubs'),
         this.bundle.table('rosters'),
@@ -1394,6 +1395,9 @@ export class PlayersStore {
         // CHI ALLENA E DA QUANDO: opzionale allo stesso modo, e un bundle che non la porta semplicemente
         // non disegna il confine - che e' diverso da «non ci sono stati cambi».
         this.bundle.table('coaches').catch(() => null),
+        // IL CALENDARIO, per la sola giornata che il livello per-partita non ha ancora letto (vedi
+        // `buildLeagueMatches`): opzionale, e senza di lui quelle righe restano senza avversario.
+        this.bundle.calendar().catch(() => null),
       ]);
 
       this.generatedAt.set(manifest.generated_at);
@@ -1431,7 +1435,8 @@ export class PlayersStore {
       const provider = buildProviderIndex(external, expected);
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
-      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring);
+      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring,
+        calendarBookFrom(calendar));
 
       // LA STAGIONE BERSAGLIO STA GIA' DENTRO se qualcuno ha giocato una giornata, quindi il `Set` la
       // deve contenere: aggiungerla FUORI la elencava due volte, e chi cammina questa lista leggeva le
@@ -1975,6 +1980,7 @@ function buildLeagueMatches(
   euroToReal: Map<string, number>,
   shapes: Map<string, { counted: string; declared: string | null }>,
   scoring: ScoringConfig | null,
+  book: CalendarBook | null = null,
 ) {
   const [
     fcId,
@@ -2052,6 +2058,13 @@ function buildLeagueMatches(
 
     const teamName = row[team] as string;
     const score = scores.get(`${plat}|${s}|${md}|${teamName}`);
+    // IL RIPIEGO SUL CALENDARIO (22/10/2026, SofaScore chiuso da fine settembre): dove il livello
+    // per-partita non ha ancora letto la giornata, l'avversario, il campo e la data li dice il
+    // calendario del bundle, sulla giornata vera che `matchday_map` assegna - anche dal ripiego su
+    // Transfermarkt. Non porta un `matchId`, quindi la formazione di quella partita resta chiusa.
+    const fixture = !extra && realMd != null
+      ? book?.forClub(teamName)?.window(teamName, realMd, realMd)[0]
+      : undefined;
     const realVote = row[mv] as number | null;
 
     const cell: MatchCell = {
@@ -2062,7 +2075,7 @@ function buildLeagueMatches(
       competition: league ?? '',
       competitionLabel: league ? competitionLabel(league) : 'Campionato',
       matchday: md,
-      date: extra?.date ?? null,
+      date: extra?.date ?? fixture?.date ?? null,
       // IL SINTETICO ARROTONDATO AL MEZZO PUNTO: e' l'alfabeto in cui i voti veri sono scritti
       // (misurato: 57.925 su 57.925), quindi `5,88` accanto a un `6,0` vero e' una precisione che la
       // fonte non ha mai. `roundVote` sta in `match-bonuses` perche' il fantavoto si somma a QUESTO
@@ -2088,8 +2101,8 @@ function buildLeagueMatches(
       minutes: extra?.minutes ?? null,
       started: extra?.started ?? null,
       team: teamName,
-      opponent: extra?.opponent ?? null,
-      home: extra?.home ?? null,
+      opponent: extra?.opponent ?? fixture?.opponent ?? null,
+      home: extra?.home ?? fixture?.home ?? null,
       goalsFor: score?.for ?? null,
       goalsAgainst: score?.against ?? null,
       shape: extra ? (shapes.get(`${extra.matchId}|${extra.club}`)?.counted ?? null) : null,

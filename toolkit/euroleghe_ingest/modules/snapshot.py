@@ -1747,6 +1747,110 @@ def _state_token(fc_id: int, match_id: str, date: str, entry: Appearance | None,
     return "o" if known else "n"
 
 
+def tm_backup(conn, auction_date: str, resolve, season: str | None,
+              scoring: dict[str, dict[str, float]] | None = None) -> tuple:
+    """The league rounds the per-match layer has not read yet, rebuilt from Transfermarkt + calendar.
+
+    THE BACKUP FOR A CLOSED SOFASCORE (operator, 22/10/2026: «se sofascore non risponde predisponi un
+    backup»). The provider has answered 403 since late September, so the per-match layer stops at the
+    rounds of 20/09 and every trend strip froze there - Marmoush's goal of 19/10 was voted and never
+    drawn. Three facts we DO read every day fill the gap, each for what it is: the CALENDAR (`fixtures`)
+    says which match a club played on a date and against whom; TRANSFERMARKT (`tm_appearances`) says
+    whether he played, for how long, from the start or not, and what he scored - or that he sat on the
+    bench, or was not in the squad; the VOTES say what the match was worth, through the euro round
+    `matchday_map` assigns to that real round (the Transfermarkt backup there too).
+
+    Only AFTER the club's last match in the per-match layer, so a round is never read twice and the day
+    SofaScore reopens these rows stop existing by themselves. Only the TREND reads them: the boards,
+    the short window and everything else that wants a lineup slot or a provider rating keep the layer
+    alone, because Transfermarkt carries neither and a backup that half-fed them would draw a board
+    from the shape of one source and the men of another.
+
+    Returns (calendar, opponents, appearances, seen, benched, injured): the same shapes `club_matches`, the opponents
+    index and `appearances_with_worth` return, plus per player the matches Transfermarkt has a row for
+    him in - which is what separates «not in the squad» from «we do not know», vuoto = ignoto.
+    """
+    calendar: dict[str, list[tuple]] = {}
+    opponents: dict[tuple[str, str], tuple[str, int]] = {}
+    appearances: dict[int, dict[str, Appearance]] = {}
+    seen: dict[int, set[str]] = {}
+    benched: dict[int, set[str]] = {}
+    injured: dict[int, list[tuple[str, str, str]]] = {}
+    if not season:
+        return calendar, opponents, appearances, seen, benched, injured
+    leagues = tuple(config.TM_CHAMPIONSHIPS.values())
+    holes = ",".join("?" * len(leagues))
+    last: dict[str, str] = {}
+    for club, date in conn.execute(
+            f"SELECT club, MAX(match_date) FROM external_match_stats WHERE season = ? "
+            f"AND competition IN ({holes}) AND match_date < ? GROUP BY club",
+            (season, *leagues, auction_date)):
+        key, _name = resolve(club)
+        if key and date:
+            last[key] = max(last.get(key, ""), date)
+    by_day: dict[tuple[str, str], list[str]] = {}
+    rounds: dict[str, int] = {}
+    for event_id, league, rnd, date, home_key, away_key in conn.execute(
+            f"SELECT event_id, league, round, date, home_key, away_key FROM fixtures "
+            f"WHERE season = ? AND date < ? AND league IN ({holes})",
+            (season, auction_date, *leagues)):
+        for side, other, home in ((home_key, away_key, 1), (away_key, home_key, 0)):
+            key, _name = resolve(side)
+            if not key or date <= last.get(key, ""):
+                continue
+            match_id = f"tm{event_id}"
+            calendar.setdefault(key, []).append((date, match_id, league, season))
+            other_key, other_name = resolve(other)
+            opponents[(key, match_id)] = (other_name if other_key and other_name != other else other.title(), home)
+            by_day.setdefault((league, date), []).append(match_id)
+            rounds[match_id] = rnd
+    if not by_day:
+        return calendar, opponents, appearances, seen, benched, injured
+    league_of = dict(config.TM_CHAMPIONSHIPS)
+    euro_md = {(league, real_md): md for md, league, real_md in conn.execute(
+        "SELECT euro_md, league, real_md FROM matchday_map WHERE season = ?", (season,))}
+    votes: dict[tuple, tuple] = {(fc_id, platform, md): (fv, mv, role) for fc_id, platform, md, fv, mv, role
+                                 in conn.execute(
+        "SELECT fc_id, platform, matchday, fantavoto, mv, role FROM match_ratings WHERE season = ?",
+        (season,))}
+    mapped_leagues = {league for league, _md in euro_md}
+    tm_holes = ",".join("?" * len(league_of))
+    for (fc_id, date, code, minutes, state, starting, goals, assists, yellows, reds) in conn.execute(
+            f"""SELECT fc_id, played_on, competition, minutes, state, is_starting,
+                       COALESCE(goals, 0), COALESCE(assists, 0), yellows, reds
+                FROM tm_appearances
+                WHERE season = ? AND played_on < ? AND competition IN ({tm_holes})""",
+            (season, auction_date, *league_of)):
+        league = league_of[code]
+        ids = by_day.get((league, date))
+        if not ids:
+            continue
+        if state == "played for a different team":
+            continue
+        seen.setdefault(fc_id, set()).update(ids)
+        if not minutes:
+            if state == "in squad":
+                benched.setdefault(fc_id, set()).update(ids)
+            elif state == "injured":
+                injured.setdefault(fc_id, []).append((date, date, "i"))
+            continue
+        rnd = rounds[ids[0]]
+        # On Serie A the `default` calendar IS the real one; elsewhere the euro round the map assigns.
+        real = votes.get((fc_id, "default", rnd)) if league == "serie_a" else None
+        euro = votes.get((fc_id, "euro", euro_md.get((league, rnd)))) if (league, rnd) in euro_md else None
+        real_fv, real_mv, role = real or euro or (None, None, None)
+        vote, source, points = match_worth(real_fv, real_mv, None, goals, assists, role == "P",
+                                           (scoring or {}).get(league) or (scoring or {}).get(""))
+        entry = Appearance(None, league, date, minutes, starting, None, goals, assists,
+                           vote, source, points,
+                           yellows if source == "real" else None,
+                           reds if source == "real" else None,
+                           None, 1 if (league, rnd) in euro_md else (0 if league in mapped_leagues else None))
+        for match_id in ids:
+            appearances.setdefault(fc_id, {})[match_id] = entry
+    return calendar, opponents, appearances, seen, benched, injured
+
+
 def club_form(conn, auction_date: str, observations, squads: dict[int, str],
               limit: int = FORM_MATCHES,
               scoring: dict[str, dict[str, float]] | None = None,
@@ -1812,6 +1916,11 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
         key, _name = resolve(club)
         if key:
             opponents[(key, str(match_id))] = (opponent, home or 0)
+    # IL RIPIEGO SU TRANSFERMARKT, per il solo TREND (vedi `tm_backup`): le giornate di campionato che
+    # il livello per-partita non ha ancora letto, giocate dopo la sua ultima partita di ogni club.
+    (backup_calendar, backup_opponents, backup_apps, backup_seen,
+     backup_bench, backup_injured) = tm_backup(conn, auction_date, resolve, target_season, scoring)
+    opponents.update(backup_opponents)
 
     out: dict[int, dict] = {}
     for obs in observations:
@@ -1957,8 +2066,19 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             # quattro caselle su un uomo appena trasferito ne mostrava una: le altre tre erano
             # giornate del club che ha lasciato, dove risulta «non convocato» perche' quella rosa
             # non e' piu' la sua (operatore, 24/09/2026, su Mastantuono e su Frattesi).
-            **trend_block(obs.fc_id, league_window, mine, with_players,
-                          benched, lineup_only, spells, opponents, set(own)),
+            **trend_block(obs.fc_id,
+                          # the backup only for the club he is at NOW: after the layer stops, the
+                          # club he left is not his, and its fixtures would read him «not in squad»
+                          build(clubs, {key: league_fixtures.get(key, [])
+                                        + (backup_calendar.get(key, []) if key in own else [])
+                                        for key in clubs}) if backup_calendar else league_window,
+                          {**mine, **backup_apps.get(obs.fc_id, {})},
+                          with_players | backup_seen.get(obs.fc_id, set()),
+                          {obs.fc_id: benched.get(obs.fc_id, set())
+                           | backup_bench.get(obs.fc_id, set())},
+                          lineup_only,
+                          {obs.fc_id: spells.get(obs.fc_id, []) + backup_injured.get(obs.fc_id, [])},
+                          opponents, set(own)),
             # ...E LA TERZA FINESTRA DELLA STESSA CAMMINATA, la CORTA: le ultime partite di campionato,
             # contate sulle sole in cui era disponibile. La lunghezza la decide il MODELLO
             # (`presence.Params.recent_window`) e non una costante di questo modulo: due copie di quel

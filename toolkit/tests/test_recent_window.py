@@ -684,8 +684,10 @@ def test_la_finestra_corta_cammina_il_calendario_del_club_di_oggi():
                                else snapshot)
     assert "own_window = build(own, league_fixtures)" in source
     assert "**recent_block(obs.fc_id, own_window or league_window" in source
-    # ...e il TREND continua a leggere l'unione: due domande, due denominatori
-    assert "**trend_block(obs.fc_id, league_window" in source
+    # ...e il TREND continua a leggere l'unione: due domande, due denominatori. Dal 22/10/2026 l'unione
+    # porta anche il ripiego su Transfermarkt (`tm_backup`), che resta del solo club di oggi
+    assert "build(clubs, {key: league_fixtures.get(key, [])" in source
+    assert "if backup_calendar else league_window" in source
 
 
 def test_le_staffette_sono_fra_compagni_di_oggi():
