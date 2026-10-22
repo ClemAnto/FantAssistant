@@ -9,16 +9,19 @@
  *   - «le quote fotografano meglio la capacità di segnare in quella partita che non la fantamedia»: where a
  *     scorer price exists, it REPLACES the goal part of the fantamedia.
  *
- * Outfield:  FVA = MV' +   GOAL_BONUS x lambda x k  +  others x k, MV' = 6 + (MV - 6) x k above the 6, MV below it
- *   lambda  = expected goals in this match: -ln(1 - p) from the bookmakers' price, rescaled (below);
- *             without a price, his own goals per appearance;
+ * Outfield:  FVA = MV' +   GOAL_BONUS x lambda  +  others x k, MV' = 6 + (MV - 6) x k above the 6, MV below it
+ *   lambda  = expected goals in this match: -ln(1 - p), p the bookmakers' price CALIBRATED on the archived
+ *             outcomes together with his own goal rate (`goalChance`, 22/10/2026); without a price, his own
+ *             goals per appearance times `k`;
  *   others  = assists, cards, the rest of the bonus: with a price, MEASURED per voted match on the same matches
  *             as the goal rate (`restPerMatch`, 09/10/2026); without one, (FM - MV) - GOAL_BONUS x goals per
  *             appearance, which gives the sheet's FM back.
  * Keeper:    FVA = MV - lambda_conceded, lambda_conceded = -ln(p clean sheet), p from the price, else from the
  *            calendar (Serie A); without either, his FM.
- *            The clean-sheet price carries a margin too, which makes p too high and the goals conceded too
- *            few: not rescaled, because a roster has two or three keepers and a ratio over them is noise.
+ *            The clean-sheet price is used AS IT IS, now by measurement (22/10/2026, 94 sides of the archived
+ *            odds against the keepers' goals conceded): implied 30.8%, real 28.7%, and every correction - a
+ *            shift, a two-parameter curve - read worse out of sample than the raw price (log-loss 0.5822 raw,
+ *            0.5882 shifted, 0.5926 curve). Unlike the scorer market, this one has no margin worth removing.
  *
  * THE MATCH (09/10/2026, measured: `docs/model/formazione-leghe-v1.md` §4-quinquies). `delta` is this match's
  * edge (Elo + venue - opponent, the bundle's calendar) MINUS his club's ordinary edge, because the fantamedia
@@ -57,14 +60,41 @@ export const GOAL_BONUS = 3;
 export const MINUTES_WEIGHT = 0.15;
 
 /**
- * The price's rescaling is clamped here: a scorer market's margin only ever makes 1/price TOO HIGH, so the
- * factor is at most 1, and below one half it would be the history overruling the market it was asked to
- * trust.
+ * THE PRICE, CALIBRATED (22/10/2026, measured on the odds the press sheet has archived since 08/10: 97 played
+ * matches of the five championships, the last capture before kick-off, 1,381 men who played and 150 of them who
+ * scored, outcomes from Transfermarkt - Serie A's 61 goals match the votes' 61). Two findings decide the form:
+ *
+ *   - 1/price OVERSTATES the goal, and more for the long shots: implied 7.7% realised 4.0%, 14.0% -> 6.9%,
+ *     24.7% -> 12.9%, 33.9% -> 19.7%, 44.5% -> 31.2%, 57.6% -> 42.9% - a margin plus the favourite-longshot bias;
+ *   - the price ranks the scorers a little better than his own goals per appearance (AUC 0.709 against 0.697) and
+ *     the TWO TOGETHER better than either (0.717; log-loss 0.3197 history, 0.3155 price, 0.3144 both, five folds by
+ *     match). The gain is small - ~2% - and 150 goals cannot tell it from noise; it is what the data say today.
+ *
+ * So P(he scores | he plays) = sigmoid(a + b x logit(price prob) + c x logit(his shrunk goals per appearance)).
+ * Fitted on all of it; leaving out one championship at a time moves `b` 0.63-0.79 and `c` 0.22-0.42, the
+ * direction never. It REPLACES the per-page rescaling used until this day (history over market on the roster's
+ * own men, clamped 0.5-1), which out of sample read the same log-loss (0.3151) and is not a per-man probability
+ * anybody can show beside the price. To be re-measured when the archive reaches ~500 goals.
  */
-export const ODDS_SCALE_MIN = 0.5;
-export const ODDS_SCALE_MAX = 1;
-/** Fewer men with both a price and a history than this, and the rescaling is not measured: the floor of a ratio. */
-export const ODDS_SCALE_SAMPLE = 3;
+export const GOAL_CURVE = { intercept: -0.475, odds: 0.697, history: 0.308 };
+/** His goals per appearance are shrunk by this many league appearances at this many goals (0.1 a match). */
+export const HISTORY_PRIOR_MATCHES = 5;
+export const HISTORY_PRIOR_GOALS = 0.5;
+
+const logit = (p: number) => Math.log(p / (1 - p));
+const clampProb = (p: number) => Math.min(Math.max(p, 0.01), 0.95);
+
+/**
+ * P(he scores in this match | he plays): the bookmakers' price corrected by the curve above. `goals` and
+ * `appearances` are his league record this season and the last; none on file reads as the prior (0.1 a match).
+ * The ONE definition behind the FVA's goal part and the percentage the page prints beside the price.
+ */
+export function goalChance(oddsProb: number, goals: number | null, appearances: number | null): number {
+  const n = appearances ?? 0;
+  const history = (Math.max(goals ?? 0, 0) + HISTORY_PRIOR_GOALS) / (Math.max(n, 0) + HISTORY_PRIOR_MATCHES);
+  const z = GOAL_CURVE.intercept + GOAL_CURVE.odds * logit(clampProb(oddsProb)) + GOAL_CURVE.history * logit(clampProb(history));
+  return 1 / (1 + Math.exp(-z));
+}
 
 export interface FvaInput {
   keeper: boolean;
@@ -74,6 +104,8 @@ export interface FvaInput {
   minutes: number | null;
   /** His own goals per championship appearance, this season and the last; null = no appearance on file. */
   goalsPerMatch: number | null;
+  /** How many championship appearances that rate stands on (the calibrated price shrinks it by them). */
+  appearances?: number | null;
   /**
    * The rest of his bonus per VOTED match, MEASURED on the same matches as `goalsPerMatch` (`restPerMatch`):
    * assists, cards, missed penalties, own goals. Null/absent = no voted match on file.
@@ -112,21 +144,6 @@ export function minutesFactor(minutes: number | null): number {
 }
 
 /**
- * HOW MUCH TO TRUST THE LEVEL OF THE PRICES. A scorer market carries a margin nobody publishes, so 1/price
- * overstates every man by a factor; the market's ORDER is what the operator trusts it for. The factor is
- * measured on the page's own men: their goals per appearance over the expected goals the prices imply, for the
- * men who have both - so the prices keep who scores more in THIS match and the level comes from the football
- * they played. Clamped (see the constants) and 1 when too few men have both.
- */
-export function oddsScale(pairs: readonly { goalsPerMatch: number; oddsProb: number }[]): number {
-  if (pairs.length < ODDS_SCALE_SAMPLE) return 1;
-  const history = pairs.reduce((sum, one) => sum + one.goalsPerMatch, 0);
-  const market = pairs.reduce((sum, one) => sum + lambdaOf(one.oddsProb), 0);
-  if (market <= 0) return 1;
-  return Math.min(ODDS_SCALE_MAX, Math.max(ODDS_SCALE_MIN, history / market));
-}
-
-/**
  * How many voted matches the rest of the bonus is worth before it counts at full weight: the measured rate is
  * shrunk toward zero by `n / (n + REST_PRIOR_MATCHES)`. A CHOICE, the operator's of 09/10/2026: «dobbiamo
  * premiare leggermente di più chi ha dei dati più effettivi» - Godts' one assist in three matches read +0.31 a
@@ -162,7 +179,7 @@ function towardSix(value: number, k: number): number {
   return value > 6 ? 6 + (value - 6) * k : value;
 }
 
-export function fvaOf(input: FvaInput, scale = 1): Fva {
+export function fvaOf(input: FvaInput): Fva {
   const k = minutesFactor(input.minutes);
   const none: Fva = { value: null, base: 0, goals: 0, others: 0, k, source: 'none', match: 0 };
   if (input.keeper) {
@@ -201,7 +218,12 @@ export function fvaOf(input: FvaInput, scale = 1): Fva {
   // derivation stands: history goals + the remainder give back exactly the sheet's FM, which is the estimate then.
   const measuredRest = fromOdds && input.restPerMatch != null && Number.isFinite(input.restPerMatch);
   const others = (measuredRest ? input.restPerMatch! : input.fm - input.mv - historyGoals) * k;
-  const goals = (fromOdds ? GOAL_BONUS * lambdaOf(input.oddsProb!) * scale : historyGoals) * k;
+  // The calibrated price is P(goal | he plays) over men who started AND men who came on, so it already knows how
+  // many minutes he is likely to get: the minutes discount is not applied on top of it (22/10/2026). The history
+  // is a rate per appearance too, and keeps the operator's `k` as before.
+  const goals = fromOdds
+    ? GOAL_BONUS * lambdaOf(goalChance(input.oddsProb!, input.goalsPerMatch * (input.appearances ?? 0), input.appearances ?? 0))
+    : historyGoals * k;
   // The price already knows the opponent and the venue; the history does not.
   const goalMatch = fromOdds ? 0 : historyGoals * MATCH_GOALS_PER_100 * delta * k;
   const match = vote + rest + goalMatch;

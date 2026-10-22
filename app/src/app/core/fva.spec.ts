@@ -9,7 +9,7 @@ import {
   fvaOf,
   lambdaOf,
   minutesFactor,
-  oddsScale,
+  goalChance,
   REST_PRIOR_MATCHES,
   restPerMatch,
 } from './fva';
@@ -23,9 +23,9 @@ describe('fvaOf', () => {
     expect(fvaOf(outfield).source).toBe('history');
   });
 
-  it('replaces the goal part with the price, and only that part', () => {
-    const fva = fvaOf({ ...outfield, oddsProb: 0.5 });
-    expect(fva.goals).toBeCloseTo(GOAL_BONUS * Math.log(2), 6);
+  it('replaces the goal part with the CALIBRATED price, and only that part', () => {
+    const fva = fvaOf({ ...outfield, appearances: 20, oddsProb: 0.5 });
+    expect(fva.goals).toBeCloseTo(GOAL_BONUS * lambdaOf(goalChance(0.5, 5, 20)), 6);
     expect(fva.others).toBeCloseTo(0.25, 6);
     expect(fva.source).toBe('odds');
   });
@@ -106,12 +106,10 @@ describe('«altri» with a price: measured, not derived from the regressed fanta
     expect(fvaOf(jesus).others).toBeGreaterThan(0.35);
   });
 
-  it('keeps Kane ahead of Gabriel Jesus whatever the scale of the prices', () => {
-    for (const scale of [1, 0.85, 0.7, 0.5]) {
-      const k = fvaOf({ ...kane, restPerMatch: 0.05 }, scale).value!;
-      const j = fvaOf({ ...jesus, restPerMatch: 0 }, scale).value!;
-      expect(k).toBeGreaterThan(j);
-    }
+  it('keeps Kane ahead of Gabriel Jesus', () => {
+    const k = fvaOf({ ...kane, appearances: 33, restPerMatch: 0.05 }).value!;
+    const j = fvaOf({ ...jesus, appearances: 20, restPerMatch: 0 }).value!;
+    expect(k).toBeGreaterThan(j);
   });
 
   it('without a price nothing changes: history goals and the remainder give the sheet FM back', () => {
@@ -139,21 +137,32 @@ describe('«altri» with a price: measured, not derived from the regressed fanta
     const doueRest = restPerMatch(voted(24, 2))!;
     expect(godtsRest).toBeCloseTo(1 / 13, 6);
     expect(doueRest).toBeCloseTo(2 / 34, 6);
+    // Here the goals are the PRICE's (calibrated): equal prices, so the rest of the bonus alone decides «di poco».
     const godts = { keeper: false, mv: 6.144, fm: 6.992, minutes: 51, goalsPerMatch: 0, restPerMatch: godtsRest, oddsProb: 0.546 };
-    const doue = { keeper: false, mv: 6.287, fm: 6.863, minutes: 58, goalsPerMatch: 7 / 24, restPerMatch: doueRest, oddsProb: 0.536 };
-    for (const scale of [1, 0.7]) {
-      const gap = fvaOf(doue, scale).value! - fvaOf(godts, scale).value!;
-      expect(gap).toBeGreaterThan(0);
-      expect(gap).toBeLessThan(0.2);
-    }
+    const doue = { keeper: false, mv: 6.287, fm: 6.863, minutes: 58, goalsPerMatch: 0, restPerMatch: doueRest, oddsProb: 0.546 };
+    const gap = fvaOf(doue).value! - fvaOf(godts).value!;
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThan(0.2);
   });
 });
 
-describe('oddsScale', () => {
-  it('brings the prices to the level of the football played, never above 1', () => {
-    const pairs = [0.3, 0.4, 0.5].map((oddsProb) => ({ oddsProb, goalsPerMatch: lambdaOf(oddsProb) * 0.8 }));
-    expect(oddsScale(pairs)).toBeCloseTo(0.8, 6);
-    expect(oddsScale(pairs.map((p) => ({ ...p, goalsPerMatch: p.goalsPerMatch * 2 })))).toBe(1);
-    expect(oddsScale(pairs.slice(0, 2))).toBe(1);
+describe('goalChance: the price calibrated on what happened (22/10/2026)', () => {
+  it('reads a price far LOWER than 1/price, as the archive measured', () => {
+    // implied 25% realised ~13% in the archive; an average scorer (0.15 a match over 30) sits near it
+    expect(goalChance(0.25, 4.5, 30)).toBeLessThan(0.18);
+    expect(goalChance(0.25, 4.5, 30)).toBeGreaterThan(0.08);
+  });
+
+  it('rises with the price and with his own goal rate, never with nothing behind it', () => {
+    expect(goalChance(0.4, 4.5, 30)).toBeGreaterThan(goalChance(0.3, 4.5, 30));
+    expect(goalChance(0.3, 15, 30)).toBeGreaterThan(goalChance(0.3, 3, 30));
+    // no record at all reads as the prior, not as a zero
+    expect(goalChance(0.3, null, null)).toBeCloseTo(goalChance(0.3, 0, 0), 9);
+    expect(goalChance(0.3, null, null)).toBeGreaterThan(0);
+  });
+
+  it('is not discounted by the minutes: the price already knows if he starts', () => {
+    const priced = { ...outfield, appearances: 20, oddsProb: 0.4 };
+    expect(fvaOf({ ...priced, minutes: 30 }).goals).toBeCloseTo(fvaOf(priced).goals, 9);
   });
 });

@@ -211,7 +211,7 @@
             <span class="sort text-right text-warning" (click)="sortBy('fva')" nz-tooltip nzTooltipTitle="Fanta Voto Atteso, se gioca"
               >FVA{{ arrow('fva') }}</span
             >
-            <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri)"
+            <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri); accanto, la probabilità corretta che segni se gioca, o che non prenda gol"
               >Quota{{ arrow('odds') }}</span
             >
             <span class="sort" (click)="sortBy('advised')" nz-tooltip [nzTooltipTitle]="draft() ? 'Dove lo mette la tua formazione' : 'Dove lo mette la formazione consigliata'"
@@ -283,7 +283,11 @@
                     [attr.data-odds-price]="o.price"
                     nz-tooltip
                     [nzTooltipTitle]="oddsHint(o)"
-                    >{{ o.price | number: '1.2-2' }}</span
+                    >{{ o.price | number: '1.2-2' }}@if (goalPct(man.fcId, o); as g) {<span
+                        class="ml-1 text-[10px] text-muted"
+                        data-odds-chance
+                        >{{ pct(g) }}</span
+                      >}</span
                   >
                 } @else {
                   <span class="text-right text-muted">–</span>

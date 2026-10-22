@@ -681,6 +681,56 @@ un'altra strada** - qui dal login al file - e la cura è un id dove la fonte non
 fra nomi. E **una replica fatta su un foglio finto va fatta col codice vero del foglio** (`vm` su `rosters.gs`), o il
 banco misura la propria copia.
 
+## §4-duodecies. Le quote MISURATE, la percentuale accanto, e la regola d'oro del giocatore da bonus (22/10/2026)
+
+Tre conclusioni di una sessione con l'operatore, tutte misurate prima di toccare il codice.
+
+**1. Alternare per la partita facile non conviene, se non fra giocatori quasi pari.** Coppie dello stesso ruolo di club
+diversi, Serie A 2019-26, solo le giornate in cui hanno preso il voto tutti e due (45.323 coppie-stagione): scegliere
+ogni volta chi ha l'avversario più facile perde **−0,07 a giornata, 0 stagioni su 7**, quando la fantamedia dei due
+dista più di mezzo punto; fra due quasi pari (<0,25) scegliere su fantamedia + avversario guadagna **+0,04 (7/7)**,
++0,12 per gli attaccanti. L'avversario spiega 0,08-0,18 punti di deviazione standard su un fantavoto da 1,1-2,3: è
+quello che l'FVA già fa con `delta` (§4-quinquies), e non c'è niente da aggiungere.
+
+**2. LA REGOLA D'ORO (operatore): chi fa un bonus prende il voto, quindi schierare un giocatore da bonus con un ricambio
+dello stesso ruolo in panchina è un'OPZIONE.** Misurato su 14.156 ingressi dalla panchina in Serie A 2022-26: con un
+bonus prende il voto il **94,9%** delle volte anche sotto i 10', il 100% dagli 11'; senza bonus sotto i 10' solo
+l'**8,6%**, dagli 11' il 97-100%. Quindi: parte titolare → tutto il suo potenziale; entra e segna → voto e bonus;
+entra all'ultimo e non fa niente → senza voto, entra la riserva; entra per 15-30' e non fa niente → l'unico caso che
+costa, un voto basso al posto della riserva. È già la forma del consiglio (somma degli FVA «se gioca», panchina che
+copre ogni titolare, `coverOrder`), ed è ora la sua ragione scritta: nessuna costante cambia.
+
+**3. Le quote gol, giudicate sull'esito (`fva.goalChance`).** Il foglio ne conserva l'archivio dall'08/10 (scheda
+`Quote`): 97 partite giocate dei cinque campionati, ultima presa prima del fischio, 2.017 prezzi agganciati a un
+calciatore e 1.381 di chi ha giocato, 150 gol (esiti da Transfermarkt; i 61 gol di Serie A tornano coi voti).
+- 1/quota **sopravvaluta** il gol, di più sui nomi poco quotati: implicito 7,7% → vero 4,0%, 14,0 → 6,9, 24,7 → 12,9,
+  33,9 → 19,7, 44,5 → 31,2, 57,6 → 42,9 (28 casi).
+- Ordina chi segna poco meglio del suo storico gol/presenza (AUC 0,709 contro 0,697), e i due insieme meglio di
+  ciascuno (0,717; log-loss fuori campione 0,3197 storico, 0,3155 quota, **0,3144 insieme**). Guadagno piccolo, ~2%,
+  e 150 gol non lo separano dal rumore.
+- Il riscalamento per pagina usato fino a oggi (storico su mercato sulla rosa stessa, 0,5-1) leggeva **lo stesso**
+  log-loss (0,3151): non era sbagliato. È sostituito perché la curva è una probabilità PER UOMO che si può stampare.
+
+Da qui `goalChance` = sigmoid(−0,475 + 0,697·logit(prezzo) + 0,308·logit((gol+0,5)/(presenze+5))), coefficienti stabili
+lasciando fuori un campionato alla volta (0,63-0,79 e 0,22-0,42). La parte gol dell'FVA con una quota è
+`3 × −ln(1 − goalChance)` e **non porta più lo sconto dei minuti `k`**: la curva è misurata su titolari e subentrati
+insieme, quindi sa già quanti minuti avrà. Accanto alla quota, sulla tabella, la percentuale corretta (sua richiesta):
+lo STESSO numero da cui nasce la parte gol, così i due non possono dire cose diverse. I portieri no: la porta inviolata
+non è calibrata. Banco: `e2e-lineup-file.mjs <csv> <odds.json>` (il secondo argomento semina una cattura della scheda
+`Quote`), 12 prezzi su 12 con la percentuale sotto 1/quota, nessuna sui portieri.
+
+**4. La porta inviolata, misurata lo stesso giorno: la quota va bene così.** 194 prezzi pre-fischio, 94 lati
+agganciati a un esito (gol subiti dai portieri nei voti: Serie A intera e i club del perimetro EuroLeghe, gli altri
+non hanno voti), 27 porte inviolate. Implicita media **30,8%**, vera **28,7%**: niente del margine che pesa sui
+marcatori. Fuori campione (5 pieghe per partita) la quota GREZZA batte ogni correzione: log-loss 0,6051 costante,
+**0,5822 grezza**, 0,5882 spostata, 0,5926 curva a due parametri. Quindi l'FVA del portiere la usa com'è (era già
+così, ora per misura) e la tabella stampa accanto la sua probabilità senza correzione. Il campione è piccolo: si
+rimisura con quello dei gol.
+
+Limiti detti. Due settimane d'archivio; ri-misurare a ~500 gol e a qualche centinaio di lati per la porta. Chi ha una
+quota ma nessuna presenza su file resta sulla fantamedia del foglio (ramo `sheet`) mentre la tabella stampa comunque la
+percentuale. Il prezzo vale «se gioca»: Godts a 2,36 come Douè non dice che partirà titolare.
+
 ## §5. Aperti, in ordine
 
 **Dal 19 ottobre 2026, in cima (la pagina legge il CSV, §4-undecies):**

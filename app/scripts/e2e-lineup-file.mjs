@@ -22,6 +22,9 @@ import vm from 'node:vm';
 import { gunzipSync } from 'node:zlib';
 
 const CSV = process.argv[2];
+// OPTIONAL: a `?what=odds` body (a capture of the press sheet's Quote tab) seeded in the page's own odds cache, so
+// the corrected scoring chance beside each price can be checked (22/10/2026) without a request leaving.
+const ODDS = process.argv[3] && existsSync(process.argv[3]) ? readFileSync(process.argv[3], 'utf8') : null;
 if (!CSV || !existsSync(CSV)) throw new Error('usage: node scripts/e2e-lineup-file.mjs <export.csv>');
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist', 'fantassistant', 'browser');
@@ -153,6 +156,7 @@ try {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `try {
     if (!localStorage.getItem('fantassistant.next-round-url')) localStorage.setItem('fantassistant.next-round-url', ${JSON.stringify(ORIGIN + '/sheet')});
     if (!localStorage.getItem('fantassistant.widget-secret')) localStorage.setItem('fantassistant.widget-secret', ${JSON.stringify(SECRET)});
+    ${ODDS ? `localStorage.setItem('fantassistant.bookmaker-odds-cache', ${JSON.stringify(JSON.stringify({ at: new Date().toISOString(), body: ODDS }))});` : ''}
   } catch {}` });
   await send('Page.navigate', { url: `${ORIGIN}/lineup` });
 
@@ -178,6 +182,24 @@ try {
   const pitch = await ev(`(() => { const p = [...document.querySelectorAll('[data-lineup-pitch] [data-place]')]; return { places: p.length, filled: p.filter((x) => x.hasAttribute('data-filled')).length, module: document.querySelector('[data-lineup-pitch] [data-module]')?.innerText ?? null }; })()`);
   check(pitch.places === 11 && pitch.filled === 11, `the pitch fields ${pitch.filled} of ${pitch.places} (${pitch.module})`);
   check(!(await ev(`!!document.querySelector('[data-lineup-save]')`)), 'no «Salva su Leghe» without Leghe');
+
+  // 2a. THE CORRECTED SCORING CHANCE (22/10/2026): beside every scorer price a percentage, below 1/price (the
+  //     archive measured the books overstating every scorer) and the keepers' clean sheet printed as priced.
+  if (ODDS) {
+    const priced = await ev(`[...document.querySelectorAll('[data-lineup-roster] [data-odds-kind]')].map((o) => ({
+      kind: o.getAttribute('data-odds-kind'), price: Number(o.getAttribute('data-odds-price')),
+      pct: o.querySelector('[data-odds-chance]')?.innerText ?? null, name: o.closest('li').querySelector('button')?.innerText ?? '' }))`);
+    const goals = priced.filter((o) => o.kind === 'goal');
+    const bad = goals.filter((o) => !o.pct || Number(o.pct.replace('%', '')) >= 100 / o.price);
+    // A keeper's clean-sheet price is printed as it is (measured: the books price it at the rate it happens).
+    const keepers = priced.filter((o) => o.kind !== 'goal');
+    const keepersOff = keepers.filter((o) => !o.pct);
+    check(goals.length > 0 && !bad.length && !keepersOff.length,
+      `${goals.length} scorer prices, every one with a corrected chance under 1/price; keepers ${keepers.length}, without a chance ${keepersOff.length}` +
+        (bad.length ? ` - wrong: ${bad.map((o) => o.name).join(', ')}` : ''));
+    for (const o of goals.slice(0, 6)) console.log(`    ${o.name}: ${o.price} -> ${o.pct} (1/price ${Math.round(100 / o.price)}%)`);
+    await shot('2a-odds.png');
+  }
 
   // 2b. ONE KEEPER OF A CLUB (operator, 16/10/2026, Kohn fielded over Hradecky): every keeper on the pitch is the
   //     likeliest of his club in this roster, by the chance the page shows. Roles and clubs come from the BUNDLE

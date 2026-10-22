@@ -275,8 +275,14 @@ export class RosterFileStore {
 
   readonly ready = computed(() => !!this.file());
 
+  /**
+   * On every opening: read the sheet, and SEND BACK only if this browser holds something the sheet does not
+   * (22/10/2026). Until then a browser pushed only when a roster was added or removed, so rosters loaded before the
+   * secret was written - or before `rosters.gs` existed - stayed on that browser for ever unless somebody pressed
+   * «Sincronizza» there: the operator found the sheet EMPTY from localhost while the published site held his squads.
+   */
   constructor() {
-    void this.pull();
+    void this.pull().then((behind) => (behind ? this.push() : undefined));
   }
 
   choose(key: string): void {
@@ -306,7 +312,7 @@ export class RosterFileStore {
 
   /** «Sincronizza»: the sheet's list merged into this one, and this one sent back. */
   async refresh(): Promise<void> {
-    if (await this.pull()) await this.push();
+    if ((await this.pull()) !== null) await this.push();
   }
 
   private where(): { base: string; secret: string } | null {
@@ -323,18 +329,27 @@ export class RosterFileStore {
     return { base, secret };
   }
 
-  /** Reads the sheet's list and merges it in. True = it answered. */
-  private async pull(): Promise<boolean> {
+  /**
+   * Reads the sheet's list and merges it in. Null = it did not answer; otherwise whether this browser holds an entry
+   * the sheet lacks or holds older (what makes the opening send its list back).
+   */
+  private async pull(): Promise<boolean | null> {
     const at = this.where();
-    if (!at) return false;
+    if (!at) return null;
     this.sync.set({ kind: 'syncing' });
     const answer = await this.call(() =>
       fetch(`${at.base}${at.base.includes('?') ? '&' : '?'}what=rosters&secret=${encodeURIComponent(at.secret)}`, { redirect: 'follow' }),
     );
-    if (!answer) return false;
-    this.saved.set(mergeRosters(this.saved(), readList(answer.rosters)));
+    if (!answer) return null;
+    const remote = readList(answer.rosters);
+    const theirs = new Map(remote.map((one) => [one.key, one.updatedAt]));
+    const behind = this.saved().some((one) => {
+      const at = theirs.get(one.key);
+      return at === undefined || at < one.updatedAt;
+    });
+    this.saved.set(mergeRosters(this.saved(), remote));
     this.sync.set({ kind: 'done', at: new Date() });
-    return true;
+    return behind;
   }
 
   /** Sends this list; the sheet answers the merge, which is adopted. */

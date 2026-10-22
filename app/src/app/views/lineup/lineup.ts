@@ -23,7 +23,7 @@ import { DropTarget, LineupDraft, NO_SWITCH, draftOf, drawDraft, move, relayout 
 import { LegheSession } from '../../core/leghe-session';
 import { RosterFileStore, leagueOfFile, matchdayFromFile } from '../../core/roster-file';
 import { PlayerStatus } from '../../core/player-status';
-import { FvaInput, fvaOf, fvaWords, oddsScale, restPerMatch } from '../../core/fva';
+import { FvaInput, fvaOf, fvaWords, goalChance, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
 import { TimeTravel } from '../../core/time-travel';
 import {
@@ -179,7 +179,7 @@ type SaveState =
     /* ONE track list for the header and every row, so a column never drifts out of line. */
     .lineup-grid {
       display: grid;
-      grid-template-columns: 4.5rem minmax(0, 1fr) 6.5rem 2rem 2.5rem 2.5rem 2.75rem 2.25rem 3rem 4.75rem 4.75rem;
+      grid-template-columns: 4.5rem minmax(0, 1fr) 6.5rem 2rem 2.5rem 2.5rem 2.75rem 2.25rem 4.75rem 4.75rem 4.75rem;
       column-gap: 0.5rem;
     }
     .sort { cursor: pointer; user-select: none; }
@@ -625,14 +625,19 @@ export class Lineup {
 
   /**
    * EACH MAN'S CHAMPIONSHIP FOOTBALL, walked ONCE per roster: goals per appearance over this season and the
-   * last (what the FVA splits the fantamedia with, and the level the prices are rescaled to, `fva.oddsScale`)
+   * last (what the FVA splits the fantamedia with, and what the calibrated price is blended with, `fva.goalChance`)
    * and this season's goals and assists (the G:A column). One walk, so the two readers cannot count two
    * different populations.
    */
   private readonly football = computed(() => {
     const out = new Map<
       number,
-      { goalsPerMatch: number | null; restPerMatch: number | null; ga: { goals: number; assists: number } | null }
+      {
+        goalsPerMatch: number | null;
+        appearances: number;
+        restPerMatch: number | null;
+        ga: { goals: number; assists: number } | null;
+      }
     >();
     const platform = this.platform();
     const [input, target] = [this.store.inputSeason(), this.store.targetSeason()];
@@ -648,6 +653,7 @@ export class Lineup {
       );
       out.set(r.fcId, {
         goalsPerMatch: played ? ((now?.goals ?? 0) + (before?.goals ?? 0)) / played : null,
+        appearances: played,
         restPerMatch: restPerMatch(championship),
         ga: gaOf(now),
       });
@@ -727,6 +733,7 @@ export class Lineup {
           fm,
           minutes: expected?.minutesNext ?? null,
           goalsPerMatch: keeper ? null : (this.football().get(r.fcId)?.goalsPerMatch ?? null),
+          appearances: keeper ? null : (this.football().get(r.fcId)?.appearances ?? null),
           restPerMatch: keeper ? null : (this.football().get(r.fcId)?.restPerMatch ?? null),
           oddsProb: price && price.kind === (keeper ? 'clean-sheet' : 'goal') ? price.prob : null,
           delta: this.matchTerms().get(r.fcId)?.delta ?? null,
@@ -734,17 +741,12 @@ export class Lineup {
         } satisfies FvaInput,
       };
     });
-    const scale = oddsScale(
-      inputs
-        .filter((one) => !one.keeper && one.input.goalsPerMatch !== null && one.input.oddsProb !== null)
-        .map((one) => ({ goalsPerMatch: one.input.goalsPerMatch!, oddsProb: one.input.oddsProb! })),
-    );
     return inputs.map(({ r, fm, fromSheet, keeper, input }) => {
       // Without Leghe's probable-starter percentage (a roster file has none) the chance of a vote is the sheet's own
       // share of the season he is expected to get one in (`pv` over the sheet's season), still 0 for a man OUT today.
       const share = r.percent === null && sheet?.get(r.fcId)?.pv != null && rounds ? sheet.get(r.fcId)!.pv! / rounds : null;
       const chance = share !== null ? (r.out ? 0 : Math.max(0, Math.min(1, share))) : voteChance(r.percent, r.out);
-      const fva = fvaOf(input, scale);
+      const fva = fvaOf(input);
       const steady = steadiness.get(r.fcId) ?? null;
       return {
         id: r.fcId,
@@ -1336,6 +1338,20 @@ export class Lineup {
     const rows = this.roster();
     return { found: rows.filter((r) => !!r.odds).length, of: rows.length };
   });
+
+  /**
+   * The CORRECTED chance that he scores, printed beside the scorer price (operator, 22/10/2026): the price
+   * calibrated on the archived outcomes and blended with his own goal rate (`fva.goalChance`) - the same number
+   * the FVA's goal part is built on, so the two cannot disagree. A keeper's clean-sheet price is printed as it
+   * is: measured the same day on 94 sides, the books price a clean sheet ALREADY at the rate it happens (implied
+   * 30.8%, real 28.7%) and every correction read worse out of sample (`formazione-leghe-v1.md` §4-duodecies).
+   */
+  protected goalPct(fcId: number, odds: ManOdds): number | null {
+    if (odds.kind !== 'goal') return odds.prob;
+    const f = this.football().get(fcId);
+    const n = f?.appearances ?? 0;
+    return goalChance(odds.prob, (f?.goalsPerMatch ?? 0) * n, n);
+  }
 
   protected oddsHint(odds: ManOdds): string {
     const what = odds.kind === 'goal' ? 'Quota gol' : 'Quota porta inviolata';
