@@ -62,7 +62,20 @@ pochissime è un'informazione: il nostro vantaggio sta proprio dove il mercato p
 
 **Costo.** Minimo.
 
-## 3. Allargare un'offerta — l'appunto dell'operatore
+## 3. Allargare un'offerta — FATTO (22/10/2026 sera)
+
+`scout.extendOffer`: su una riga, «+ aggiungi» prova UN calciatore in più - nostro, suo, o uno per parte (su una rosa
+classic piena solo uno per parte, dello stesso ruolo: le quote) - e tiene le aggiunte che migliorano per LUI almeno
+una di tre cose (il suo guadagno di `EXTEND_STEP.theirs` 0,1, il saldo FVM a suo favore di 5, la forma di 0,1:
+soglie dichiarate, la taglia di una differenza che un fanta-allenatore nota) senza peggiorarne nessuna, con tutte le
+regole di sempre (guadagni ≥ +0,1 e paragonabili, quote, forma). Ordine: più cose sistemate, poi il nostro guadagno
+sull'undici, poi - a parità - la rosa intera, così il «contentino» dalla nostra panchina che ci manca meno viene
+prima (i guadagni contano solo l'undici, e un panchinaro ceduto costa la copertura che dava). Le prime 3, ognuna
+una riga come le altre: si apre la tabella, e si può allargare ancora. Calcolato solo quando lo si chiede, su
+quella riga. Misurato sui 2x2 dell'export chiagnister: 3, 3, 2 aggiunte sulle prime righe di tre rose, 0 su altre tre
+(dove nessun uomo in più migliora per lui senza peggiorare un'altra cosa).
+
+Testo originale del passo:
 
 **Cosa.** Su una riga scelta, «+ aggiungi»: la pagina cerca UN calciatore in più da una parte o dall'altra per
 sistemare il punto debole dell'offerta, nell'ordine:
@@ -139,7 +152,17 @@ giornata. Un bottone «copia».
 
 **Costo.** Piccolo.
 
-## 6. Le eccedenze
+## 6. Le eccedenze — FATTO (22/10/2026 sera)
+
+`scout.surplusOf`: sulle sue riserve che ci servono, «4 A da titolare per 3 posti» quando quel ruolo (P/D/C/A del
+listone) ha più uomini a livello da titolare che posti nel suo undici; quelle riserve vengono prima nell'elenco.
+«A livello da titolare» = almeno `VALUE_RATIO` (0,8) del titolare più debole di quel ruolo. La prima versione
+chiedeva «almeno quanto lui» ed era **muta per costruzione** (0 etichette su ogni rosa): chi fuori dall'undici vale
+almeno un titolare del suo stesso ruolo sarebbe nell'undici. Con 0,8 escono **15-25 etichette su 9 rivali**, e sulle
+prime 4 riserve di una card quasi tutte la portano (le difese sono compresse: «7 D da titolare per 4 posti»): oggi
+dice poco più di «è una riserva buona». Se serve più selettiva, la soglia è una dichiarazione da rivedere.
+
+Testo originale del passo:
 
 **Cosa.** Segnalare quando la squadra avversaria ha più calciatori buoni che posti in un ruolo (lo sa anche lui, e
 cedere chi resta in panchina gli costa poco). Le «riserve che ci servono» ci sono già: si aggiunge il motivo

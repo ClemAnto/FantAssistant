@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, elevenWithoutNeedy, groupTrades, needMet, pairSwaps, quotasHold, rivalReports, simpleSwaps, strengthOf } from './scout';
+import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, elevenWithoutNeedy, extendOffer, groupTrades, needMet, pairSwaps, quotasHold, rivalReports, simpleSwaps, strengthOf, surplusOf } from './scout';
 
 /** A classic rulebook with two shapes, enough to make the matching choose. */
 const RULES = {
@@ -265,6 +265,45 @@ describe('scout', () => {
     const empty = { kind: 'weak' as const, slot: 'A', line: 'A' as const, roles: ['a'], holder: null };
     expect(needMet([empty], [man('A', 6, 30)], [], [], new Set())?.kind).toBe('weak');
     expect(needMet([empty], [ourMid], [], [], new Set())).toBeNull();
+  });
+
+  it('a surplus: more men of a role at a starter\'s level than his eleven has places for it', () => {
+    const only442 = { ...RULES, modules: { '4-4-2': (RULES.modules as Record<string, unknown>)['4-4-2'] } } as unknown as MantraModules;
+    const theirs = squad(6);
+    const forwards = theirs.filter((m) => m.role === 'A');
+    // Two starting places up front: two at 8, a third at 7 (worth 7/8 of the weaker starter), the rest at 2.
+    forwards.forEach((m, i) => { m.fm = [8, 8, 7, 2, 2, 2][i]; m.pv = 30; });
+    const eleven = strengthOf(theirs, only442, 38).eleven;
+    expect(surplusOf(theirs, eleven, forwards[2])).toEqual({ role: 'A', good: 3, places: 2 });
+    expect(surplusOf(theirs, eleven, forwards[5])).toBeNull();
+  });
+
+  it('one man more on an offer mends what the rival sees and breaks no rule', () => {
+    const only442 = { ...RULES, modules: { '4-4-2': (RULES.modules as Record<string, unknown>)['4-4-2'] } } as unknown as MantraModules;
+    const mine = squad(6);
+    mine.filter((m) => m.role === 'C').forEach((m) => { m.fm = 5; m.pv = 30; });
+    mine.filter((m) => m.role === 'A').forEach((m, i) => { m.fm = i < 4 ? 7.5 : 3; m.pv = 30; m.fvm = i < 4 ? 40 : 5; });
+    const theirs = squad(6);
+    theirs.filter((m) => m.role === 'A').forEach((m) => { m.fm = 4; m.pv = 30; });
+    theirs.filter((m) => m.role === 'C').forEach((m) => { m.fm = 6.5; m.pv = 30; m.fvm = 60; });
+    const star = theirs.find((m) => m.role === 'C')!;
+    star.fm = 7;
+    const input = { mine: { name: 'Noi', men: mine }, rivals: [{ name: 'Loro', men: theirs }], rules: only442, rounds: 38, mantra: true };
+    const base = simpleSwaps(input).find((s) => s.take.id === star.id)!;
+    expect(base).toBeDefined();
+    const exts = extendOffer({ rival: 'Loro', give: [base.give], take: [base.take] }, input);
+    expect(exts.length).toBeGreaterThan(0);
+    for (const e of exts) {
+      expect(Math.min(e.ours, e.theirs)).toBeGreaterThanOrEqual(0.1);
+      expect(Math.min(e.ours, e.theirs)).toBeGreaterThanOrEqual(0.5 * Math.max(e.ours, e.theirs) - 1e-9);
+      expect([e.better.theirs, e.better.fvm, e.better.form].some((v) => v != null)).toBe(true);
+      expect(e.theirs).toBeGreaterThanOrEqual(base.theirs - 0.05 - 1e-9);
+      expect(e.give.length + e.take.length).toBe(2 + Number(!!e.added.give) + Number(!!e.added.take));
+    }
+    // On a full classic squad one man more each way, of the same role in total, or nothing.
+    for (const e of extendOffer({ rival: 'Loro', give: [base.give], take: [base.take] }, { ...input, mantra: false })) {
+      expect(!!e.added.give && !!e.added.take && e.added.give.role === e.added.take.role).toBe(true);
+    }
   });
 
   it('the form we offer over the form we ask: a man in better form than what we pay is not proposed', () => {

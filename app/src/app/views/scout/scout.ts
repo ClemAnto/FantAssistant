@@ -32,6 +32,8 @@ import {
   appealOf,
   contribution,
   elevenWithoutNeedy,
+  Extension,
+  extendOffer,
   groupTrades,
   needMet,
   pairSwaps,
@@ -229,6 +231,7 @@ export class Scout {
 
   protected chooseRoster(key: string): void {
     this.rivalFilter.set(null);
+    this.extensions.set(new Map());
     this.pairRun += 1;
     this.pairState.set({ kind: 'idle' });
     this.rosterFile.choose(key);
@@ -358,7 +361,11 @@ export class Scout {
     const rounds = this.rounds();
     if (!squads || !rules || !rounds) return out;
     const menOf = new Map(squads.rivals.map((squad) => [squad.name, squad.men]));
-    const offers: (SimpleSwap | PairSwap)[] = [...this.allSwaps(), ...(this.pairResult()?.swaps ?? [])];
+    const offers: (SimpleSwap | PairSwap)[] = [
+      ...this.allSwaps(),
+      ...(this.pairResult()?.swaps ?? []),
+      ...[...this.extensions().values()].flat(),
+    ];
     for (const one of offers) {
       const needs = this.needs().get(one.rival) ?? [];
       if (!needs.length) {
@@ -478,6 +485,41 @@ export class Scout {
     const seen = pool.filter((one) => !rival || one.rival === rival);
     return { kept: seen.filter((one) => this.fairToHim(one)).length, total: seen.length };
   });
+
+  /**
+   * ONE MAN MORE ON AN OFFER (`roadmap-scambi-v1.md` step 3, `scout.extendOffer`): computed when asked, on that line
+   * alone, and kept by the line's key - an extension is a line too, so it can be extended again.
+   */
+  protected readonly extensions = signal<ReadonlyMap<string, Extension[]>>(new Map());
+
+  protected extensionsFor(key: string): Extension[] | null {
+    return this.extensions().get(key) ?? null;
+  }
+
+  protected toggleExtend(key: string, swap: SimpleSwap | PairSwap): void {
+    const next = new Map(this.extensions());
+    if (next.has(key)) {
+      // Closing a line closes what was opened under it.
+      for (const k of [...next.keys()]) if (k === key || k.startsWith(key + '>')) next.delete(k);
+    } else {
+      const squads = this.squads();
+      const rules = this.rules();
+      const rounds = this.rounds();
+      if (!squads || !rules || !rounds) return;
+      const base = { rival: swap.rival, give: [swap.give].flat(), take: [swap.take].flat() };
+      next.set(key, extendOffer(base, { mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() }));
+    }
+    this.extensions.set(next);
+  }
+
+  /** What an extension made better for the rival, in words. */
+  protected betterText(ext: Extension): string {
+    const parts: string[] = [];
+    if (ext.better.theirs != null) parts.push(`per loro +${ext.better.theirs.toFixed(2)}`);
+    if (ext.better.fvm != null) parts.push(`FVM +${Math.round(ext.better.fvm)} a suo favore`);
+    if (ext.better.form != null) parts.push(`forma +${ext.better.form.toFixed(2)}`);
+    return parts.join(' · ');
+  }
 
   protected pairPercent(): number {
     const state = this.pairState();

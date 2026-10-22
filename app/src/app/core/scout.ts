@@ -669,6 +669,135 @@ export function* pairSwaps(input: ScoutInput): Generator<ScoutProgress, PairSwap
 }
 
 /**
+ * ADDING A MAN TO AN OFFER (`roadmap-scambi-v1.md` step 3; operator, 22/10/2026: «lo scambio deve partire da 1x1 (o
+ * 2x2) ma poi è possibile aggiungere altri attori in un secondo momento»). Not a search over every 3x3: from ONE offer
+ * the operator chose, one man more - one of ours, one of theirs, or one each - to mend what would make the rival say no.
+ *
+ * What the rival sees is three things, and an extension must make at least one of them clearly better and none worse:
+ *   * HIS GAIN, points a matchday (`EXTEND_STEP.theirs`);
+ *   * the FVM BALANCE, what we give minus what we take, on his own price list (`EXTEND_STEP.fvm`);
+ *   * the FORM we offer over the form we ask (`EXTEND_STEP.form`).
+ * Every rule of a trade still holds: both gains at least `MIN_GAIN` and comparable, the quotas (so on a full classic
+ * squad only one each way, of the same role in total), the form tolerance. The steps are declared, not measured: a
+ * tenth of a point, five FVM, a tenth of a vote - the size of a difference a manager notices.
+ *
+ * The result has the shape of a 2x2 (`PairSwap`), so the page draws it with the same line, table and labels - and an
+ * extension can be extended again.
+ */
+export const EXTEND_STEP = { theirs: 0.1, fvm: 5, form: 0.1 };
+/** How much worse a side may get and still count as «not worse»: rounding, not a concession. */
+const EXTEND_SLACK = { theirs: 0.05, fvm: 0, form: 0.05 };
+export const EXTEND_RESULTS = 3;
+
+export interface Extension extends PairSwap {
+  /** The men added, each side. */
+  added: { give: ScoutMan | null; take: ScoutMan | null };
+  /** What got better for the rival against the offer it came from; null = not better (or unknown). */
+  better: { theirs: number | null; fvm: number | null; form: number | null };
+}
+
+export function extendOffer(
+  base: Tradeable,
+  input: ScoutInput,
+  maxResults = EXTEND_RESULTS,
+): Extension[] {
+  const { rules, rounds, mantra } = input;
+  const rival = input.rivals.find((one) => one.name === base.rival);
+  if (!rival || rounds <= 0) return [];
+  const mineMen = input.mine.men;
+  const mine = strengthOf(mineMen, rules, rounds);
+  const theirs = strengthOf(rival.men, rules, rounds);
+  const after = (give: readonly ScoutMan[], take: readonly ScoutMan[]) => {
+    const gone = new Set(give.map((m) => m.id));
+    const come = new Set(take.map((m) => m.id));
+    return {
+      ourMen: [...mineMen.filter((m) => !gone.has(m.id)), ...take],
+      theirMen: [...rival.men.filter((m) => !come.has(m.id)), ...give],
+    };
+  };
+  const gainsOf = (give: readonly ScoutMan[], take: readonly ScoutMan[]) => {
+    const { ourMen, theirMen } = after(give, take);
+    return {
+      ours: strengthOf(ourMen, rules, rounds).starters - mine.starters,
+      theirs: strengthOf(theirMen, rules, rounds).starters - theirs.starters,
+    };
+  };
+  const balanceOf = (give: readonly ScoutMan[], take: readonly ScoutMan[]) => {
+    const g = fvmSum(give);
+    const t = fvmSum(take);
+    return g == null || t == null ? null : g - t;
+  };
+  const was = gainsOf(base.give, base.take);
+  // What a man given from OUR BENCH costs us is the cover he gave, which the gains (the elevens) do not see: ties on
+  // our gain are broken by our whole squad's strength, so the sweetener we miss least comes first.
+  const fullOurs = (give: readonly ScoutMan[], take: readonly ScoutMan[]) =>
+    strengthOf(after(give, take).ourMen, rules, rounds).perRound - mine.perRound;
+  const wasFvm = balanceOf(base.give, base.take);
+  const wasForm = appealOf(base.give, base.take);
+
+  const inBase = new Set([...base.give, ...base.take].map((m) => m.id));
+  const ours: (ScoutMan | null)[] = [null, ...mineMen.filter((m) => !inBase.has(m.id))];
+  const their: (ScoutMan | null)[] = [null, ...rival.men.filter((m) => !inBase.has(m.id))];
+  const found: { ext: Omit<Extension, 'ourChange' | 'theirChange'>; fixes: number; full: number }[] = [];
+  for (const g of ours) {
+    for (const t of their) {
+      if (!g && !t) continue;
+      const give = g ? [...base.give, g] : [...base.give];
+      const take = t ? [...base.take, t] : [...base.take];
+      if (tooHot(give, take)) continue;
+      const { ourMen, theirMen } = after(give, take);
+      if (!quotasHold(mineMen, ourMen, mantra) || !quotasHold(rival.men, theirMen, mantra)) continue;
+      const now = gainsOf(give, take);
+      if (now.ours < MIN_GAIN || now.theirs < MIN_GAIN || !balanced(now.ours, now.theirs)) continue;
+      const dTheirs = now.theirs - was.theirs;
+      const fvm = balanceOf(give, take);
+      const dFvm = fvm == null || wasFvm == null ? null : fvm - wasFvm;
+      const form = appealOf(give, take);
+      const dForm = form == null || wasForm == null ? null : form - wasForm;
+      // None worse...
+      if (dTheirs < -EXTEND_SLACK.theirs || (dFvm ?? 0) < -EXTEND_SLACK.fvm || (dForm ?? 0) < -EXTEND_SLACK.form) continue;
+      // ...and at least one clearly better.
+      const better = {
+        theirs: dTheirs >= EXTEND_STEP.theirs ? dTheirs : null,
+        fvm: dFvm != null && dFvm >= EXTEND_STEP.fvm ? dFvm : null,
+        form: dForm != null && dForm >= EXTEND_STEP.form ? dForm : null,
+      };
+      const fixes = [better.theirs, better.fvm, better.form].filter((v) => v != null).length;
+      if (!fixes) continue;
+      found.push({
+        fixes,
+        full: fullOurs(give, take),
+        ext: {
+          rival: rival.name,
+          give,
+          take,
+          ours: now.ours,
+          theirs: now.theirs,
+          spare: take.filter((m) => !theirs.eleven.has(m.id)).map((m) => m.id),
+          appeal: form,
+          fvmGive: fvmSum(give),
+          fvmTake: fvmSum(take),
+          added: { give: g, take: t },
+          better,
+        },
+      });
+    }
+  }
+  // Most fixes first; then what it leaves US, because each fix is paid for with our gain - our eleven, then the cover.
+  return found
+    .sort((a, b) => b.fixes - a.fixes || (Math.abs(b.ext.ours - a.ext.ours) > 0.005 ? b.ext.ours - a.ext.ours : b.full - a.full))
+    .slice(0, maxResults)
+    .map(({ ext }) => {
+      const { ourMen, theirMen } = after(ext.give, ext.take);
+      return {
+        ...ext,
+        ourChange: changeOf(mineMen, ourMen, ext.take, rules, rounds),
+        theirChange: changeOf(rival.men, theirMen, ext.give, rules, rounds),
+      };
+    });
+}
+
+/**
  * WHAT EACH RIVAL CAN SPARE AND WHAT IT LACKS (operator, same day: «vedere i giocatori meno schierati dagli altri, che
  * sicuramente possono essere scambiati con più facilità ... oppure notare particolari "buchi" nelle formazioni
  * altrui per proporre scambi allettanti»).
@@ -704,6 +833,33 @@ export interface RivalHole {
  * Facts and not our valuation: each one is something he can see on his own team sheet.
  */
 export type NeedKind = 'out' | 'novote' | 'weak';
+
+/**
+ * A SURPLUS (`roadmap-scambi-v1.md` step 6): more men of a role at a starter's level than his eleven has places for
+ * that role - which he knows, so letting one go costs him little. The role is the listone's (P / D / C / A), the one
+ * his quotas count. Said on the spare man as «4 A da titolare per 3 posti».
+ *
+ * «At a starter's level» is worth about as much as the weakest starter of that role - `VALUE_RATIO` of him, the same
+ * «più o meno lo stesso» the trades use. The first version asked for AT LEAST as much, and a man outside the eleven
+ * who makes at least as much as a starter of his own role would BE in the eleven: zero surpluses on every squad of a
+ * real league, by construction.
+ */
+export interface RivalSurplus {
+  role: ScoutRole;
+  good: number;
+  places: number;
+}
+
+/** The surplus `man` (outside the eleven) belongs to: null when he is not at a starter's level himself. */
+export function surplusOf(men: readonly ScoutMan[], eleven: ReadonlySet<number>, man: ScoutMan): RivalSurplus | null {
+  const role = man.role;
+  const starters = men.filter((m) => eleven.has(m.id) && m.role === role);
+  if (!starters.length) return null;
+  const floor = VALUE_RATIO * Math.min(...starters.map((m) => valueOf(m) ?? 0));
+  if ((valueOf(man) ?? 0) < floor) return null;
+  const good = men.filter((m) => m.role === role && (valueOf(m) ?? 0) >= floor).length;
+  return { role, good, places: starters.length };
+}
 export const NO_VOTE_MIN = 3;
 
 export interface RivalNeed {
@@ -761,8 +917,11 @@ export interface RivalReport {
   name: string;
   perRound: number;
   module: string;
-  /** His men outside his eleven who would enter OURS, with what they add to us a matchday. */
-  spare: { man: ScoutMan; forUs: number }[];
+  /**
+   * His men outside his eleven who would enter OURS, with what they add to us a matchday - those who come from a
+   * SURPLUS first (`RivalSurplus`).
+   */
+  spare: { man: ScoutMan; forUs: number; surplus: RivalSurplus | null }[];
   holes: RivalHole[];
   /** What he feels is wrong, strongest kind first. */
   needs: RivalNeed[];
@@ -790,9 +949,13 @@ export function rivalReports(
   return all.slice(1).map(({ squad, strength }) => {
     const spare = squad.men
       .filter((man) => priced(man) && !strength.eleven.has(man.id))
-      .map((man) => ({ man, forUs: strengthOf([...mine.men, man], rules, rounds).perRound - ours.perRound }))
+      .map((man) => ({
+        man,
+        forUs: strengthOf([...mine.men, man], rules, rounds).perRound - ours.perRound,
+        surplus: surplusOf(squad.men, strength.eleven, man),
+      }))
       .filter((one) => one.forUs >= MIN_GAIN)
-      .sort((a, b) => b.forUs - a.forUs);
+      .sort((a, b) => Number(!!b.surplus) - Number(!!a.surplus) || b.forUs - a.forUs);
     const holes: RivalHole[] = strength.places
       .map((place) => {
         const med = medians.get(place.line) ?? 0;

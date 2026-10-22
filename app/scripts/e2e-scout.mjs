@@ -249,6 +249,44 @@ try {
     check(pr.filter((r) => r.dir === 'gives').length >= 2 && pr.filter((r) => r.dir === 'takes').length >= 2, 'the 2x2 table: two given (→) and two taken (←)');
   }
   await roadmapChecks(readLines, '[data-scout-pairs]', '[data-scout-pair-offer]', '2x2');
+
+  // ROADMAP STEP 3 - one man more on an offer: every extension keeps the offer's men, adds one of ours and/or one of
+  // theirs (one each way on a full classic squad), keeps both gains and the form rule, and makes something better for
+  // HIM without making his gain worse.
+  if (pairLines.length) {
+    const lineOf = (l) => ev(`(() => { const line = l => {
+      const g = l.querySelector('[data-scout-gains]')?.innerText.match(/per te \\+([\\d.]+) · per loro \\+([\\d.]+)/);
+      const f = l.querySelector('[data-scout-form]')?.innerText.replace('forma', '').trim();
+      return { gives: l.getAttribute('data-gives').split(' + '), takes: l.getAttribute('data-takes').split(' + '),
+        ours: g ? Number(g[1]) : null, theirs: g ? Number(g[2]) : null, form: f ? Number(f.replace('+', '')) : null };
+    }; return ${l}; })()`);
+    const base = await lineOf(`line(document.querySelector('[data-scout-pairs] [data-scout-line]'))`);
+    await ev(`document.querySelector('[data-scout-pairs] [data-scout-extend]').click()`);
+    await until(`!!document.querySelector('[data-scout-extensions]')`, 30000);
+    const exts = await lineOf(`[...document.querySelectorAll('[data-scout-extensions] [data-scout-line]')].map(line)`);
+    const better = await ev(`[...document.querySelectorAll('[data-scout-extension-better]')].map((x) => x.innerText.trim())`);
+    console.log(`    + aggiungi on «${base.gives.join(' + ')} × ${base.takes.join(' + ')}»: ${exts.length} extensions`);
+    exts.forEach((e, i) => console.log(`      ${e.gives.join(' + ')} × ${e.takes.join(' + ')} · +${e.ours} / +${e.theirs} · ${better[i]}`));
+    const sizeOk = (e) => {
+      const g = e.gives.length - base.gives.length, t = e.takes.length - base.takes.length;
+      return GAME === 'classic' ? g === 1 && t === 1 : g + t >= 1 && g <= 1 && t <= 1;
+    };
+    check(exts.every((e) => base.gives.every((m) => e.gives.includes(m)) && base.takes.every((m) => e.takes.includes(m)) && sizeOk(e)),
+      'every extension keeps the offer and adds one man a side at most (one each way on classic)');
+    check(exts.every((e) => e.ours >= 0.09 && e.theirs >= 0.09 && Math.min(e.ours, e.theirs) >= 0.5 * Math.max(e.ours, e.theirs) - 0.01
+      && (e.form === null || e.form >= -0.25 - 1e-9) && e.theirs >= base.theirs - 0.06),
+      'every extension: both gains hold and stay comparable, the form rule holds, his gain is not worse');
+    check(better.length === exts.length && better.every((t) => t.length > 0), 'every extension says what it made better for him');
+    await shot('4-extend.png');
+    await ev(`document.querySelector('[data-scout-pairs] [data-scout-extend]').click()`);
+    check(!!(await until(`!document.querySelector('[data-scout-extensions]')`, 5000)), 'closing the line closes its extensions');
+  }
+
+  // ROADMAP STEP 6 - a surplus he knows about, written on his spare men: more at a starter's level than places.
+  const surplus = await ev(`[...document.querySelectorAll('[data-scout-surplus]')].map((x) => x.innerText.trim())`);
+  for (const t of surplus.slice(0, 4)) console.log(`    eccedenza: ${t}`);
+  check(surplus.every((t) => { const m = t.match(/^(\d+) [PDCA] da titolare per (\d+) post[oi]$/); return !!m && Number(m[1]) > Number(m[2]); }),
+    `${surplus.length} surplus labels, each «N R da titolare per M posti» with N > M`);
   await shot('3-pairs.png');
 
   // THE LAST SEARCH SURVIVES A REFRESH («salva l'ultima ricerca e mostrala al refresh»).

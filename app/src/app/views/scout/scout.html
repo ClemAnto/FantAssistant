@@ -149,6 +149,7 @@
                       @if (openOffer() === key) {
                         <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix([line.give], [line.take], line.theirOut ? [line.theirOut] : [], line.ourOut ? [line.ourOut] : []) }" />
                       }
+                      <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: key }" />
                     }
                   </div>
                 }
@@ -177,9 +178,8 @@
                       @for (line of offer.lines; track $index) {
                         @let key = offerKey(group.rival, line.give, line.take);
                         <ng-container *ngTemplateOutlet="swapLine; context: { give: line.give, take: line.take, swap: line, key: key, spare: line.spare }" />
-                        @if (openOffer() === key) {
-                          <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix(line.give, line.take, pushed(line.theirChange, line.take), pushed(line.ourChange, line.give), { mine: line.ourChange.enter, theirs: line.theirChange.enter }) }" />
-                        }
+                        <ng-container *ngTemplateOutlet="pairTable; context: { $implicit: line, key: key }" />
+                        <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: key }" />
                       }
                       @if (offer.hidden) {
                         <button type="button" class="pl-14 text-left text-[10px] text-muted hover:text-fg" (click)="rivalFilter.set(group.rival)">+{{ offer.hidden }} varianti</button>
@@ -218,6 +218,10 @@
             <div class="flex items-center gap-2">
               <ui-roles [roles]="one.man.shown" size="xxs" />
               <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">{{ one.man.name }}</button>
+              @if (one.surplus; as surplus) {
+                <!-- A SURPLUS he knows about (`scout.surplusOf`): letting one go costs him little. -->
+                <span class="text-[10px] text-muted" nz-tooltip nzTooltipTitle="Più calciatori di quel ruolo a livello da titolare che posti nel suo undici" data-scout-surplus>{{ surplus.good }} {{ surplus.role }} da titolare per {{ surplus.places }} {{ surplus.places === 1 ? 'posto' : 'posti' }}</span>
+              }
               <span class="tabular-nums text-xs text-success">+{{ one.forUs | number: '1.2-2' }}</span>
             </div>
           } @empty {
@@ -264,16 +268,40 @@
 
 
 
+<!-- The four-sided table of a line shaped like a 2x2 (a 2x2, or an extension), when it is open. -->
+<ng-template #pairTable let-line let-key="key">
+  @if (openOffer() === key) {
+    <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix(line.give, line.take, pushed(line.theirChange, line.take), pushed(line.ourChange, line.give), { mine: line.ourChange.enter, theirs: line.theirChange.enter }) }" />
+  }
+</ng-template>
+
+<!-- ONE MAN MORE (`scout.extendOffer`): the extensions of the line `key`, each a line that can be extended again. -->
+<ng-template #extensionsOf let-key>
+  @if (extensionsFor(key); as exts) {
+    <div class="ml-4 border-l-2 border-primary/40 pl-3" data-scout-extensions>
+      @for (ext of exts; track $index) {
+        @let k = key + '>' + offerKey(ext.rival, ext.give, ext.take);
+        <span class="text-[11px] text-success" data-scout-extension-better>{{ betterText(ext) }}</span>
+        <ng-container *ngTemplateOutlet="swapLine; context: { give: ext.give, take: ext.take, swap: ext, key: k, spare: ext.spare, added: ext.added }" />
+        <ng-container *ngTemplateOutlet="pairTable; context: { $implicit: ext, key: k }" />
+        <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: k }" />
+      } @empty {
+        <span class="block py-1 text-xs text-muted" data-scout-extension-none>Nessun calciatore in più migliora l'offerta per lui senza peggiorarla per te.</span>
+      }
+    </div>
+  }
+</ng-template>
+
 <!-- ONE SWAP IN ONE LINE (operator, 22/10/2026: «scrivi in maniera più sintetica CALCIATORE A x CALCIATORE B»): what I
      give × what I take, the two gains, the FVM, and «+ dettagli» for the four-sided table. -->
-<ng-template #swapLine let-give="give" let-take="take" let-swap="swap" let-key="key" let-spare="spare">
+<ng-template #swapLine let-give="give" let-take="take" let-swap="swap" let-key="key" let-spare="spare" let-added="added">
   <div class="flex flex-wrap items-center gap-x-2 gap-y-1 py-1" data-scout-line [attr.data-gives]="namesOf(give)" [attr.data-takes]="namesOf(take)">
     @for (man of give; track man.id; let first = $first) {
       @if (!first) {
         <span class="text-muted">+</span>
       }
       <ui-roles [roles]="man.shown" size="xxs" />
-      <button type="button" class="font-semibold hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+      <button type="button" class="font-semibold hover:underline" [class.text-primary]="added?.give?.id === man.id" (click)="openPlayer(man.id)">{{ man.name }}</button>
     }
     <span class="px-1 text-muted">×</span>
     @for (man of take; track man.id; let first = $first) {
@@ -281,7 +309,7 @@
         <span class="text-muted">+</span>
       }
       <ui-roles [roles]="man.shown" size="xxs" />
-      <button type="button" class="font-semibold hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+      <button type="button" class="font-semibold hover:underline" [class.text-primary]="added?.take?.id === man.id" (click)="openPlayer(man.id)">{{ man.name }}</button>
       @if (spare.includes(man.id)) {
         <span class="text-success" nz-tooltip nzTooltipTitle="Per loro è riserva">★</span>
       }
@@ -317,6 +345,15 @@
       @let balance = fvmBalance(swap);
       FVM {{ balance === null ? '–' : (balance > 0 ? '+' : '') + balance }}
     </span>
+    <button
+      type="button"
+      class="rounded border border-border px-1.5 text-[11px] text-muted hover:text-fg"
+      [class.border-primary]="extensionsFor(key)"
+      nz-tooltip
+      nzTooltipTitle="Un calciatore in più, tuo o suo, per renderla più convincente per lui"
+      (click)="toggleExtend(key, swap)"
+      data-scout-extend
+    >{{ extensionsFor(key) ? '- aggiungi' : '+ aggiungi' }}</button>
     <button type="button" class="rounded border border-border px-1.5 text-[11px] text-muted hover:text-fg" (click)="toggleOffer(key)" data-scout-compare-toggle>
       {{ openOffer() === key ? '- dettagli' : '+ dettagli' }}
     </button>
