@@ -7417,6 +7417,18 @@ lineup slot, no rating and no xG, so the boards, the short window and the per-ma
 `external_match_stats` would have made NULL xG read as zero (`expectedScope`) and half-fed eighty readers. Rows of
 the backup cover only rounds after the layer's last match, so they retire themselves when the provider reopens.
 
+## A price is judged on what HAPPENED, and a bonus player is an OPTION
+**22/10/2026, the Lineup page (`formazione-leghe-v1.md` §4-duodecies).** The odds the press sheet has archived
+since 08/10 were scored against the outcomes: 1/price overstates a SCORER about twice for the long shots, while the
+CLEAN-SHEET market is already calibrated (30.8% implied, 28.7% real) - two markets, two margins, so each is measured
+and never corrected by analogy. The scorer price blended with his own goal rate (`fva.goalChance`) is the FVA's goal
+part and the percentage printed beside the price: one number, two readers. And the operator's **golden rule**,
+measured on 14,156 substitutions: a man who scores or assists gets the vote even with five minutes (94.9%), so
+fielding a bonus player with a same-role cover on the bench costs only the 15-30' cameo without a bonus. Two habits:
+**a sync that writes only on change never reaches a device that existed before the sync** (the rosters sheet was
+EMPTY; now a browser pushes on opening when it holds what the sheet lacks), and **a test against a live store
+leaves tombstones, not deletions** - the store has no delete.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

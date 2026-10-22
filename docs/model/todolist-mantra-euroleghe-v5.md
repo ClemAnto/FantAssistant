@@ -2762,3 +2762,13 @@ Dettaglio in `letture-app-v1.md` §55.6.
 3. **`e2e-draft` resta rosso su due avvisi preesistenti** che dipendono dall'estrazione della demo: il filtro
    «fino al N°» (`nothing to click`) e «piu' titolari suggeriti che posti vuoti» / incrementi dei piani.
 4. **i commit locali non pushati** su origin (fermo a v0.1.36): decisione dell'operatore.
+
+## Aperti dopo la sessione del 22/10/2026 (pomeriggio) — quote misurate, rose sincronizzate
+- **Rimisurare le quote** a ~500 gol (6-8 giornate): curva `fva.GOAL_CURVE` e porta inviolata (qualche centinaio di
+  lati; oggi 94). La scheda `Quote` del foglio si scarica col connettore Drive (export xlsx), gli script sono nello
+  scratchpad della sessione e la procedura in `formazione-leghe-v1.md` §4-duodecies.
+- **Chi ha una quota ma nessuna presenza su file** resta sulla fantamedia del foglio mentre la tabella stampa la
+  percentuale: decidere se far usare la curva (col solo prior di storico) anche a lui.
+- **`e2e-lineup-offline.mjs`** va riscritto sul flusso da file o tolto: simula il login a Leghe che non esiste più.
+- **Operatore**: aprire il sito pubblicato nel browser con le rose (le manda al foglio da solo), poi ricaricare
+  localhost; cambiare la `WIDGET_SECRET` (scritta in chat).

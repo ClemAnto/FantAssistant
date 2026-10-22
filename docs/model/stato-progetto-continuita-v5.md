@@ -10830,3 +10830,27 @@ Goncalves P., Valde = Valdepenas — confermati dall'operatore); lo scorer ripro
 risolti. Lo Stato scrive «ricopiando la giornata prima» al posto di «null». Script reincollato dall'operatore il 20/10. **Da verificare venerdì
 23/10:** che il pianificatore armi la presa delle 20:30 e scriva «1 capture | opener ven 23/10 20:45». Dettaglio:
 `attendibilita-probabili-v1.md` §5-bis.
+
+## 22 ottobre 2026 (pomeriggio) — LA FORMAZIONE: ALTERNARE, LA REGOLA D'ORO, LE QUOTE MISURATE, LE ROSE SINCRONIZZATE (v0.1.61)
+
+Sessione di domande dell'operatore sulla sua formazione EuroLeghe mantra, finita in codice sulla pagina Lineup.
+Dettaglio e numeri: `formazione-leghe-v1.md` §4-duodecies. Commit `21a3ae6` + `004b7e0`, pubblicato v0.1.61.
+
+- **Alternare due giocatori sulla partita facile** (Serie A 2019-26, 45.323 coppie-stagione): perde −0,07 a giornata
+  (0/7) quando la fantamedia dista >0,5; fra quasi pari fantamedia+avversario guadagna +0,04 (7/7), +0,12 in attacco.
+  Nessun cambio al codice: l'FVA legge già l'avversario (`delta`).
+- **REGOLA D'ORO dell'operatore** (anche in memoria): chi fa un bonus prende il voto (94,9% sotto i 10', 100% dagli 11',
+  14.156 ingressi), quindi un giocatore da bonus con un ricambio dello stesso ruolo in panchina è un'opzione; costa solo
+  l'ingresso di 15-30' senza bonus. Il consiglio di formazione la seguiva già.
+- **Quote gol misurate sugli esiti** (archivio del foglio dall'08/10, 97 partite, 150 gol): 1/quota sopravvaluta circa
+  del doppio sui nomi poco quotati; quota+storico insieme ordinano meglio (log-loss 0,3144 contro 0,3155 e 0,3197).
+  `fva.goalChance` sostituisce `oddsScale` (che leggeva lo stesso log-loss); la parte gol prezzata non prende più lo
+  sconto minuti. **Porta inviolata** (94 lati): già calibrata (30,8% implicita, 28,7% vera), la grezza batte ogni
+  correzione: usata com'è.
+- **Tabella Lineup**: la percentuale corretta accanto a ogni quota (portieri: quella della quota).
+- **Rose fra dispositivi**: il foglio era VUOTO perché un browser mandava le rose solo quando ne aggiungeva o toglieva
+  una; ora all'apertura le rimanda se il foglio ne ha meno o più vecchie (`RosterFileStore`). Server verificato con
+  prove andata-ritorno sopra gli 8000 caratteri; le quattro rose di prova sono cancellate (tombstone).
+- Banco: `e2e-lineup-file.mjs <csv> [odds.json]` (il secondo argomento semina una cattura della scheda `Quote`).
+  `e2e-lineup-offline.mjs` è ROSSO e lo era già prima: simula il login a Leghe, che la pagina non fa dal 16/10.
+- La chiave del widget è stata scritta in chat dall'operatore: non salvata da nessuna parte, consigliato cambiarla.

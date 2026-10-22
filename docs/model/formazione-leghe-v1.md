@@ -733,6 +733,10 @@ percentuale. Il prezzo vale «se gioca»: Godts a 2,36 come Douè non dice che p
 
 ## §5. Aperti, in ordine
 
+**Dal 22 ottobre 2026 (§4-duodecies):** rimisurare la curva delle quote gol e la porta inviolata a ~500 gol;
+decidere se chi ha una quota e nessuna presenza su file debba usare la curva; riscrivere o togliere
+`e2e-lineup-offline.mjs` (simula il login a Leghe).
+
 **Dal 19 ottobre 2026, in cima (la pagina legge il CSV, §4-undecies):**
 - **Operatore**: incollare l'ultimo `widget.gs` e ridistribuire, lanciare una volta `widgetRemoveLoginTeams`
   dall'editor, reinviare al widget le squadre che vuole vedere; scrivere la `WIDGET_SECRET` in «Carica rosa» su ogni
