@@ -64,6 +64,8 @@ import {
   WarningOutline,
   TableOutline,
   TeamOutline,
+  // Scout (22/10/2026): the rivals' drawer.
+  AppstoreOutline,
   UserAddOutline,
   ThunderboltOutline,
   ToolOutline,
@@ -152,6 +154,7 @@ export const NZ_ICONS: IconDefinition[] = [
   WarningOutline,
   TableOutline,
   TeamOutline,
+  AppstoreOutline,
   UserAddOutline,
   ThunderboltOutline,
   ToolOutline,

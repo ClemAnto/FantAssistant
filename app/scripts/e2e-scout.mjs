@@ -134,7 +134,15 @@ try {
       localStorage.setItem('fantassistant.lineup.roster', 'r-e2e-scout');
     }` });
   await send('Page.navigate', { url: `${ORIGIN}/scout` });
-  check(!!(await until(`!!document.querySelector('[data-scout-mine]')`)), `his squad «${MINE}» is drawn`);
+  check(!!(await until(`!!document.querySelector('[data-scout-open-mine]')`)), `the page opens on «${MINE}»`);
+
+  // ONE SCREEN (22/10/2026): the page itself never scrolls - the list and the panel scroll inside.
+  const fits = await ev(`document.documentElement.scrollHeight <= window.innerHeight + 1`);
+  check(fits, 'the page fits one screen (only the list and the panel scroll)');
+
+  // HIS SQUAD, in its drawer.
+  await ev(`document.querySelector('[data-scout-open-mine]').click()`);
+  check(!!(await until(`!!document.querySelector('[data-scout-mine]')`, 10000)), `his squad «${MINE}» opens in a drawer`);
   const bench = await ev(`document.querySelectorAll('[data-scout-bench] li').length`);
   console.log(`    bench lines: ${bench}`);
   // A starter's reserve must share his BASE role (operator: «Chabot non è alternativa a Grimaldo»): the first badge.
@@ -144,129 +152,120 @@ try {
   })`);
   for (const b of backed) console.log(`    ${b.names} (${b.starter} / ${b.reserve})`);
   check(backed.every((b) => b.starter === b.reserve), `${backed.length} starters with a reserve, every one of his base role`);
+  await shot('1-mine.png');
+  await ev(`document.querySelector('.ant-drawer-close')?.click()`);
+  await until(`!document.querySelector('[data-scout-mine]') || !document.querySelector('.ant-drawer-open')`, 5000);
+
+  // THE RIVALS, in theirs: one card each, their problems (step 4) and their surpluses (step 6).
+  await ev(`document.querySelector('[data-scout-open-rivals]').click()`);
+  await until(`!!document.querySelector('[data-scout-rivals]')`, 10000);
   const rivals = await ev(`document.querySelectorAll('[data-scout-rivals] > section').length`);
-  check(rivals === squads.size - 1, `${rivals} rival cards for ${squads.size - 1} rivals`);
-  await shot('1-open.png');
-
-  // THE 1x1 SWAPS (operator, 22/10/2026): «il mio del ruolo X deve essere migliore di uno suo titolare di quel ruolo
-  // ed il suo del ruolo Y deve essere migliore del mio in quel ruolo/posizione». Read off the page and judged against
-  // the FILE: who belongs to which squad, and the two comparisons each line states.
-  await until(`!!document.querySelector('[data-scout-list]') || /Nessuno scambio/.test(document.querySelector('[data-scout-trades]')?.innerText ?? '')`);
-  // ONE LINE PER SWAP, «A × B» (22/10/2026): who I give, who I take, the two gains. Read under the rival heading.
-  const readLines = (list, offer) => ev(`(() => {
-    const out = [];
-    let rival = null, index = 0;
-    for (const node of document.querySelector('${list}')?.children ?? []) {
-      if (node.matches('[data-scout-rival]')) { rival = node.querySelector('span').innerText.trim(); continue; }
-      if (!node.matches('${offer}')) continue;
-      index += 1;
-      for (const line of node.querySelectorAll('[data-scout-line]')) {
-        const g = line.querySelector('[data-scout-gains]')?.innerText.match(/per te \\+([\\d.]+) · per loro \\+([\\d.]+)/);
-        const f = line.querySelector('[data-scout-form]')?.innerText.replace('forma', '').trim();
-        const v = [...line.querySelectorAll('span')].map((x) => x.innerText.trim()).find((t) => /^FVM /.test(t));
-        out.push({ rival, offer: index, gives: line.getAttribute('data-gives'), takes: line.getAttribute('data-takes'),
-          ours: g ? Number(g[1]) : null, theirs: g ? Number(g[2]) : null, form: f ? Number(f.replace('+', '')) : null,
-          need: line.querySelector('[data-scout-need]')?.getAttribute('data-scout-need') ?? null,
-          fvm: v && v !== 'FVM –' ? Number(v.slice(4).replace('+', '')) : null });
-      }
-    }
-    return out;
-  })()`);
-  const lines = await readLines('[data-scout-list]', '[data-scout-offer]');
-  console.log(`    1x1 lines ${lines.length}`);
-  for (const l of lines.slice(0, 6)) console.log(`    ${l.rival}: ${l.gives} × ${l.takes} · +${l.ours} / +${l.theirs}`);
-  check(lines.every((l) => squads.has(l.rival) && l.rival !== MINE), 'every offer names a real rival');
-  // The two gains are what each BEST ELEVEN gains, net of who leaves (Cunha for Marmoush, 22/10/2026), and comparable.
-  check(lines.every((l) => l.ours >= 0.09 && l.theirs >= 0.09), 'every line: both elevens gain at least +0.1');
-  const lopsided = lines.filter((l) => Math.min(l.ours, l.theirs) < 0.5 * Math.max(l.ours, l.theirs) - 0.01);
-  check(lopsided.length === 0, `${lopsided.length} lines with one gain over double the other`);
-  // «Il trend del calciatore richiesto è troppo elevato per convincere l'altro» (22/10/2026): never below -0.25.
-  check(lines.every((l) => l.form === null || l.form >= -0.25 - 1e-9), `every 1x1 line offers form no worse than -0.25 (${lines.filter((l) => l.form !== null).length} with a form)`);
-  const byOffer = new Map();
-  for (const l of lines) byOffer.set(`${l.rival}|${l.offer}`, [...(byOffer.get(`${l.rival}|${l.offer}`) ?? []), l.gives]);
-  check([...byOffer.values()].every((g) => new Set(g).size === g.length), 'no man twice in one offer');
-  await shot('2-trades.png');
-  await roadmapChecks(readLines, '[data-scout-list]', '[data-scout-offer]', '1x1');
-
-  // THE RIVALS' PROBLEMS (`roadmap-scambi-v1.md` step 4), as each card names them: a starter out for N > 0 matchdays,
-  // or one with no vote in at least three of his last matches (and never more than he played).
+  check(rivals === squads.size - 1, `${rivals} rival cards for ${squads.size - 1} rivals, in a drawer`);
   const felt = await ev(`[...document.querySelectorAll('[data-scout-rival-need]')].map((x) => x.innerText.trim())`);
-  for (const t of felt.slice(0, 6)) console.log(`    problema: ${t}`);
+  for (const t of felt.slice(0, 4)) console.log(`    problema: ${t}`);
   check(felt.every((t) => {
     const out = t.match(/fuori (\d+) g$/);
     const nv = t.match(/senza voto in (\d+) delle ultime (\d+)$/);
     return out ? Number(out[1]) > 0 : nv ? Number(nv[1]) >= 3 && Number(nv[1]) <= Number(nv[2]) : false;
   }), `${felt.length} rival problems, each «fuori N g» with N > 0 or «senza voto in k delle ultime m» with 3 <= k <= m`);
+  const surplus = await ev(`[...document.querySelectorAll('[data-scout-surplus]')].map((x) => x.innerText.trim())`);
+  for (const t of surplus.slice(0, 3)) console.log(`    eccedenza: ${t}`);
+  check(surplus.every((t) => { const m = t.match(/^(\d+) [PDCA] da titolare per (\d+) post[oi]$/); return !!m && Number(m[1]) > Number(m[2]); }),
+    `${surplus.length} surplus labels, each «N R da titolare per M posti» with N > M`);
+  await shot('1-rivals.png');
+  await ev(`document.querySelector('.ant-drawer-close')?.click()`);
+  await until(`!document.querySelector('.ant-drawer-open')`, 5000);
 
-  // THE COMPARISON TABLE (22/10/2026): «i calciatori che chiedo e quelli che offro», two seasons, the press, the strip.
-  if (lines.length) {
-    await ev(`document.querySelector('[data-scout-compare-toggle]').click()`);
-    await until(`!!document.querySelector('[data-scout-compare]')`);
-    // MIEI on the left, SUOI on the right: who I give replaces their starter (→), who I take replaces mine (←).
-    const rows = await ev(`[...document.querySelectorAll('[data-scout-compare-row]')].map((r) => ({
-      dir: r.getAttribute('data-direction'),
-      men: [...r.querySelectorAll('[data-scout-compare-man]')].map((c) => c.getAttribute('data-scout-compare-man')),
-      arrow: r.querySelector('[data-scout-arrow]').innerText.trim() }))`);
-    for (const r of rows) console.log(`    ${r.men[0] ?? 'posto vuoto'} ${r.arrow} ${r.men[1] ?? 'posto vuoto'}`);
-    const first = lines[0];
-    check(rows.length === 2 && rows[0].dir === 'gives' && rows[0].men[0] === first.gives && rows[1].dir === 'takes' && rows[1].men[1] === first.takes
-      && rows.every((r) => /meglio di/.test(r.arrow)),
-      'the 1x1 table: my man given on the left beats their starter, their man taken on the right beats mine');
-    check(await ev(`document.querySelectorAll('[data-scout-compare] ui-vote-trend').length`) === 4 - rows.flatMap((r) => r.men).filter((m) => !m).length, 'each man draws his trend strip');
-    await shot('2b-compare.png');
-  }
+  // THE LIST: one row per offer, names only - the numbers ride on attributes and are judged against the rules.
+  const readLines = (list, offer) => ev(`(() => {
+    const out = [];
+    let rival = null, index = 0;
+    const num = (v) => v === null || v === '' ? null : Number(v);
+    for (const node of document.querySelector('${list}')?.children ?? []) {
+      if (node.matches('[data-scout-rival]')) { rival = node.querySelector('span').innerText.trim(); continue; }
+      if (!node.matches('${offer}')) continue;
+      index += 1;
+      out.push({ rival, offer: index, gives: node.getAttribute('data-gives'), takes: node.getAttribute('data-takes'),
+        ours: num(node.getAttribute('data-ours')), theirs: num(node.getAttribute('data-theirs')),
+        form: num(node.getAttribute('data-form')), fvm: num(node.getAttribute('data-fvm')), need: node.getAttribute('data-need'),
+        text: node.innerText.trim() });
+    }
+    return out;
+  })()`);
+  const judge = (lines, label) => {
+    check(lines.every((l) => squads.has(l.rival) && l.rival !== MINE), `${label}: every offer names a real rival`);
+    check(lines.every((l) => l.ours >= 0.09 && l.theirs >= 0.09), `${label}: both elevens gain at least +0.1`);
+    check(lines.every((l) => Math.min(l.ours, l.theirs) >= 0.5 * Math.max(l.ours, l.theirs) - 0.01), `${label}: the two gains are comparable`);
+    check(lines.every((l) => l.form === null || l.form >= -0.25 - 1e-9), `${label}: form no worse than -0.25`);
+    check(lines.every((l) => !/\d/.test(l.text)), `${label}: a row shows the names and no number`);
+  };
+  await until(`!!document.querySelector('[data-scout-list]') || /Nessuno scambio/.test(document.querySelector('[data-scout-detail]')?.parentElement?.innerText ?? '')`);
+  const lines = await readLines('[data-scout-list]', '[data-scout-offer]');
+  console.log(`    1x1 rows ${lines.length}`);
+  judge(lines, '1x1');
+  if (lines.length) await panelChecks(lines[0], 'gives-first');
+  await roadmapChecks(readLines, '[data-scout-list]', '[data-scout-offer]', '1x1');
 
-  // THE 2x2 (22/10/2026): the mode, the search, and the same two promises per line - both elevens gain, comparably.
+  // THE 2x2: the search, the rows, the panel, the roadmap steps.
   await ev(`document.querySelectorAll('[data-scout-mode] label')[1].click()`);
   await until(`!!document.querySelector('[data-scout-search]')`);
   const t0 = Date.now();
   await ev(`document.querySelector('[data-scout-search]').click()`);
-  const doneSearch = await until(`/scambi 2x2 in/.test(document.querySelector('[data-scout-trades]')?.innerText ?? '')`, 240000);
+  const doneSearch = await until(`/scambi 2x2 in/.test(document.querySelector('[data-scout-pair-meta]')?.innerText ?? '')`, 240000);
   check(!!doneSearch, `the 2x2 search finishes (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
   const pairLines = await readLines('[data-scout-pairs]', '[data-scout-pair-offer]');
-  console.log(`    2x2 lines ${pairLines.length}`);
-  for (const l of pairLines.slice(0, 6)) console.log(`    ${l.rival}: ${l.gives} × ${l.takes} · +${l.ours} / +${l.theirs}`);
-  check(pairLines.every((l) => l.ours >= 0.09 && l.theirs >= 0.09), 'every 2x2 line: both elevens gain at least +0.1');
-  check(pairLines.every((l) => Math.min(l.ours, l.theirs) >= 0.5 * Math.max(l.ours, l.theirs) - 0.01), 'every 2x2 line: the two gains are comparable');
-  check(pairLines.every((l) => l.form === null || l.form >= -0.25 - 1e-9), 'every 2x2 line offers form no worse than -0.25');
-  const pairOffers = new Map();
-  for (const l of pairLines) pairOffers.set(`${l.rival}|${l.offer}`, [...(pairOffers.get(`${l.rival}|${l.offer}`) ?? []), ...l.gives.split(' + ')]);
-  // A man on EVERY line of an offer is its core (the same payment, different returns) and is written on each line now
-  // that a line is «A + B × C + D»; what must not happen is a man on SOME lines only, twice.
-  const pairDoubles = [...pairOffers.entries()].filter(([key, g]) => {
-    const linesOf = pairLines.filter((l) => `${l.rival}|${l.offer}` === key).map((l) => l.gives.split(' + '));
-    const core = new Set(g.filter((m) => linesOf.every((one) => one.includes(m))));
-    const rest = g.filter((m) => !core.has(m));
-    return new Set(rest).size !== rest.length;
-  }).length;
-  check(pairDoubles === 0, `${pairDoubles} 2x2 offers show a man on two lines`);
+  console.log(`    2x2 rows ${pairLines.length}`);
+  for (const l of pairLines.slice(0, 4)) console.log(`    ${l.rival}: ${l.gives} × ${l.takes} · +${l.ours} / +${l.theirs}`);
+  judge(pairLines, '2x2');
   if (pairLines.length) {
-    await ev(`document.querySelector('[data-scout-pairs] [data-scout-compare-toggle]').click()`);
-    await until(`document.querySelectorAll('[data-scout-compare-row]').length >= 4`);
-    const pr = await ev(`[...document.querySelectorAll('[data-scout-compare-row]')].map((r) => ({ dir: r.getAttribute('data-direction'),
-      men: [...r.children].filter((c) => c.hasAttribute('data-scout-compare-man') || c.getAttribute('colspan') === '9').map((c) => c.getAttribute('data-scout-compare-man')) }))`);
-    for (const r of pr) console.log(`    2x2: ${r.men[0] ?? 'posto vuoto'} ${r.dir === 'gives' ? '→' : '←'} ${r.men[1] ?? 'posto vuoto'}`);
-    check(pr.filter((r) => r.dir === 'gives').length >= 2 && pr.filter((r) => r.dir === 'takes').length >= 2, 'the 2x2 table: two given (→) and two taken (←)');
+    await panelChecks(pairLines[0], 'pair');
+    await extensionChecks();
   }
   await roadmapChecks(readLines, '[data-scout-pairs]', '[data-scout-pair-offer]', '2x2');
+  await shot('3-pairs.png');
 
-  // ROADMAP STEP 3 - one man more on an offer: every extension keeps the offer's men, adds one of ours and/or one of
-  // theirs (one each way on a full classic squad), keeps both gains and the form rule, and makes something better for
-  // HIM without making his gain worse.
-  if (pairLines.length) {
-    const lineOf = (l) => ev(`(() => { const line = l => {
-      const g = l.querySelector('[data-scout-gains]')?.innerText.match(/per te \\+([\\d.]+) · per loro \\+([\\d.]+)/);
-      const f = l.querySelector('[data-scout-form]')?.innerText.replace('forma', '').trim();
-      return { gives: l.getAttribute('data-gives').split(' + '), takes: l.getAttribute('data-takes').split(' + '),
-        ours: g ? Number(g[1]) : null, theirs: g ? Number(g[2]) : null, form: f ? Number(f.replace('+', '')) : null };
-    }; return ${l}; })()`);
-    const base = await lineOf(`line(document.querySelector('[data-scout-pairs] [data-scout-line]'))`);
-    await ev(`document.querySelector('[data-scout-pairs] [data-scout-extend]').click()`);
+  // THE LAST SEARCH SURVIVES A REFRESH («salva l'ultima ricerca e mostrala al refresh»).
+  await send('Page.reload');
+  const restored = await until(`/ricerca del/.test(document.querySelector('[data-scout-pair-meta]')?.innerText ?? '')`, 60000);
+  const after = await ev(`document.querySelectorAll('[data-scout-pairs] [data-scout-line]').length`);
+  check(!!restored && after === pairLines.length, `after a refresh the 2x2 are back without a new search (${after} of ${pairLines.length} rows)`);
+  check(!noise.length, `no page errors${noise.length ? ': ' + noise.join(' | ') : ''}`);
+
+  /** The panel shows the row picked: its men, its gains, its four-sided table. */
+  async function panelChecks(row, kind) {
+    await ev(`(() => { const r = [...document.querySelectorAll('[data-scout-line]')].find((x) => x.getAttribute('data-gives') === ${JSON.stringify(row.gives)} && x.getAttribute('data-takes') === ${JSON.stringify(row.takes)}); r?.click(); })()`);
+    await wait(200);
+    const panel = await ev(`(() => { const c = document.querySelector('[data-scout-current]'); return c && { gives: c.getAttribute('data-gives'), takes: c.getAttribute('data-takes') }; })()`);
+    check(!!panel && panel.gives === row.gives && panel.takes === row.takes, `the panel shows the row picked («${row.gives} × ${row.takes}»)`);
+    const gains = await ev(`document.querySelector('[data-scout-detail] [data-scout-gains]')?.innerText ?? ''`);
+    const g = gains.match(/per te \+([\d.]+) · per loro \+([\d.]+)/);
+    check(!!g && Math.abs(Number(g[1]) - row.ours) < 0.006 && Math.abs(Number(g[2]) - row.theirs) < 0.006, 'the panel states the two gains of the row');
+    const rows = await ev(`[...document.querySelectorAll('[data-scout-compare-row]')].map((r) => ({ dir: r.getAttribute('data-direction'),
+      men: [...r.querySelectorAll('[data-scout-compare-man]')].map((c) => c.getAttribute('data-scout-compare-man')),
+      arrow: r.querySelector('[data-scout-arrow]').innerText.trim() }))`);
+    for (const r of rows) console.log(`    ${r.men[0] ?? 'posto vuoto'} ${r.arrow} ${r.men[1] ?? 'posto vuoto'}`);
+    if (kind === 'gives-first') {
+      check(rows.length === 2 && rows[0].dir === 'gives' && rows[0].men[0] === row.gives && rows[1].dir === 'takes' && rows[1].men[1] === row.takes
+        && rows.every((r) => /meglio di/.test(r.arrow)), 'the 1x1 table: my man given beats their starter, their man taken beats mine');
+    } else {
+      check(rows.filter((r) => r.dir === 'gives').length >= 2 && rows.filter((r) => r.dir === 'takes').length >= 2, 'the 2x2 table: two given (→) and two taken (←)');
+    }
+    const alts = await ev(`[...document.querySelectorAll('[data-scout-alternative]')].map((b) => b.innerText.trim())`);
+    check(new Set(alts).size === alts.length, `${alts.length} other ways of paying, none twice`);
+    await shot(`2-panel-${kind}.png`);
+  }
+
+  /** ROADMAP STEP 3 in the panel: one man more, each extension a valid offer that makes something better for him. */
+  async function extensionChecks() {
+    const base = await ev(`(() => { const c = document.querySelector('[data-scout-current]'); const g = document.querySelector('[data-scout-detail] [data-scout-gains]').innerText.match(/per te \\+([\\d.]+) · per loro \\+([\\d.]+)/);
+      return { gives: c.getAttribute('data-gives').split(' + '), takes: c.getAttribute('data-takes').split(' + '), theirs: Number(g[2]) }; })()`);
+    await ev(`document.querySelector('[data-scout-extend]').click()`);
     await until(`!!document.querySelector('[data-scout-extensions]')`, 30000);
-    const exts = await lineOf(`[...document.querySelectorAll('[data-scout-extensions] [data-scout-line]')].map(line)`);
-    const better = await ev(`[...document.querySelectorAll('[data-scout-extension-better]')].map((x) => x.innerText.trim())`);
-    console.log(`    + aggiungi on «${base.gives.join(' + ')} × ${base.takes.join(' + ')}»: ${exts.length} extensions`);
-    exts.forEach((e, i) => console.log(`      ${e.gives.join(' + ')} × ${e.takes.join(' + ')} · +${e.ours} / +${e.theirs} · ${better[i]}`));
+    const exts = await ev(`[...document.querySelectorAll('[data-scout-extension]')].map((b) => ({ gives: b.getAttribute('data-gives').split(' + '),
+      takes: b.getAttribute('data-takes').split(' + '), ours: Number(b.getAttribute('data-ours')), theirs: Number(b.getAttribute('data-theirs')),
+      form: b.getAttribute('data-form') === null ? null : Number(b.getAttribute('data-form')), better: b.innerText.trim() }))`);
+    console.log(`    aggiungi on «${base.gives.join(' + ')} × ${base.takes.join(' + ')}»: ${exts.length} extensions`);
+    for (const e of exts) console.log(`      ${e.better.replace(/\s+/g, ' ')}`);
     const sizeOk = (e) => {
       const g = e.gives.length - base.gives.length, t = e.takes.length - base.takes.length;
       return GAME === 'classic' ? g === 1 && t === 1 : g + t >= 1 && g <= 1 && t <= 1;
@@ -276,25 +275,20 @@ try {
     check(exts.every((e) => e.ours >= 0.09 && e.theirs >= 0.09 && Math.min(e.ours, e.theirs) >= 0.5 * Math.max(e.ours, e.theirs) - 0.01
       && (e.form === null || e.form >= -0.25 - 1e-9) && e.theirs >= base.theirs - 0.06),
       'every extension: both gains hold and stay comparable, the form rule holds, his gain is not worse');
-    check(better.length === exts.length && better.every((t) => t.length > 0), 'every extension says what it made better for him');
-    await shot('4-extend.png');
-    await ev(`document.querySelector('[data-scout-pairs] [data-scout-extend]').click()`);
-    check(!!(await until(`!document.querySelector('[data-scout-extensions]')`, 5000)), 'closing the line closes its extensions');
+    check(exts.every((e) => /per loro|FVM|forma/.test(e.better)), 'every extension says what it made better for him');
+    if (exts.length) {
+      // Opening one makes it the offer on the panel, and «indietro» goes back.
+      await ev(`document.querySelector('[data-scout-extension]').click()`);
+      await wait(200);
+      const opened = await ev(`document.querySelector('[data-scout-current]').getAttribute('data-gives').split(' + ')`);
+      check(opened.length > base.gives.length || exts[0].gives.length === base.gives.length, 'opening an extension puts it on the panel');
+      await shot('4-extension.png');
+      await ev(`document.querySelector('[data-scout-back]').click()`);
+      await wait(200);
+      const back = await ev(`document.querySelector('[data-scout-current]').getAttribute('data-gives')`);
+      check(back === base.gives.join(' + '), '«offerta precedente» goes back to the offer it came from');
+    }
   }
-
-  // ROADMAP STEP 6 - a surplus he knows about, written on his spare men: more at a starter's level than places.
-  const surplus = await ev(`[...document.querySelectorAll('[data-scout-surplus]')].map((x) => x.innerText.trim())`);
-  for (const t of surplus.slice(0, 4)) console.log(`    eccedenza: ${t}`);
-  check(surplus.every((t) => { const m = t.match(/^(\d+) [PDCA] da titolare per (\d+) post[oi]$/); return !!m && Number(m[1]) > Number(m[2]); }),
-    `${surplus.length} surplus labels, each «N R da titolare per M posti» with N > M`);
-  await shot('3-pairs.png');
-
-  // THE LAST SEARCH SURVIVES A REFRESH («salva l'ultima ricerca e mostrala al refresh»).
-  await send('Page.reload');
-  const restored = await until(`/ultima ricerca del/.test(document.querySelector('[data-scout-pair-meta]')?.innerText ?? '')`, 60000);
-  const after = await ev(`document.querySelectorAll('[data-scout-pairs] [data-scout-line]').length`);
-  check(!!restored && after === pairLines.length, `after a refresh the 2x2 are back without a new search (${after} of ${pairLines.length} lines)`);
-  check(!noise.length, `no page errors${noise.length ? ': ' + noise.join(' | ') : ''}`);
 } finally {
   ws.close();
   spawnSync('taskkill', ['/PID', String(browser.pid), '/T', '/F'], { stdio: 'ignore' });

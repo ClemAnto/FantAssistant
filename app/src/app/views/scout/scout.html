@@ -1,5 +1,8 @@
-<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
-<div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+     ONE SCREEN (operator, 22/10/2026: «cerchiamo di fare rientrare tutto in una schermata, manteniamo il focus sulle cose
+     principali, dettagli ed alternative solo a richiesta»): one toolbar, the list of offers on the left (names only),
+     the offer picked on the right; his squad and the rivals' cards in drawers. -->
+<div class="mx-auto flex h-[100dvh] max-w-[1500px] flex-col gap-2 overflow-hidden p-2">
   <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
       @if (leagueOptions().length) {
@@ -26,338 +29,317 @@
   } @else if (!squads() || !ours()) {
     <span class="text-sm text-muted">Carico il foglio e il regolamento…</span>
   } @else {
-    <div class="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <!-- HIS SQUAD: what it makes, and the strong men it does not field (the starting point of a trade). -->
-      <section class="flex flex-col gap-2 rounded border border-border bg-surface p-3 text-sm" data-scout-mine>
-        <div class="flex items-baseline justify-between gap-2">
-          <span class="font-semibold">{{ squads()!.mine.name }}</span>
-          <span
-            class="tabular-nums"
-            nz-tooltip
-            nzTooltipTitle="Punti a giornata attesi: titolari più i ricambi quando mancano"
-          >{{ ours()!.strength.perRound | number: '1.1-1' }} pt/g</span>
-        </div>
-        <span class="text-xs text-muted">
-          {{ ours()!.strength.module }} · titolari {{ ours()!.strength.starters | number: '1.1-1' }} · ricambi
-          {{ ours()!.strength.cover | number: '1.1-1' }}
-          @if (squads()!.unknown) {
-            · {{ squads()!.unknown }} senza listone
-          }
-        </span>
-        <span class="mt-1 text-xs font-semibold text-muted">Forti ma poco schierati</span>
-        <ul class="flex flex-col gap-0.5" data-scout-bench>
-          @for (one of ours()!.bench; track one.man.id) {
-            @let man = one.man;
-            <li class="flex items-center gap-2">
-              <ui-roles [roles]="man.shown" size="xs" />
-              <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(man.id)">
-                {{ man.name }}
-              </button>
-              <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Da titolare, a giornata / quanto vale oggi per la rosa (i ricambi che dà)">
-                {{ perRound(man) | number: '1.2-2' }} / {{ one.worth | number: '1.2-2' }}
-              </span>
-            </li>
-          } @empty {
-            <li class="text-xs text-muted">Nessuno: la tua panchina non ha uomini prezzati.</li>
-          }
-        </ul>
-        <!-- STARTERS HE CAN DO WITHOUT: a reserve of the SAME BASE ROLE makes at least three quarters of what he makes. -->
-        <span
-          class="mt-2 text-xs font-semibold text-muted"
-          nz-tooltip
-          nzTooltipTitle="Titolari con una riserva dello stesso ruolo base: senza di loro, col panchinaro che subentra, la rosa perde al massimo un quarto di quanto rendono"
-        >Titolari con riserva all'altezza</span>
-        <ul class="flex flex-col gap-0.5" data-scout-expendable>
-          @for (one of ours()!.expendable; track one.man.id) {
-            <li class="flex flex-col">
-              <div class="flex items-center gap-2">
-                <ui-roles [roles]="one.man.shown" size="xs" />
-                <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">
-                  {{ one.man.name }}
+    <!-- THE TOOLBAR: everything that changes the list, in one row. -->
+    <div class="flex flex-wrap items-center gap-2 text-sm" data-scout-trades>
+      <nz-radio-group nzSize="small" [ngModel]="mode()" (ngModelChange)="mode.set($event); pick(null)" data-scout-mode>
+        <label nz-radio-button nzValue="1x1">1x1</label>
+        <label nz-radio-button nzValue="2x2">2x2</label>
+      </nz-radio-group>
+      @if (mode() === '2x2') {
+        <button nz-button nzSize="small" nzType="primary" [nzLoading]="pairState().kind === 'running'" (click)="searchPairs()" data-scout-search>
+          <nz-icon nzType="search" />Cerca
+        </button>
+        @if (pairState().kind === 'running') {
+          <span class="tabular-nums text-xs text-muted">{{ pairPercent() }}%</span>
+        } @else if (pairResult(); as result) {
+          <span class="text-[11px] text-muted" data-scout-pair-meta>
+            {{ result.swaps.length }} scambi 2x2
+            @if (result.ms !== null) {
+              in {{ result.ms / 1000 | number: '1.1-1' }} s
+            } @else {
+              · ricerca del {{ result.at | date: 'd/M HH:mm' }}
+            }
+          </span>
+        }
+      }
+      <nz-radio-group nzSize="small" [ngModel]="order()" (ngModelChange)="order.set($event)" data-scout-order>
+        <label nz-radio-button nzValue="feasible" nz-tooltip nzTooltipTitle="Prima chi offri in forma migliore di chi chiedi">Fattibili</label>
+        <label nz-radio-button nzValue="gain" nz-tooltip nzTooltipTitle="Prima il guadagno più alto per entrambi">Guadagno</label>
+        <label nz-radio-button nzValue="need" nz-tooltip nzTooltipTitle="Prima chi risolve un problema che l'altro ha già" data-scout-order-need>Bisogno</label>
+      </nz-radio-group>
+      <label nz-checkbox [ngModel]="fvmFair()" (ngModelChange)="fvmFair.set($event)" nz-tooltip nzTooltipTitle="Solo se il FVM di chi dai è almeno quello di chi chiedi" data-scout-fvm-fair>
+        FVM a suo favore
+        @if (fvmFair()) {
+          <span class="tabular-nums text-xs text-muted" data-scout-fvm-count>{{ fvmCount().kept }} di {{ fvmCount().total }}</span>
+        }
+      </label>
+      <nz-select class="w-44" nzSize="small" nzAllowClear nzPlaceHolder="Tutte le squadre" [ngModel]="rivalFilter()" (ngModelChange)="rivalFilter.set($event); pick(null)">
+        @for (name of rivalNames(); track name) {
+          <nz-option [nzValue]="name" [nzLabel]="name" />
+        }
+      </nz-select>
+      <nz-icon
+        nzType="info-circle"
+        class="text-muted"
+        nz-tooltip
+        nzTooltipTitle="Entrambi gli undici migliorano (contando chi parte), con guadagni paragonabili, calciatori di valore simile e un supertop solo per un supertop. Punti a giornata."
+      />
+      <span class="flex-1"></span>
+      <button nz-button nzSize="small" (click)="drawer.set('mine')" data-scout-open-mine>
+        <nz-icon nzType="team" />{{ squads()!.mine.name }} · {{ ours()!.strength.perRound | number: '1.1-1' }} pt/g
+      </button>
+      <button nz-button nzSize="small" (click)="drawer.set('rivals')" data-scout-open-rivals>
+        <nz-icon nzType="appstore" />Avversari
+      </button>
+    </div>
+
+    <div class="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <!-- THE LIST: per rival, one row per offer, the names and nothing else. -->
+      <section class="flex min-h-0 flex-col rounded border border-border bg-surface text-sm">
+        @if (mode() === '2x2' && pairState().kind === 'idle' && !pairResult()) {
+          <span class="p-3 text-xs text-muted">Premi «Cerca»: la ricerca dei 2x2 richiede qualche secondo.</span>
+        } @else if (rows().length) {
+          <div class="min-h-0 flex-1 overflow-y-auto px-2 pb-2" [attr.data-scout-list]="mode() === '1x1' ? '' : null" [attr.data-scout-pairs]="mode() === '2x2' ? '' : null">
+            @for (group of rows(); track group.rival) {
+              <div class="sticky top-0 z-10 flex items-baseline justify-between border-b border-border bg-surface pb-1 pt-2 text-xs font-semibold text-muted" data-scout-rival>
+                <span>{{ group.rival }}</span>
+                @if (group.hidden) {
+                  <button type="button" class="font-normal hover:text-fg" (click)="rivalFilter.set(group.rival)">+{{ group.hidden }}</button>
+                }
+              </div>
+              @for (row of group.offers; track row.key) {
+                @let active = openRow()?.key === row.key;
+                <button
+                  type="button"
+                  class="flex w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded px-1.5 py-1 text-left hover:bg-control"
+                  [class.bg-control]="active"
+                  [class.ring-1]="active"
+                  [class.ring-primary]="active"
+                  (click)="pick(row)"
+                  [attr.data-scout-offer]="mode() === '1x1' ? '' : null"
+                  [attr.data-scout-pair-offer]="mode() === '2x2' ? '' : null"
+                  data-scout-line
+                  [attr.data-gives]="namesOf([row.swap.give].flat())"
+                  [attr.data-takes]="namesOf([row.swap.take].flat())"
+                  [attr.data-ours]="row.swap.ours"
+                  [attr.data-theirs]="row.swap.theirs"
+                  [attr.data-form]="row.swap.appeal"
+                  [attr.data-fvm]="fvmBalance(row.swap)"
+                  [attr.data-need]="needOf(row.swap)?.kind ?? null"
+                >
+                  <ng-container *ngTemplateOutlet="names; context: { $implicit: [row.swap.give].flat() }" />
+                  <span class="text-muted">×</span>
+                  <ng-container *ngTemplateOutlet="names; context: { $implicit: [row.swap.take].flat() }" />
                 </button>
-                <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Da titolare, a giornata / quanto perde la rosa senza di lui, col panchinaro che subentra">
-                  {{ one.perRound | number: '1.2-2' }} / −{{ one.loss | number: '1.2-2' }}
-                </span>
-              </div>
-              <div class="flex items-center gap-2 pl-7 text-[11px] text-muted">
-                <span>riserva</span>
-                <ui-roles [roles]="one.replacement.shown" size="xxs" />
-                <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.replacement.id)">{{ one.replacement.name }}</button>
-                <span class="tabular-nums">{{ perRound(one.replacement) | number: '1.2-2' }}</span>
-              </div>
-            </li>
-          } @empty {
-            <li class="text-xs text-muted">Nessuno: nessun titolare ha una riserva del suo ruolo che lo valga.</li>
-          }
-        </ul>
+              }
+            }
+          </div>
+        } @else {
+          <span class="p-3 text-xs text-muted">Nessuno scambio {{ mode() }} migliora subito entrambe le rose.</span>
+        }
       </section>
 
-      <!-- THE 1x1 SWAPS (`scout.simpleSwaps`): the two comparisons an offer is made of, and nothing else. -->
-      <section class="flex flex-col gap-2 rounded border border-border bg-surface p-3 text-sm" data-scout-trades>
-        <div class="flex flex-wrap items-center gap-3">
-          <span class="font-semibold">Scambi che migliorano subito entrambe</span>
-          <nz-radio-group nzSize="small" [ngModel]="mode()" (ngModelChange)="mode.set($event)" data-scout-mode>
-            <label nz-radio-button nzValue="1x1">1x1</label>
-            <label nz-radio-button nzValue="2x2">2x2</label>
-          </nz-radio-group>
-          @if (mode() === '2x2') {
-            <button nz-button nzSize="small" nzType="primary" [nzLoading]="pairState().kind === 'running'" (click)="searchPairs()" data-scout-search>
-              <nz-icon nzType="search" />Cerca
-            </button>
-            @if (pairState().kind === 'running') {
-              <span class="tabular-nums text-xs text-muted">{{ pairPercent() }}%</span>
+      <!-- THE OFFER PICKED: everything about it, and what can be done with it. -->
+      <section class="flex min-h-0 flex-col gap-2 overflow-y-auto rounded border border-border bg-surface p-3 text-sm" data-scout-detail>
+        @if (current(); as one) {
+          @let give = [one.give].flat();
+          @let take = [one.take].flat();
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="font-semibold">{{ one.rival }}</span>
+            @if (trail().length) {
+              <button type="button" class="text-xs text-muted hover:text-fg" (click)="back()" data-scout-back>← offerta precedente</button>
             }
-          }
-          <nz-radio-group nzSize="small" [ngModel]="order()" (ngModelChange)="order.set($event)" data-scout-order>
-            <label nz-radio-button nzValue="feasible" nz-tooltip nzTooltipTitle="Prima gli scambi in cui offri calciatori in forma migliore di quelli che chiedi">Fattibili</label>
-            <label nz-radio-button nzValue="gain" nz-tooltip nzTooltipTitle="Prima gli scambi col guadagno più alto per entrambi">Guadagno</label>
-            <label nz-radio-button nzValue="need" nz-tooltip nzTooltipTitle="Prima gli scambi che risolvono un problema che l'altro ha già" data-scout-order-need>Bisogno</label>
-          </nz-radio-group>
-          <label nz-checkbox [ngModel]="fvmFair()" (ngModelChange)="fvmFair.set($event)" nz-tooltip nzTooltipTitle="Solo se il FVM di chi dai è almeno quello di chi chiedi" data-scout-fvm-fair>
-            FVM a suo favore
-            @if (fvmFair()) {
-              <span class="tabular-nums text-xs text-muted" data-scout-fvm-count>{{ fvmCount().kept }} di {{ fvmCount().total }}</span>
+          </div>
+          <div class="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1" data-scout-current [attr.data-gives]="namesOf(give)" [attr.data-takes]="namesOf(take)">
+            <span class="text-xs text-muted">Dai</span>
+            <span class="flex flex-wrap items-center gap-1.5"><ng-container *ngTemplateOutlet="names; context: { $implicit: give, added: isExtension(one) ? one.added.give : null, big: true }" /></span>
+            <span class="text-xs text-muted">Ricevi</span>
+            <span class="flex flex-wrap items-center gap-1.5">
+              <ng-container *ngTemplateOutlet="names; context: { $implicit: take, added: isExtension(one) ? one.added.take : null, big: true, spare: spareOf(one) }" />
+            </span>
+          </div>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span class="tabular-nums" nz-tooltip nzTooltipTitle="Quanto guadagna a giornata l'undici migliore di ciascuno: col nuovo arrivato e senza chi parte" data-scout-gains>
+              per te <span class="text-success">+{{ one.ours | number: '1.2-2' }}</span> · per loro +{{ one.theirs | number: '1.2-2' }}
+            </span>
+            @if (one.appeal != null) {
+              <span class="tabular-nums" [class.text-success]="one.appeal >= 0.25" [class.text-warning]="one.appeal < 0" nz-tooltip nzTooltipTitle="Media voto delle ultime 5 di chi offri meno quella di chi chiedi" data-scout-form>
+                forma {{ one.appeal >= 0 ? '+' : '' }}{{ one.appeal | number: '1.2-2' }}
+              </span>
             }
-          </label>
-          <nz-select class="w-48" nzSize="small" nzAllowClear nzPlaceHolder="Tutte le squadre" [ngModel]="rivalFilter()" (ngModelChange)="rivalFilter.set($event)">
-            @for (name of rivalNames(); track name) {
-              <nz-option [nzValue]="name" [nzLabel]="name" />
+            @let balance = fvmBalance(one);
+            <span class="tabular-nums text-muted" nz-tooltip nzTooltipTitle="FVM che dai meno FVM che ricevi">FVM {{ balance === null ? '–' : (balance > 0 ? '+' : '') + balance }}</span>
+            @if (needOf(one); as need) {
+              <span class="rounded px-1" [class.bg-danger/15]="need.kind === 'out'" [class.bg-warning/15]="need.kind === 'novote'" [class.bg-control]="need.kind === 'weak'" nz-tooltip nzTooltipTitle="Un problema che l'altro ha già: chi dai prende quel posto" [attr.data-scout-need]="need.kind">
+                risolve {{ needText(need) }}
+              </span>
             }
-          </nz-select>
-        </div>
-        <span class="text-xs text-muted">
-          Entrambi gli undici migliorano (contando chi parte), con guadagni paragonabili, calciatori di valore simile
-          (≥80%) e un supertop solo per un supertop; nei 2x2 ognuno entra o esce da un undici e lo scambio batte il 1x1
-          che contiene. Forma sotto −0.25: non proposto. Punti a giornata. <span class="text-success">★</span> = per loro è riserva.
-        </span>
+            @if (isExtension(one)) {
+              <span class="text-success" data-scout-extension-better>{{ betterText(one) }}</span>
+            }
+          </div>
 
-        @if (mode() === '1x1') {
-          @if (swaps().length) {
-            <div class="flex max-h-[60vh] flex-col overflow-y-auto pr-1" data-scout-list>
-              @for (group of swaps(); track group.rival) {
-                <div class="sticky top-0 z-10 flex items-baseline justify-between border-b border-border bg-surface pb-1 pt-2 font-semibold" data-scout-rival>
-                  <span>{{ group.rival }}</span>
-                  @if (group.hidden) {
-                    <button type="button" class="text-xs font-normal text-muted hover:text-fg" (click)="rivalFilter.set(group.rival)">+{{ group.hidden }} altri obiettivi</button>
-                  }
-                </div>
-                @for (offer of group.offers; track offer.first.take.id + '|' + (offer.first.ourOut?.id ?? 0)) {
-                  <div class="flex flex-col border-b border-border/50 py-1" data-scout-offer>
-                    @for (line of offer.lines; track line.give.id) {
-                      @let key = offerKey(group.rival, [line.give], [line.take]);
-                      <ng-container *ngTemplateOutlet="swapLine; context: { give: [line.give], take: [line.take], swap: line, key: key, spare: line.spare ? [line.take.id] : [] }" />
-                      @if (openOffer() === key) {
-                        <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix([line.give], [line.take], line.theirOut ? [line.theirOut] : [], line.ourOut ? [line.ourOut] : []) }" />
-                      }
-                      <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: key }" />
-                    }
-                  </div>
+          <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrixOf(one) }" />
+
+          <!-- WHAT CAN BE DONE WITH IT, on request: one man more, or another way of paying for the same target. -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button nz-button nzSize="small" (click)="extended() ? extended.set(null) : extend()" data-scout-extend>
+              <nz-icon nzType="user-add" />{{ extended() ? 'Chiudi' : 'Aggiungi un calciatore' }}
+            </button>
+            @let row = openRow();
+            @if (!trail().length && row && row.alternatives.length) {
+              <span class="text-xs text-muted">Altri modi di pagarlo:</span>
+              @for (alt of [row.swap].concat(row.alternatives); track $index) {
+                @if (alt !== one) {
+                  <button type="button" class="rounded border border-border px-1.5 text-xs hover:text-fg" (click)="pick(row, alt)" data-scout-alternative>{{ namesOf([alt.give].flat()) }}</button>
                 }
+              }
+            }
+          </div>
+          @if (extended(); as exts) {
+            <div class="flex flex-col gap-1 border-l-2 border-primary/40 pl-3" data-scout-extensions>
+              @for (ext of exts; track $index) {
+                <button type="button" class="flex flex-col items-start rounded px-1.5 py-1 text-left hover:bg-control" (click)="walk(ext)" data-scout-extension
+                  [attr.data-gives]="namesOf(ext.give)" [attr.data-takes]="namesOf(ext.take)" [attr.data-ours]="ext.ours" [attr.data-theirs]="ext.theirs" [attr.data-form]="ext.appeal">
+                  <span class="flex flex-wrap items-center gap-1.5">
+                    @if (ext.added.give) {
+                      <span class="text-xs text-muted">dai anche</span>
+                      <ng-container *ngTemplateOutlet="names; context: { $implicit: [ext.added.give] }" />
+                    }
+                    @if (ext.added.take) {
+                      <span class="text-xs text-muted">ricevi anche</span>
+                      <ng-container *ngTemplateOutlet="names; context: { $implicit: [ext.added.take] }" />
+                    }
+                  </span>
+                  <span class="text-[11px] text-success">{{ betterText(ext) }}</span>
+                </button>
+              } @empty {
+                <span class="text-xs text-muted" data-scout-extension-none>Nessun calciatore in più migliora l'offerta per lui senza peggiorarla per te.</span>
               }
             </div>
-          } @else {
-            <span class="text-xs text-muted">Nessuno scambio 1x1 migliora subito entrambe le rose.</span>
           }
         } @else {
-          <!-- THE 2x2 (`scout.pairSwaps`), grouped by target (`scout.groupTrades`). -->
-          @if (pairState().kind === 'idle' && !pairResult()) {
-            <span class="text-xs text-muted">Premi «Cerca»: la ricerca dei 2x2 richiede qualche secondo.</span>
-          }
-          @if (pairResult(); as result) {
-            @if (pairGroups().length) {
-              <div class="flex max-h-[60vh] flex-col overflow-y-auto pr-1" data-scout-pairs>
-                @for (group of pairGroups(); track group.rival) {
-                  <div class="sticky top-0 z-10 flex items-baseline justify-between border-b border-border bg-surface pb-1 pt-2 font-semibold" data-scout-rival>
-                    <span>{{ group.rival }}</span>
-                    @if (group.hidden) {
-                      <button type="button" class="text-xs font-normal text-muted hover:text-fg" (click)="rivalFilter.set(group.rival)">+{{ group.hidden }} altri obiettivi</button>
-                    }
-                  </div>
-                  @for (offer of group.offers; track offer.take.id) {
-                    <div class="flex flex-col border-b border-border/50 py-1" data-scout-pair-offer>
-                      @for (line of offer.lines; track $index) {
-                        @let key = offerKey(group.rival, line.give, line.take);
-                        <ng-container *ngTemplateOutlet="swapLine; context: { give: line.give, take: line.take, swap: line, key: key, spare: line.spare }" />
-                        <ng-container *ngTemplateOutlet="pairTable; context: { $implicit: line, key: key }" />
-                        <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: key }" />
-                      }
-                      @if (offer.hidden) {
-                        <button type="button" class="pl-14 text-left text-[10px] text-muted hover:text-fg" (click)="rivalFilter.set(group.rival)">+{{ offer.hidden }} varianti</button>
-                      }
-                    </div>
-                  }
-                }
-              </div>
-            } @else {
-              <span class="text-xs text-muted">Nessuno scambio 2x2 migliora subito entrambe le rose.</span>
-            }
-            <span class="text-[10px] text-muted" data-scout-pair-meta>
-              {{ result.swaps.length }} scambi 2x2
-              @if (result.ms !== null) {
-                in {{ result.ms / 1000 | number: '1.1-1' }} s
-              } @else {
-                · ultima ricerca del {{ result.at | date: 'd/M HH:mm' }} (premi «Cerca» per rifarla)
-              }
-            </span>
-          }
+          <span class="text-xs text-muted">Scegli un'offerta a sinistra.</span>
         }
       </section>
     </div>
 
-    <!-- THE RIVALS: what they can spare and where their elevens are short. -->
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-scout-rivals>
-      @for (report of reports(); track report.name) {
-        <section class="flex flex-col gap-1.5 rounded border border-border bg-surface p-3 text-sm">
-          <div class="flex items-baseline justify-between gap-2">
-            <span class="truncate font-semibold">{{ report.name }}</span>
-            <span class="tabular-nums text-xs text-muted">{{ report.module }} · {{ report.perRound | number: '1.1-1' }} pt/g</span>
-          </div>
-
-          <span class="text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Fuori dal loro undici migliore, ma alzerebbero il nostro">Riserve che ci servono</span>
-          @for (one of report.spare.slice(0, 4); track one.man.id) {
-            <div class="flex items-center gap-2">
-              <ui-roles [roles]="one.man.shown" size="xxs" />
-              <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">{{ one.man.name }}</button>
-              @if (one.surplus; as surplus) {
-                <!-- A SURPLUS he knows about (`scout.surplusOf`): letting one go costs him little. -->
-                <span class="text-[10px] text-muted" nz-tooltip nzTooltipTitle="Più calciatori di quel ruolo a livello da titolare che posti nel suo undici" data-scout-surplus>{{ surplus.good }} {{ surplus.role }} da titolare per {{ surplus.places }} {{ surplus.places === 1 ? 'posto' : 'posti' }}</span>
-              }
-              <span class="tabular-nums text-xs text-success">+{{ one.forUs | number: '1.2-2' }}</span>
-            </div>
-          } @empty {
-            <span class="text-xs text-muted">Nessuna.</span>
-          }
-
-          @let felt = report.needs.filter((need) => need.kind !== 'weak');
-          @if (felt.length) {
-            <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Titolari fuori oggi o senza voto in 3 delle ultime 5">Problemi</span>
-            @for (need of felt.slice(0, 4); track $index) {
-              <span class="text-xs" [class.text-danger]="need.kind === 'out'" data-scout-rival-need>{{ needText(need) }}</span>
+    <!-- HIS SQUAD, on request: what it makes, and the strong men it does not field (the starting point of a trade). -->
+    <nz-drawer [nzVisible]="drawer() === 'mine'" nzPlacement="right" [nzWidth]="380" [nzTitle]="squads()!.mine.name" (nzOnClose)="drawer.set(null)">
+      <ng-container *nzDrawerContent>
+        <div class="flex flex-col gap-2 text-sm" data-scout-mine>
+          <span class="text-xs text-muted">
+            {{ ours()!.strength.module }} · {{ ours()!.strength.perRound | number: '1.1-1' }} pt/g · titolari {{ ours()!.strength.starters | number: '1.1-1' }} · ricambi
+            {{ ours()!.strength.cover | number: '1.1-1' }}
+            @if (squads()!.unknown) {
+              · {{ squads()!.unknown }} senza listone
             }
-          }
+          </span>
+          <span class="mt-1 text-xs font-semibold text-muted">Forti ma poco schierati</span>
+          <ul class="flex flex-col gap-0.5" data-scout-bench>
+            @for (one of ours()!.bench; track one.man.id) {
+              <li class="flex items-center gap-2">
+                <ui-roles [roles]="one.man.shown" size="xs" />
+                <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">{{ one.man.name }}</button>
+                <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Da titolare, a giornata / quanto vale oggi per la rosa">{{ perRound(one.man) | number: '1.2-2' }} / {{ one.worth | number: '1.2-2' }}</span>
+              </li>
+            } @empty {
+              <li class="text-xs text-muted">Nessuno: la tua panchina non ha uomini prezzati.</li>
+            }
+          </ul>
+          <span class="mt-2 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Titolari con una riserva dello stesso ruolo base che vale almeno tre quarti di loro">Titolari con riserva all'altezza</span>
+          <ul class="flex flex-col gap-0.5" data-scout-expendable>
+            @for (one of ours()!.expendable; track one.man.id) {
+              <li class="flex flex-col">
+                <div class="flex items-center gap-2">
+                  <ui-roles [roles]="one.man.shown" size="xs" />
+                  <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">{{ one.man.name }}</button>
+                  <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Da titolare, a giornata / quanto perde la rosa senza di lui">{{ one.perRound | number: '1.2-2' }} / −{{ one.loss | number: '1.2-2' }}</span>
+                </div>
+                <div class="flex items-center gap-2 pl-7 text-[11px] text-muted">
+                  <span>riserva</span>
+                  <ui-roles [roles]="one.replacement.shown" size="xxs" />
+                  <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.replacement.id)">{{ one.replacement.name }}</button>
+                  <span class="tabular-nums">{{ perRound(one.replacement) | number: '1.2-2' }}</span>
+                </div>
+              </li>
+            } @empty {
+              <li class="text-xs text-muted">Nessuno.</li>
+            }
+          </ul>
+        </div>
+      </ng-container>
+    </nz-drawer>
 
-          <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Posti del loro undici sotto la mediana della lega per quella linea">Buchi</span>
-          @for (hole of report.holes.slice(0, 3); track $index) {
-            <div class="flex flex-col">
-              <div class="flex items-center gap-2">
-                <span class="w-12 shrink-0 text-xs font-semibold">{{ hole.slot }}</span>
-                @if (hole.holder) {
-                  <button type="button" class="min-w-0 flex-1 truncate text-left text-xs hover:underline" (click)="openPlayer(hole.holder.id)">{{ hole.holder.name }}</button>
-                } @else {
-                  <span class="flex-1 text-xs text-danger">vuoto</span>
-                }
-                <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Punti a giornata del posto / mediana della lega">{{ hole.now | number: '1.2-2' }} / {{ hole.median | number: '1.2-2' }}</span>
+    <!-- THE RIVALS, on request: what they can spare, what they feel is wrong, where their elevens are short. -->
+    <nz-drawer [nzVisible]="drawer() === 'rivals'" nzPlacement="right" [nzWidth]="'min(1100px, 92vw)'" nzTitle="Avversari" (nzOnClose)="drawer.set(null)">
+      <ng-container *nzDrawerContent>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-scout-rivals>
+          @for (report of reports(); track report.name) {
+            <section class="flex flex-col gap-1.5 rounded border border-border bg-surface p-3 text-sm">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="truncate font-semibold">{{ report.name }}</span>
+                <span class="tabular-nums text-xs text-muted">{{ report.module }} · {{ report.perRound | number: '1.1-1' }} pt/g</span>
               </div>
-              @if (hole.offers.length) {
-                <div class="flex flex-wrap items-center gap-1 pl-14 text-xs">
-                  <span class="text-muted">offri:</span>
-                  @for (man of hole.offers.slice(0, 3); track man.id) {
-                    <button type="button" class="hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+              <span class="text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Fuori dal loro undici migliore, ma alzerebbero il nostro">Riserve che ci servono</span>
+              @for (one of report.spare.slice(0, 4); track one.man.id) {
+                <div class="flex items-center gap-2">
+                  <ui-roles [roles]="one.man.shown" size="xxs" />
+                  <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(one.man.id)">{{ one.man.name }}</button>
+                  @if (one.surplus; as surplus) {
+                    <span class="text-[10px] text-muted" nz-tooltip nzTooltipTitle="Più calciatori di quel ruolo a livello da titolare che posti nel suo undici" data-scout-surplus>{{ surplus.good }} {{ surplus.role }} da titolare per {{ surplus.places }} {{ surplus.places === 1 ? 'posto' : 'posti' }}</span>
+                  }
+                  <span class="tabular-nums text-xs text-success">+{{ one.forUs | number: '1.2-2' }}</span>
+                </div>
+              } @empty {
+                <span class="text-xs text-muted">Nessuna.</span>
+              }
+              @let felt = report.needs.filter((need) => need.kind !== 'weak');
+              @if (felt.length) {
+                <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Titolari fuori oggi o senza voto in 3 delle ultime 5">Problemi</span>
+                @for (need of felt.slice(0, 4); track $index) {
+                  <span class="text-xs" [class.text-danger]="need.kind === 'out'" data-scout-rival-need>{{ needText(need) }}</span>
+                }
+              }
+              <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Posti del loro undici sotto la mediana della lega per quella linea">Buchi</span>
+              @for (hole of report.holes.slice(0, 3); track $index) {
+                <div class="flex flex-col">
+                  <div class="flex items-center gap-2">
+                    <span class="w-12 shrink-0 text-xs font-semibold">{{ hole.slot }}</span>
+                    @if (hole.holder) {
+                      <button type="button" class="min-w-0 flex-1 truncate text-left text-xs hover:underline" (click)="openPlayer(hole.holder.id)">{{ hole.holder.name }}</button>
+                    } @else {
+                      <span class="flex-1 text-xs text-danger">vuoto</span>
+                    }
+                    <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="Punti a giornata del posto / mediana della lega">{{ hole.now | number: '1.2-2' }} / {{ hole.median | number: '1.2-2' }}</span>
+                  </div>
+                  @if (hole.offers.length) {
+                    <div class="flex flex-wrap items-center gap-1 pl-14 text-xs">
+                      <span class="text-muted">offri:</span>
+                      @for (man of hole.offers.slice(0, 3); track man.id) {
+                        <button type="button" class="hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+                      }
+                    </div>
                   }
                 </div>
+              } @empty {
+                <span class="text-xs text-muted">Nessuno.</span>
               }
-            </div>
-          } @empty {
-            <span class="text-xs text-muted">Nessuno.</span>
+            </section>
           }
-        </section>
-      }
-    </div>
+        </div>
+      </ng-container>
+    </nz-drawer>
   }
 </div>
 
-
-
-<!-- The four-sided table of a line shaped like a 2x2 (a 2x2, or an extension), when it is open. -->
-<ng-template #pairTable let-line let-key="key">
-  @if (openOffer() === key) {
-    <ng-container *ngTemplateOutlet="compareTable; context: { $implicit: matrix(line.give, line.take, pushed(line.theirChange, line.take), pushed(line.ourChange, line.give), { mine: line.ourChange.enter, theirs: line.theirChange.enter }) }" />
-  }
-</ng-template>
-
-<!-- ONE MAN MORE (`scout.extendOffer`): the extensions of the line `key`, each a line that can be extended again. -->
-<ng-template #extensionsOf let-key>
-  @if (extensionsFor(key); as exts) {
-    <div class="ml-4 border-l-2 border-primary/40 pl-3" data-scout-extensions>
-      @for (ext of exts; track $index) {
-        @let k = key + '>' + offerKey(ext.rival, ext.give, ext.take);
-        <span class="text-[11px] text-success" data-scout-extension-better>{{ betterText(ext) }}</span>
-        <ng-container *ngTemplateOutlet="swapLine; context: { give: ext.give, take: ext.take, swap: ext, key: k, spare: ext.spare, added: ext.added }" />
-        <ng-container *ngTemplateOutlet="pairTable; context: { $implicit: ext, key: k }" />
-        <ng-container *ngTemplateOutlet="extensionsOf; context: { $implicit: k }" />
-      } @empty {
-        <span class="block py-1 text-xs text-muted" data-scout-extension-none>Nessun calciatore in più migliora l'offerta per lui senza peggiorarla per te.</span>
-      }
-    </div>
-  }
-</ng-template>
-
-<!-- ONE SWAP IN ONE LINE (operator, 22/10/2026: «scrivi in maniera più sintetica CALCIATORE A x CALCIATORE B»): what I
-     give × what I take, the two gains, the FVM, and «+ dettagli» for the four-sided table. -->
-<ng-template #swapLine let-give="give" let-take="take" let-swap="swap" let-key="key" let-spare="spare" let-added="added">
-  <div class="flex flex-wrap items-center gap-x-2 gap-y-1 py-1" data-scout-line [attr.data-gives]="namesOf(give)" [attr.data-takes]="namesOf(take)">
-    @for (man of give; track man.id; let first = $first) {
-      @if (!first) {
-        <span class="text-muted">+</span>
-      }
-      <ui-roles [roles]="man.shown" size="xxs" />
-      <button type="button" class="font-semibold hover:underline" [class.text-primary]="added?.give?.id === man.id" (click)="openPlayer(man.id)">{{ man.name }}</button>
+<!-- Men as a row of names with their roles. `big` in the panel; `added` = the man an extension brought in; `spare`
+     = the men who are not in the rival's eleven (★). In the LIST the names are spans: the row itself is the button. -->
+<ng-template #names let-men let-added="added" let-big="big" let-spare="spare">
+  @for (man of men; track man.id; let first = $first) {
+    @if (!first) {
+      <span class="text-muted">+</span>
     }
-    <span class="px-1 text-muted">×</span>
-    @for (man of take; track man.id; let first = $first) {
-      @if (!first) {
-        <span class="text-muted">+</span>
-      }
-      <ui-roles [roles]="man.shown" size="xxs" />
-      <button type="button" class="font-semibold hover:underline" [class.text-primary]="added?.take?.id === man.id" (click)="openPlayer(man.id)">{{ man.name }}</button>
-      @if (spare.includes(man.id)) {
+    <ui-roles [roles]="man.shown" [size]="big ? 'xs' : 'xxs'" />
+    @if (big) {
+      <button type="button" class="font-semibold hover:underline" [class.text-primary]="added?.id === man.id" (click)="openPlayer(man.id)">{{ man.name }}</button>
+      @if (spare?.includes(man.id)) {
         <span class="text-success" nz-tooltip nzTooltipTitle="Per loro è riserva">★</span>
       }
+    } @else {
+      <span class="font-semibold">{{ man.name }}</span>
     }
-    @let need = needOf(swap);
-    @if (need) {
-      <!-- THE RIVAL'S OWN PROBLEM this offer solves (`scout.needMet`): what he can see on his team sheet. -->
-      <span
-        class="rounded px-1 text-[11px]"
-        [class.bg-danger/15]="need.kind === 'out'"
-        [class.bg-warning/15]="need.kind === 'novote'"
-        [class.bg-control]="need.kind === 'weak'"
-        nz-tooltip
-        nzTooltipTitle="Un problema che l'altro ha già: chi dai prende quel posto"
-        [attr.data-scout-need]="need.kind"
-      >{{ needText(need) }}</span>
-    }
-    <span class="ml-auto tabular-nums text-xs" nz-tooltip nzTooltipTitle="Quanto guadagna a giornata l'undici migliore di ciascuno: col nuovo arrivato e senza chi parte" data-scout-gains>
-      per te <span class="text-success">+{{ swap.ours | number: '1.2-2' }}</span> · per loro +{{ swap.theirs | number: '1.2-2' }}
-    </span>
-    @if (swap.appeal != null) {
-      <!-- THE FORM: what we offer over what we ask, mean vote of the last five - how easily they will believe it. -->
-      <span
-        class="tabular-nums text-xs"
-        [class.text-success]="swap.appeal >= 0.25"
-        [class.text-warning]="swap.appeal < 0"
-        nz-tooltip
-        nzTooltipTitle="Forma: media voto delle ultime 5 di chi offri meno quella di chi chiedi. Alta = più facile da far accettare"
-        data-scout-form
-      >forma {{ swap.appeal >= 0 ? '+' : '' }}{{ swap.appeal | number: '1.2-2' }}</span>
-    }
-    <span class="tabular-nums text-xs text-muted" nz-tooltip nzTooltipTitle="FVM che dai meno FVM che ricevi">
-      @let balance = fvmBalance(swap);
-      FVM {{ balance === null ? '–' : (balance > 0 ? '+' : '') + balance }}
-    </span>
-    <button
-      type="button"
-      class="rounded border border-border px-1.5 text-[11px] text-muted hover:text-fg"
-      [class.border-primary]="extensionsFor(key)"
-      nz-tooltip
-      nzTooltipTitle="Un calciatore in più, tuo o suo, per renderla più convincente per lui"
-      (click)="toggleExtend(key, swap)"
-      data-scout-extend
-    >{{ extensionsFor(key) ? '- aggiungi' : '+ aggiungi' }}</button>
-    <button type="button" class="rounded border border-border px-1.5 text-[11px] text-muted hover:text-fg" (click)="toggleOffer(key)" data-scout-compare-toggle>
-      {{ openOffer() === key ? '- dettagli' : '+ dettagli' }}
-    </button>
-  </div>
+  }
 </ng-template>
 
 <!-- THE COMPARISON TABLE of an offer, as four sides (operator, 22/10/2026): MY men on the left, THEIRS on the right, one

@@ -3,6 +3,7 @@ import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -110,6 +111,17 @@ function recentOf(cells: readonly TrendCell[] | null): { matches: number; noVote
   return played.length ? { matches: played.length, noVote: played.filter((cell) => cell.vote === null).length } : null;
 }
 
+type Swap = SimpleSwap | PairSwap;
+
+/** One row of the list: an offer's best line, and the other ways of paying for the same target. */
+export interface OfferRow {
+  key: string;
+  swap: Swap;
+  alternatives: Swap[];
+  /** Lines cut by the 2x2 grouping (`groupTrades`'s `hidden`). */
+  hiddenLines: number;
+}
+
 /** One man of an offer in its comparison table. */
 export interface CompareRow {
   man: ScoutMan;
@@ -148,6 +160,7 @@ const TARGETS_PER_RIVAL = 5;
     FormsModule,
     NzButtonModule,
     NzCheckboxModule,
+    NzDrawerModule,
     NzIconModule,
     NzRadioModule,
     NzSelectModule,
@@ -231,7 +244,7 @@ export class Scout {
 
   protected chooseRoster(key: string): void {
     this.rivalFilter.set(null);
-    this.extensions.set(new Map());
+    this.pick(null);
     this.pairRun += 1;
     this.pairState.set({ kind: 'idle' });
     this.rosterFile.choose(key);
@@ -364,7 +377,8 @@ export class Scout {
     const offers: (SimpleSwap | PairSwap)[] = [
       ...this.allSwaps(),
       ...(this.pairResult()?.swaps ?? []),
-      ...[...this.extensions().values()].flat(),
+      ...this.trail(),
+      ...(this.extended() ?? []),
     ];
     for (const one of offers) {
       const needs = this.needs().get(one.rival) ?? [];
@@ -486,31 +500,109 @@ export class Scout {
     return { kept: seen.filter((one) => this.fairToHim(one)).length, total: seen.length };
   });
 
+  // ---------------------------------------------------------------- the list and the offer open beside it
+
   /**
-   * ONE MAN MORE ON AN OFFER (`roadmap-scambi-v1.md` step 3, `scout.extendOffer`): computed when asked, on that line
-   * alone, and kept by the line's key - an extension is a line too, so it can be extended again.
+   * THE LIST (operator, 22/10/2026: «cerchiamo di fare rientrare tutto in una schermata, manteniamo il focus sulle cose
+   * principali, dettagli ed alternative solo a richiesta»): per rival, one row per offer - its best line, named and
+   * nothing else. The other ways of paying for the same target are its ALTERNATIVES, shown only in the panel.
    */
-  protected readonly extensions = signal<ReadonlyMap<string, Extension[]>>(new Map());
-
-  protected extensionsFor(key: string): Extension[] | null {
-    return this.extensions().get(key) ?? null;
-  }
-
-  protected toggleExtend(key: string, swap: SimpleSwap | PairSwap): void {
-    const next = new Map(this.extensions());
-    if (next.has(key)) {
-      // Closing a line closes what was opened under it.
-      for (const k of [...next.keys()]) if (k === key || k.startsWith(key + '>')) next.delete(k);
-    } else {
-      const squads = this.squads();
-      const rules = this.rules();
-      const rounds = this.rounds();
-      if (!squads || !rules || !rounds) return;
-      const base = { rival: swap.rival, give: [swap.give].flat(), take: [swap.take].flat() };
-      next.set(key, extendOffer(base, { mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() }));
+  protected readonly rows = computed<{ rival: string; hidden: number; offers: OfferRow[] }[]>(() => {
+    if (this.mode() === '1x1') {
+      return this.swaps().map((group) => ({
+        rival: group.rival,
+        hidden: group.hidden,
+        offers: group.offers.map((offer) => this.rowOf(offer.lines)),
+      }));
     }
-    this.extensions.set(next);
+    return this.pairGroups().map((group) => ({
+      rival: group.rival,
+      hidden: group.hidden,
+      offers: group.offers.map((offer) => this.rowOf(offer.lines, offer.hidden)),
+    }));
+  });
+
+  private rowOf(lines: readonly Swap[], hiddenLines = 0): OfferRow {
+    const [swap, ...alternatives] = lines;
+    return { key: this.keyOf(swap), swap, alternatives, hiddenLines };
   }
+
+  protected keyOf(one: Swap): string {
+    return this.offerKey(one.rival, [one.give].flat(), [one.take].flat());
+  }
+
+  /** The row picked, by its key; none picked (or no longer in the list) = the first row. */
+  private readonly pickedKey = signal<string | null>(null);
+  /** The line shown of that row: its own, or one of its alternatives. */
+  private readonly pickedLine = signal<Swap | null>(null);
+  /** Extensions walked from that line, one man more each (`scout.extendOffer`): the last is what the panel shows. */
+  protected readonly trail = signal<Extension[]>([]);
+  /** The extensions offered for what the panel shows, once asked for; null = not asked. */
+  protected readonly extended = signal<Extension[] | null>(null);
+
+  protected readonly openRow = computed<OfferRow | null>(() => {
+    const all = this.rows().flatMap((group) => group.offers);
+    return all.find((row) => row.key === this.pickedKey()) ?? all[0] ?? null;
+  });
+
+  /** What the panel shows: the end of the trail, else the picked line of the open row. */
+  protected readonly current = computed<Swap | null>(() => {
+    const row = this.openRow();
+    if (!row) return null;
+    const trail = this.trail();
+    if (trail.length) return trail[trail.length - 1];
+    const line = this.pickedLine();
+    return line && (line === row.swap || row.alternatives.includes(line)) ? line : row.swap;
+  });
+
+  protected pick(row: OfferRow | null, line: Swap | null = null): void {
+    this.pickedKey.set(row?.key ?? null);
+    this.pickedLine.set(line);
+    this.trail.set([]);
+    this.extended.set(null);
+  }
+
+  /** ONE MAN MORE (`roadmap-scambi-v1.md` step 3): computed when asked, on the offer the panel shows. */
+  protected extend(): void {
+    const one = this.current();
+    const squads = this.squads();
+    const rules = this.rules();
+    const rounds = this.rounds();
+    if (!one || !squads || !rules || !rounds) return;
+    const base = { rival: one.rival, give: [one.give].flat(), take: [one.take].flat() };
+    this.extended.set(extendOffer(base, { mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() }));
+  }
+
+  protected walk(ext: Extension): void {
+    this.trail.set([...this.trail(), ext]);
+    this.extended.set(null);
+  }
+
+  protected back(): void {
+    this.trail.set(this.trail().slice(0, -1));
+    this.extended.set(null);
+  }
+
+  protected isExtension(one: Swap): one is Extension {
+    return 'added' in one;
+  }
+
+  /** The four-sided table of whatever the panel shows: a 1x1, a 2x2 or an extension. */
+  protected matrixOf(one: Swap): MatrixRow[] {
+    return 'theirChange' in one
+      ? this.matrix(one.give, one.take, this.pushed(one.theirChange, one.take), this.pushed(one.ourChange, one.give), {
+          mine: one.ourChange.enter,
+          theirs: one.theirChange.enter,
+        })
+      : this.matrix([one.give], [one.take], one.theirOut ? [one.theirOut] : [], one.ourOut ? [one.ourOut] : []);
+  }
+
+  protected spareOf(one: Swap): number[] {
+    return 'theirChange' in one ? one.spare : one.spare ? [one.take.id] : [];
+  }
+
+  /** The drawers: his squad, and the rivals' cards. */
+  protected readonly drawer = signal<'mine' | 'rivals' | null>(null);
 
   /** What an extension made better for the rival, in words. */
   protected betterText(ext: Extension): string {
@@ -593,19 +685,12 @@ export class Scout {
     return { now: r?.now ?? null, last: r?.last ?? null };
   });
 
-  /** The offer whose table is open, by its key; null = none. */
-  protected readonly openOffer = signal<string | null>(null);
-
   protected offerKey(rival: string, give: readonly ScoutMan[], take: readonly ScoutMan[]): string {
     return `${rival}|${give.map((m) => m.id).join(',')}|${take.map((m) => m.id).join(',')}`;
   }
 
   protected namesOf(men: readonly ScoutMan[]): string {
     return men.map((m) => m.name).join(' + ');
-  }
-
-  protected toggleOffer(key: string): void {
-    this.openOffer.set(this.openOffer() === key ? null : key);
   }
 
   /** One row per man of the offer: last season, this season, the press word, the strip. */
