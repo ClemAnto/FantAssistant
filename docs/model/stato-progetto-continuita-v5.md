@@ -1,5 +1,26 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXVIII): 19 ottobre 2026 — LA PAGINA FORMAZIONE LEGGE IL CSV DELLE ROSE, NIENTE PIÙ LOGIN.**
+**Aggiornato (XXIX): 22 ottobre 2026 — SOFASCORE CHIUSO (403), E UN RIPIEGO SU TRANSFERMARKT.**
+Dal 24/09 SofaScore risponde 403 su ogni endpoint (riprovato il 22/10), quindi il livello per-partita si ferma alle
+giornate del 20/09 e con lui i ruoli granulari e il calendario (letto il 24/09, porta comunque le partite future).
+Elo: API 502, l'archivio non ha date dopo il 01/09. Il DB è stato aggiornato da capo (`performance` 1319/1319,
+641.295 partite; fogli, pacchetti, bundle, app) e pubblicato. Tre correzioni, commit `174f744` e `ccad875`, sito
+v0.1.60: (a) **una giornata vera appartiene a UNA giornata EuroLeghe** (`matchdays.align_season`): con lo strato fermo
+alla 4ª di Bundesliga la euro 6 era assegnata alla 4 all'85% accanto alla euro 4 al 100%, e il voto di Kane della
+6ª era disegnato sulla partita con l'Union Berlin; l'ORDINE non è una regola (la Liga 2025-26 ha giocato la 32 dopo la
+33); una giornata rifiutata perde anche la riga scritta da una corsa precedente. (b) **`matchdays.derive_from_tm`**:
+le giornate che voti e strato per-partita non mappano si allineano sulle righe di Transfermarkt (giornata dal
+calendario) con la stessa `align_season`; su ogni giornata mappata da entrambe le fonti concordano in tutti e cinque
+i campionati, e riempie le euro 5-6. (c) **`snapshot.tm_backup`**: il TREND cammina le giornate di campionato DOPO
+l'ultima partita dello strato per ogni club, da calendario (avversario, campo) + Transfermarkt (minuti, titolare,
+gol, panchina, infortunio) + voti, solo per il club di oggi (Marmoush: Coventry 87' 7.0 e gol, 10 punti). Board e
+finestra corta NON lo leggono: Transfermarkt non ha né posto in distinta né xG. Nell'app la card delle ultime
+partite prende avversario, campo e data dal calendario dove manca la partita del provider (`players-store`,
+`buildLeagueMatches`) — **non verificato in un browser**: `e2e-player-card` si ferma prima («la plancia non ha
+disegnato nessuna riga», probabilmente perché la plancia apre vuota dal 23/09 e il banco non lo sa). Il giorno che
+SofaScore riapre, le righe di ripiego spariscono da sole. **Aperti**: aggiornare `e2e-player-card` al tavolo vuoto;
+board/finestra corta ferme al 20/09 finché SofaScore è chiuso; ruoli granulari ed Elo senza sostituto.
+
+· precedente: **Aggiornato (XXVIII): 19 ottobre 2026 — LA PAGINA FORMAZIONE LEGGE IL CSV DELLE ROSE, NIENTE PIÙ LOGIN.**
 Il login a Leghe ed EuroLeghe risponde `403 FAIL` (non `ATH018`) sia diretto sia dal Worker pubblicato il 16/10, quindi
 per decisione dell'operatore la rosa arriva dall'export CSV della lega («Carica rosa», `core/roster-file.ts`,
 `ui/roster-upload/`). Più rose, una per fantasquadra, sincronizzate fra dispositivi tramite il foglio delle probabili

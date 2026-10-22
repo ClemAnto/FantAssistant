@@ -7406,6 +7406,17 @@ his first pick. Two habits: **simulate the whole deliverable before tuning a ter
 and **a simulation scored on our own predictions favours whoever follows them** - against human-like rivals the advice
 led by +3-4% on the eleven's value and that is an upper bound, not a verdict.
 
+## A closed provider gets a BACKUP, and the backup feeds only what it can feed
+**22/10/2026, SofaScore 403 since 24/09** (`stato-progetto-continuita-v5.md` XXIX). Operator: «se sofascore non risponde
+predisponi un backup per i dati come transfermarkt». Two rules came out of it. **One real round belongs to one euro
+round**: with the layer stopped, a later euro round matched the last round on file at 85% (the same men play week
+to week) and two votes were drawn on one match - the uniqueness is the rule, the calendar ORDER is not (postponed
+rounds). And **a backup fills only the readers whose quantity it carries**: Transfermarkt has who played, minutes,
+starts and goals, so the matchday map (`derive_from_tm`) and the TREND (`snapshot.tm_backup`) read it; it has no
+lineup slot, no rating and no xG, so the boards, the short window and the per-match table do NOT - writing it into
+`external_match_stats` would have made NULL xG read as zero (`expectedScope`) and half-fed eighty readers. Rows of
+the backup cover only rounds after the layer's last match, so they retire themselves when the provider reopens.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
