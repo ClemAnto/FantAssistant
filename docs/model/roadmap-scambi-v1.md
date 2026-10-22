@@ -20,7 +20,10 @@ dell'operatore del 22/10/2026 sera («cosa può convincere qualcuno a fare uno s
 - **Vincoli e non pesi**, come tutte le regole della pagina: un criterio che lui dichiara filtra o ordina, non entra
   nei guadagni.
 
-## 1. Il registro delle offerte — PRIMO, perché i dati maturano col tempo
+## 1. Il registro delle offerte — RIMANDATO (operatore, 22/10/2026: «la 1 non serve al momento»)
+
+Resta scritto perché è l'unica strada per il passo 8; il prezzo del rinvio è che i dati cominciano ad accumularsi
+più tardi.
 
 **Cosa.** Su ogni riga un bottone «proposto». Lo stato si cambia dalla riga stessa: proposto · accettato ·
 rifiutato · controproposta (con una nota libera). La pagina mostra in un pannello le offerte registrate.
