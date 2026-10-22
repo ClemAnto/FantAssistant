@@ -111,7 +111,14 @@
           <nz-radio-group nzSize="small" [ngModel]="order()" (ngModelChange)="order.set($event)" data-scout-order>
             <label nz-radio-button nzValue="feasible" nz-tooltip nzTooltipTitle="Prima gli scambi in cui offri calciatori in forma migliore di quelli che chiedi">Fattibili</label>
             <label nz-radio-button nzValue="gain" nz-tooltip nzTooltipTitle="Prima gli scambi col guadagno più alto per entrambi">Guadagno</label>
+            <label nz-radio-button nzValue="need" nz-tooltip nzTooltipTitle="Prima gli scambi che risolvono un problema che l'altro ha già" data-scout-order-need>Bisogno</label>
           </nz-radio-group>
+          <label nz-checkbox [ngModel]="fvmFair()" (ngModelChange)="fvmFair.set($event)" nz-tooltip nzTooltipTitle="Solo se il FVM di chi dai è almeno quello di chi chiedi" data-scout-fvm-fair>
+            FVM a suo favore
+            @if (fvmFair()) {
+              <span class="tabular-nums text-xs text-muted" data-scout-fvm-count>{{ fvmCount().kept }} di {{ fvmCount().total }}</span>
+            }
+          </label>
           <nz-select class="w-48" nzSize="small" nzAllowClear nzPlaceHolder="Tutte le squadre" [ngModel]="rivalFilter()" (ngModelChange)="rivalFilter.set($event)">
             @for (name of rivalNames(); track name) {
               <nz-option [nzValue]="name" [nzLabel]="name" />
@@ -217,6 +224,14 @@
             <span class="text-xs text-muted">Nessuna.</span>
           }
 
+          @let felt = report.needs.filter((need) => need.kind !== 'weak');
+          @if (felt.length) {
+            <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Titolari fuori oggi o senza voto in 3 delle ultime 5">Problemi</span>
+            @for (need of felt.slice(0, 4); track $index) {
+              <span class="text-xs" [class.text-danger]="need.kind === 'out'" data-scout-rival-need>{{ needText(need) }}</span>
+            }
+          }
+
           <span class="mt-1 text-xs font-semibold text-muted" nz-tooltip nzTooltipTitle="Posti del loro undici sotto la mediana della lega per quella linea">Buchi</span>
           @for (hole of report.holes.slice(0, 3); track $index) {
             <div class="flex flex-col">
@@ -270,6 +285,19 @@
       @if (spare.includes(man.id)) {
         <span class="text-success" nz-tooltip nzTooltipTitle="Per loro è riserva">★</span>
       }
+    }
+    @let need = needOf(swap);
+    @if (need) {
+      <!-- THE RIVAL'S OWN PROBLEM this offer solves (`scout.needMet`): what he can see on his team sheet. -->
+      <span
+        class="rounded px-1 text-[11px]"
+        [class.bg-danger/15]="need.kind === 'out'"
+        [class.bg-warning/15]="need.kind === 'novote'"
+        [class.bg-control]="need.kind === 'weak'"
+        nz-tooltip
+        nzTooltipTitle="Un problema che l'altro ha già: chi dai prende quel posto"
+        [attr.data-scout-need]="need.kind"
+      >{{ needText(need) }}</span>
     }
     <span class="ml-auto tabular-nums text-xs" nz-tooltip nzTooltipTitle="Quanto guadagna a giornata l'undici migliore di ciascuno: col nuovo arrivato e senza chi parte" data-scout-gains>
       per te <span class="text-success">+{{ swap.ours | number: '1.2-2' }}</span> · per loro +{{ swap.theirs | number: '1.2-2' }}

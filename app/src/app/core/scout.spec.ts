@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, groupTrades, pairSwaps, quotasHold, rivalReports, simpleSwaps, strengthOf } from './scout';
+import { CLASSIC_QUOTAS, FORM_TOLERANCE, appealOf, ScoutMan, ScoutRole, expendableStarters, elevenWithoutNeedy, groupTrades, needMet, pairSwaps, quotasHold, rivalReports, simpleSwaps, strengthOf } from './scout';
 
 /** A classic rulebook with two shapes, enough to make the matching choose. */
 const RULES = {
@@ -239,6 +239,32 @@ describe('scout', () => {
       const moved = [...s.ourChange.enter, ...s.ourChange.leave, ...s.theirChange.enter, ...s.theirChange.leave].map((m) => m.id);
       for (const m of [...s.give, ...s.take]) expect(moved).toContain(m.id);
     }
+  });
+
+  it('a rival need: a starter out beats one with no votes beats a weak place, and a trade meets it by role', () => {
+    const only442 = { ...RULES, modules: { '4-4-2': (RULES.modules as Record<string, unknown>)['4-4-2'] } } as unknown as MantraModules;
+    const theirs = squad(6);
+    const [d1, d2] = theirs.filter((m) => m.role === 'D');
+    const c1 = theirs.find((m) => m.role === 'C')!;
+    d1.outFor = 4;
+    c1.recent = { matches: 5, noVote: 3 };
+    d2.recent = { matches: 5, noVote: 2 };
+    const [report] = rivalReports({ name: 'Noi', men: squad(6) }, [{ name: 'Loro', men: theirs }], only442, 38);
+    expect(report.needs.map((n) => [n.kind, n.holder?.id])).toEqual([['out', d1.id], ['novote', c1.id]]);
+    // A good midfielder of ours plays in the eleven they field without the two needy men: he fills the midfield one.
+    const ourMid = man('C', 7, 34);
+    const after = [...theirs, ourMid];
+    const without = elevenWithoutNeedy(after, report.needs, only442, 38);
+    expect(needMet(report.needs, [ourMid], [], [], without)?.kind).toBe('novote');
+    // A weak one who would not make that eleven fills nothing.
+    const poor = man('C', 1, 5);
+    expect(needMet(report.needs, [poor], [], [], elevenWithoutNeedy([...theirs, poor], report.needs, only442, 38))).toBeNull();
+    // Taking the needy man moves their problem, it does not solve it.
+    expect(needMet(report.needs, [ourMid], [c1], [], without)?.kind).not.toBe('novote');
+    // A weak place: met when its holder is pushed out; an empty one, when a man can stand there.
+    const empty = { kind: 'weak' as const, slot: 'A', line: 'A' as const, roles: ['a'], holder: null };
+    expect(needMet([empty], [man('A', 6, 30)], [], [], new Set())?.kind).toBe('weak');
+    expect(needMet([empty], [ourMid], [], [], new Set())).toBeNull();
   });
 
   it('the form we offer over the form we ask: a man in better form than what we pay is not proposed', () => {

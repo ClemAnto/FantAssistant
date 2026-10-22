@@ -41,7 +41,15 @@ numeri del momento e non quelli di oggi.
 
 **Costo.** Piccolo. Nessun calcolo nuovo.
 
-## 2. FVM a suo favore — il filtro più semplice
+## 2. FVM a suo favore — FATTO (22/10/2026 sera)
+
+Interruttore «FVM a suo favore» accanto all'ordinamento, ricordato fra le visite (`scout.fvmFair`); acceso, lascia
+solo le righe dove il FVM di chi dai è almeno quello di chi chiedi, e una riga senza FVM da una parte RESTA FUORI
+(un ignoto non è un favore). Stampa «k di n». Misurato sull'export chiagnister (Serie A classic), 2x2:
+MAJINBUSIO 15 di 42, EV-United 12 di 22, AngeloAzzurro **2 di 20**, MaCheMollo 12 di 31, Temptation Haaland 32 di 46
+- su alcune rose il nostro vantaggio sta quasi tutto dove il mercato paga meno, come previsto.
+
+Testo originale del passo:
 
 **Cosa.** Un interruttore «solo se il FVM lo favorisce»: chi dai vale, a FVM, almeno quanto chi chiedi (con una
 tolleranza dichiarata, di partenza 0). Il saldo FVM è già calcolato su ogni riga (`fvmGive`, `fvmTake`): oggi si
@@ -78,7 +86,29 @@ proposte.
 
 **Costo.** Medio. Il calcolo è a richiesta su una riga sola: decine di confronti, non migliaia.
 
-## 4. Il suo bisogno, visto da lui
+## 4. Il suo bisogno, visto da lui — FATTO (22/10/2026 sera)
+
+`scout.rivalReports` porta `needs`: un bisogno per posto del loro undici, il più forte prima - `out` (titolare fuori
+oggi: la finestra di `ExpectedPlay`, quindi solo chi ha un rientro datato o la stagione finita), `novote` (nessun voto
+in almeno `NO_VOTE_MIN` = 3 delle sue ultime 5 partite di club: soglia DICHIARATA, una maggioranza), `weak` (i buchi
+già calcolati). La card di ogni rivale li elenca sotto «Problemi»; una riga di scambio che ne risolve uno lo dice con
+un'etichetta, e l'ordinamento «Bisogno» le mette in cima.
+
+**Cosa vuol dire «risolve» è costato due tentativi, e il secondo era sbagliato in modo istruttivo.**
+- Prima: «chi dai può giocare in quel posto». Vero di quasi ogni offerta (**27 righe di 30**): un'etichetta su ogni
+  riga non dice niente.
+- Poi: «chi dai spinge fuori dal loro undici il titolare in difficoltà». **0 righe di 30**: l'undici dello scout è
+  quello della STAGIONE, e un titolare fuori quattro giornate ci resta comunque sul resto della stagione - nessuno
+  scambio lo spinge fuori. Anzi, alcune offerte lo PRENDEVANO (Yildiz, fuori 8 g): spostano il suo problema, non lo
+  risolvono.
+- Adottato (`scout.needMet`): per `out`/`novote`, chi dai gioca nell'undici che il rivale schiera SENZA i titolari in
+  difficoltà, in un posto di quella linea («mentre X è fuori, gioca il tuo»); per `weak`, spinge fuori il titolare
+  (o, per un posto vuoto, può occuparlo); prendere il calciatore in difficoltà non risolve niente. Misurato:
+  **1/2 · 14/30 · 13/19 · 7/12 · 11/22 · 8/13** righe 2x2 sulle sei rose provate - discrimina.
+- Limite detto: gli 1x1 su questa lega classic sono **zero per ogni rosa** (con le quote piene 3/8/8/6 un 1x1 deve
+  essere dello stesso ruolo, e le altre regole fanno il resto), quindi i passi 2 e 4 si vedono oggi solo sui 2x2.
+
+Testo originale del passo:
 
 **Cosa.** Per ogni squadra avversaria, i problemi che SENTE già, in tre forme semplici:
 - un suo titolare **è fuori oggi** (infortunio o squalifica: la finestra di `ExpectedPlay`, già nel bundle);

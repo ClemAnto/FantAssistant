@@ -94,6 +94,37 @@ const shot = async (name) => { const r = await send('Page.captureScreenshot', { 
 const problems = [];
 const check = (ok, said) => { console.log(`${ok ? '·' : 'X'} ${said}`); if (!ok) problems.push(said); };
 
+/**
+ * ROADMAP STEPS 2 and 4 on one list: the FVM filter leaves only offers the FVM favours, with its count on screen and
+ * the full list back when it is off; the «Bisogno» order puts, per rival, the offers that meet a need first.
+ */
+async function roadmapChecks(readLines, list, offer, label) {
+  const before = await readLines(list, offer);
+  await ev(`document.querySelector('[data-scout-fvm-fair] input').click()`);
+  await until(`!!document.querySelector('[data-scout-fvm-count]')`, 10000);
+  const count = await ev(`document.querySelector('[data-scout-fvm-count]')?.innerText ?? ''`);
+  const fair = await readLines(list, offer);
+  const m = count.match(/(\d+) di (\d+)/);
+  console.log(`    ${label} FVM a suo favore: ${count} (${fair.length} lines drawn, ${before.length} before)`);
+  check(!!m && Number(m[1]) <= Number(m[2]) && fair.every((l) => l.fvm !== null && l.fvm >= 0),
+    `${label}: with the FVM filter every line drawn gives at least the FVM it asks, and the count reads «k di n»`);
+  await ev(`document.querySelector('[data-scout-fvm-fair] input').click()`);
+  await until(`!document.querySelector('[data-scout-fvm-count]')`, 10000);
+  check((await readLines(list, offer)).length === before.length, `${label}: the filter off gives the list back`);
+  await ev(`document.querySelector('[data-scout-order-need]').click()`);
+  await wait(300);
+  const byNeed = await readLines(list, offer);
+  const firsts = new Map();
+  for (const l of byNeed) if (!firsts.has(`${l.rival}|${l.offer}`)) firsts.set(`${l.rival}|${l.offer}`, l);
+  const perRival = new Map();
+  for (const l of firsts.values()) perRival.set(l.rival, [...(perRival.get(l.rival) ?? []), l.need ? 1 : 0]);
+  const sorted = [...perRival.values()].every((flags) => flags.every((f, i) => i === 0 || f <= flags[i - 1]));
+  console.log(`    ${label}: ${byNeed.filter((l) => l.need).length} of ${byNeed.length} lines meet a rival's need`);
+  check(sorted, `${label}: ordered by «Bisogno», the offers that meet a need come first for every rival`);
+  await ev(`document.querySelector('[data-scout-order] label').click()`);
+  await wait(300);
+}
+
 try {
   await send('Runtime.enable'); await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 1500, height: 1100, deviceScaleFactor: 1, mobile: false });
@@ -132,8 +163,11 @@ try {
       for (const line of node.querySelectorAll('[data-scout-line]')) {
         const g = line.querySelector('[data-scout-gains]')?.innerText.match(/per te \\+([\\d.]+) · per loro \\+([\\d.]+)/);
         const f = line.querySelector('[data-scout-form]')?.innerText.replace('forma', '').trim();
+        const v = [...line.querySelectorAll('span')].map((x) => x.innerText.trim()).find((t) => /^FVM /.test(t));
         out.push({ rival, offer: index, gives: line.getAttribute('data-gives'), takes: line.getAttribute('data-takes'),
-          ours: g ? Number(g[1]) : null, theirs: g ? Number(g[2]) : null, form: f ? Number(f.replace('+', '')) : null });
+          ours: g ? Number(g[1]) : null, theirs: g ? Number(g[2]) : null, form: f ? Number(f.replace('+', '')) : null,
+          need: line.querySelector('[data-scout-need]')?.getAttribute('data-scout-need') ?? null,
+          fvm: v && v !== 'FVM –' ? Number(v.slice(4).replace('+', '')) : null });
       }
     }
     return out;
@@ -152,6 +186,17 @@ try {
   for (const l of lines) byOffer.set(`${l.rival}|${l.offer}`, [...(byOffer.get(`${l.rival}|${l.offer}`) ?? []), l.gives]);
   check([...byOffer.values()].every((g) => new Set(g).size === g.length), 'no man twice in one offer');
   await shot('2-trades.png');
+  await roadmapChecks(readLines, '[data-scout-list]', '[data-scout-offer]', '1x1');
+
+  // THE RIVALS' PROBLEMS (`roadmap-scambi-v1.md` step 4), as each card names them: a starter out for N > 0 matchdays,
+  // or one with no vote in at least three of his last matches (and never more than he played).
+  const felt = await ev(`[...document.querySelectorAll('[data-scout-rival-need]')].map((x) => x.innerText.trim())`);
+  for (const t of felt.slice(0, 6)) console.log(`    problema: ${t}`);
+  check(felt.every((t) => {
+    const out = t.match(/fuori (\d+) g$/);
+    const nv = t.match(/senza voto in (\d+) delle ultime (\d+)$/);
+    return out ? Number(out[1]) > 0 : nv ? Number(nv[1]) >= 3 && Number(nv[1]) <= Number(nv[2]) : false;
+  }), `${felt.length} rival problems, each «fuori N g» with N > 0 or «senza voto in k delle ultime m» with 3 <= k <= m`);
 
   // THE COMPARISON TABLE (22/10/2026): «i calciatori che chiedo e quelli che offro», two seasons, the press, the strip.
   if (lines.length) {
@@ -203,6 +248,7 @@ try {
     for (const r of pr) console.log(`    2x2: ${r.men[0] ?? 'posto vuoto'} ${r.dir === 'gives' ? '→' : '←'} ${r.men[1] ?? 'posto vuoto'}`);
     check(pr.filter((r) => r.dir === 'gives').length >= 2 && pr.filter((r) => r.dir === 'takes').length >= 2, 'the 2x2 table: two given (→) and two taken (←)');
   }
+  await roadmapChecks(readLines, '[data-scout-pairs]', '[data-scout-pair-offer]', '2x2');
   await shot('3-pairs.png');
 
   // THE LAST SEARCH SURVIVES A REFRESH («salva l'ultima ricerca e mostrala al refresh»).

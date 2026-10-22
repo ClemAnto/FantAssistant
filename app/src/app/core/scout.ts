@@ -54,6 +54,14 @@ export interface ScoutMan extends Placeable {
    * (`player-trend.trendVoteMean`, the reading the trend bars draw). Absent = unknown.
    */
   form?: number | null;
+  /**
+   * Matchdays of his club he is out for, counted from today (`ExpectedPlay`'s open window: injured or suspended with a
+   * known return; the rest of the season when the source says it is over). Absent or null = available, or out with no
+   * date we can count.
+   */
+  outFor?: number | null;
+  /** His last club matches (up to five) and how many of them gave him no vote. Absent = unknown. */
+  recent?: { matches: number; noVote: number } | null;
 }
 
 /**
@@ -685,6 +693,70 @@ export interface RivalHole {
   offers: ScoutMan[];
 }
 
+/**
+ * WHAT A RIVAL FEELS IS WRONG (`roadmap-scambi-v1.md` step 4): an offer that solves a problem he already suffers is
+ * one he reads; one that solves a problem only our numbers see is one he does not believe. One need per place of his
+ * best eleven, the strongest kind first:
+ *   * `out`    - the holder is out today (`ScoutMan.outFor`);
+ *   * `novote` - the holder took no vote in at least `NO_VOTE_MIN` of his last club matches (declared: three of five,
+ *                a majority, not measured);
+ *   * `weak`   - the place makes less than the league's median for that line by `HOLE_GAP` (the holes, above).
+ * Facts and not our valuation: each one is something he can see on his own team sheet.
+ */
+export type NeedKind = 'out' | 'novote' | 'weak';
+export const NO_VOTE_MIN = 3;
+
+export interface RivalNeed {
+  kind: NeedKind;
+  slot: string;
+  line: ModuleLine;
+  roles: string[];
+  holder: ScoutMan | null;
+}
+
+/**
+ * The need a trade MEETS: the first (strongest) the man we give really fills, which is what the rival can see.
+ *   * `out` / `novote`: he plays in the eleven the rival fields WITHOUT the needy men (`withoutNeedy`), in a place of
+ *     that line - «while X is out, your man plays». Their SEASON eleven cannot say it: a starter out for four
+ *     matchdays still makes it on the rest of the season, so no trade ever «pushes him out» (measured on a real league:
+ *     0 lines of 30 under that reading);
+ *   * `weak`: he pushes the holder out of their eleven (`replaced`: on a 1x1 the starter he beats, on a 2x2 who leaves
+ *     their eleven besides the men we take); an EMPTY place has no holder, and a man who can stand in it is enough.
+ * A trade that TAKES the needy man meets nothing: it moves their problem, it does not solve it.
+ *
+ * The first version only asked whether a man we give could stand in a needy place, and with three needs a rival on
+ * three lines it was true of nearly every offer (27 lines of 30): a label on every line says nothing.
+ */
+export function needMet(
+  needs: readonly RivalNeed[],
+  give: readonly ScoutMan[],
+  take: readonly ScoutMan[],
+  replaced: readonly (ScoutMan | null)[],
+  withoutNeedy: ReadonlySet<number>,
+): RivalNeed | null {
+  const fits = (man: ScoutMan, need: RivalNeed) => man.roles.some((r) => need.roles.includes(r));
+  return (
+    needs.find((need) => {
+      if (need.holder && take.some((man) => man.id === need.holder!.id)) return false;
+      if (need.kind !== 'weak') return give.some((man) => withoutNeedy.has(man.id) && fits(man, need));
+      return need.holder ? replaced.some((man) => man?.id === need.holder!.id) : give.some((man) => fits(man, need));
+    }) ?? null
+  );
+}
+
+/** The eleven a rival fields after a trade, without the men his `out` / `novote` needs name. */
+export function elevenWithoutNeedy(
+  men: readonly ScoutMan[],
+  needs: readonly RivalNeed[],
+  rules: MantraModules | null,
+  rounds: number,
+): Set<number> {
+  const needy = new Set(needs.filter((n) => n.kind !== 'weak' && n.holder).map((n) => n.holder!.id));
+  return strengthOf(men.filter((man) => !needy.has(man.id)), rules, rounds).eleven;
+}
+
+const NEED_ORDER: Record<NeedKind, number> = { out: 0, novote: 1, weak: 2 };
+
 export interface RivalReport {
   name: string;
   perRound: number;
@@ -692,6 +764,8 @@ export interface RivalReport {
   /** His men outside his eleven who would enter OURS, with what they add to us a matchday. */
   spare: { man: ScoutMan; forUs: number }[];
   holes: RivalHole[];
+  /** What he feels is wrong, strongest kind first. */
+  needs: RivalNeed[];
 }
 
 export function rivalReports(
@@ -729,6 +803,22 @@ export function rivalReports(
       })
       .filter((hole) => hole.median - hole.now >= HOLE_GAP)
       .sort((a, b) => b.median - b.now - (a.median - a.now));
-    return { name: squad.name, perRound: strength.perRound, module: strength.module, spare, holes };
+    const weak = new Set(holes.map((hole) => hole.slot + '|' + (hole.holder?.id ?? '')));
+    const needs: RivalNeed[] = strength.places
+      .map((place): RivalNeed | null => {
+        const holder = place.holder;
+        const kind: NeedKind | null =
+          holder && (holder.outFor ?? 0) > 0
+            ? 'out'
+            : holder && (holder.recent?.noVote ?? 0) >= NO_VOTE_MIN
+              ? 'novote'
+              : weak.has(place.slot + '|' + (holder?.id ?? ''))
+                ? 'weak'
+                : null;
+        return kind ? { kind, slot: place.slot, line: place.line, roles: place.roles, holder } : null;
+      })
+      .filter((need): need is RivalNeed => !!need)
+      .sort((a, b) => NEED_ORDER[a.kind] - NEED_ORDER[b.kind]);
+    return { name: squad.name, perRound: strength.perRound, module: strength.module, spare, holes, needs };
   });
 }

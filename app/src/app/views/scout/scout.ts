@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -17,8 +18,9 @@ import { TrendCell, VOTE_TREND_MATCHES, trendVoteMean } from '../../core/player-
 import { Platform, PlayersStore } from '../../core/players-store';
 import { SeasonLine, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RosterFileStore, leagueOfFile } from '../../core/roster-file';
-import { storedJson } from '../../core/view-state';
+import { storedFlag, storedJson } from '../../core/view-state';
 import {
+  RivalNeed,
   RivalReport,
   ScoutMan,
   ScoutRole,
@@ -29,7 +31,9 @@ import {
   SimpleSwap,
   appealOf,
   contribution,
+  elevenWithoutNeedy,
   groupTrades,
+  needMet,
   pairSwaps,
   expendableStarters,
   rivalReports,
@@ -98,6 +102,12 @@ function restorePair(one: SavedPair, men: ReadonlyMap<number, ScoutMan>): PairSw
   return { ...one, give, take, ourChange: ours, theirChange: theirs, appeal };
 }
 
+/** His last club matches (up to five that exist) and how many gave him no vote. */
+function recentOf(cells: readonly TrendCell[] | null): { matches: number; noVote: number } | null {
+  const played = (cells ?? []).slice(0, VOTE_TREND_MATCHES).filter((cell) => cell.state !== null);
+  return played.length ? { matches: played.length, noVote: played.filter((cell) => cell.vote === null).length } : null;
+}
+
 /** One man of an offer in its comparison table. */
 export interface CompareRow {
   man: ScoutMan;
@@ -135,6 +145,7 @@ const TARGETS_PER_RIVAL = 5;
     NgTemplateOutlet,
     FormsModule,
     NzButtonModule,
+    NzCheckboxModule,
     NzIconModule,
     NzRadioModule,
     NzSelectModule,
@@ -161,11 +172,30 @@ export class Scout {
    * THE ORDER: «fattibili» first by default - the form we offer over the form we ask, the operator's «focalizzarci
    * sugli scambi utili e possibili» (the useful part is already the filter) - or by the gain, the smaller of the two.
    */
-  protected readonly order = storedJson<'feasible' | 'gain'>('scout.order', (raw) => (raw === 'gain' ? 'gain' : 'feasible'));
+  protected readonly order = storedJson<'feasible' | 'gain' | 'need'>('scout.order', (raw) =>
+    raw === 'gain' || raw === 'need' ? raw : 'feasible',
+  );
 
-  /** The key every list sorts on, highest first. */
-  protected rank(one: { ours: number; theirs: number; appeal: number | null }): number {
-    return this.order() === 'gain' ? Math.min(one.ours, one.theirs) : (one.appeal ?? -9) + Math.min(one.ours, one.theirs) / 100;
+  /**
+   * The key every list sorts on, highest first. «Bisogno» (`roadmap-scambi-v1.md` step 4) puts first the offers that
+   * solve a problem the rival already feels, and orders the rest as «Fattibili».
+   */
+  protected rank(one: SimpleSwap | PairSwap): number {
+    const gain = Math.min(one.ours, one.theirs);
+    if (this.order() === 'gain') return gain;
+    const feasible = (one.appeal ?? -9) + gain / 100;
+    return this.order() === 'need' && this.needOf(one) ? 100 + feasible : feasible;
+  }
+
+  /**
+   * ONLY OFFERS WHERE THE FVM FAVOURS HIM (`roadmap-scambi-v1.md` step 2): what we give is worth, on his own price
+   * list, at least what we ask. A line with no FVM on one side is left OUT when the filter is on - an unknown is not a
+   * favour - and the count of what survives is on screen, because few survivors is itself the information.
+   */
+  protected readonly fvmFair = storedFlag('scout.fvmFair', false);
+  private fairToHim(one: { fvmGive: number | null; fvmTake: number | null }): boolean {
+    const balance = this.fvmBalance(one);
+    return !this.fvmFair() || (balance !== null && balance >= 0);
   }
   /** 1x1 (immediate, computed at once) or 2x2 (a search, launched by hand). */
   protected readonly mode = storedJson<'1x1' | '2x2'>('scout.mode', (raw) => (raw === '2x2' ? '2x2' : '1x1'));
@@ -272,6 +302,8 @@ export class Scout {
           fvm: this.store.fvmOf(platform, id, game),
           category: numbers?.category ?? null,
           form: trendVoteMean((numbers?.recentVotes ?? []).slice(0, VOTE_TREND_MATCHES)),
+          outFor: outlook.window ? (outlook.window.seasonOver ? rounds : outlook.window.lost) : null,
+          recent: recentOf(numbers?.recentVotes ?? null),
         });
       }
       return { name, men };
@@ -312,6 +344,50 @@ export class Scout {
     return rivalReports(squads.mine, squads.rivals, rules, rounds);
   });
 
+  /** Each rival's needs, by name (`scout.rivalReports`). */
+  private readonly needs = computed(() => new Map(this.reports().map((report) => [report.name, report.needs])));
+
+  /**
+   * The need of the rival each offer meets (`scout.needMet`), computed ONCE per list - it rebuilds an eleven per offer,
+   * which a template must not do at every change detection.
+   */
+  private readonly needByOffer = computed(() => {
+    const out = new Map<SimpleSwap | PairSwap, RivalNeed | null>();
+    const squads = this.squads();
+    const rules = this.rules();
+    const rounds = this.rounds();
+    if (!squads || !rules || !rounds) return out;
+    const menOf = new Map(squads.rivals.map((squad) => [squad.name, squad.men]));
+    const offers: (SimpleSwap | PairSwap)[] = [...this.allSwaps(), ...(this.pairResult()?.swaps ?? [])];
+    for (const one of offers) {
+      const needs = this.needs().get(one.rival) ?? [];
+      if (!needs.length) {
+        out.set(one, null);
+        continue;
+      }
+      const give = [one.give].flat();
+      const take = [one.take].flat();
+      const gone = new Set(take.map((m) => m.id));
+      const after = [...(menOf.get(one.rival) ?? []).filter((m) => !gone.has(m.id)), ...give];
+      const replaced = 'theirChange' in one ? this.pushed(one.theirChange, one.take) : [one.theirOut];
+      out.set(one, needMet(needs, give, take, replaced, elevenWithoutNeedy(after, needs, rules, rounds)));
+    }
+    return out;
+  });
+
+  protected needOf(one: SimpleSwap | PairSwap): RivalNeed | null {
+    return this.needByOffer().get(one) ?? null;
+  }
+
+  protected needText(need: RivalNeed): string {
+    const who = need.holder?.name ?? 'nessuno';
+    if (need.kind === 'out') return `${need.slot}: ${who} fuori ${need.holder?.outFor ?? 0} g`;
+    if (need.kind === 'novote') {
+      return `${need.slot}: ${who} senza voto in ${need.holder?.recent?.noVote} delle ultime ${need.holder?.recent?.matches}`;
+    }
+    return `${need.slot} sotto la media della lega`;
+  }
+
   /** Points a matchday a man makes when fielded every round he plays: fm x pv / rounds. */
   protected perRound(man: ScoutMan): number | null {
     const rounds = this.rounds();
@@ -335,7 +411,7 @@ export class Scout {
   /** The 1x1 on screen: the rival filter and the order only regroup, they never rerun the comparisons. */
   protected readonly swaps = computed(() => {
     const rival = this.rivalFilter();
-    const all = this.allSwaps().filter((one) => !rival || one.rival === rival);
+    const all = this.allSwaps().filter((one) => (!rival || one.rival === rival) && this.fairToHim(one));
     // One offer per (target, starter of ours he beats): the head line names that starter, so lines paying with a
     // man who IS that starter (and therefore compare the target with somebody else) are a different offer.
     const byRival = new Map<string, Map<string, SimpleSwap[]>>();
@@ -394,6 +470,15 @@ export class Scout {
     }
   }
 
+  /** What the FVM filter leaves, of the lines it looks at (the rival filter applied first). */
+  protected readonly fvmCount = computed(() => {
+    const rival = this.rivalFilter();
+    const pool: { rival: string; fvmGive: number | null; fvmTake: number | null }[] =
+      this.mode() === '1x1' ? this.allSwaps() : (this.pairResult()?.swaps ?? []);
+    const seen = pool.filter((one) => !rival || one.rival === rival);
+    return { kept: seen.filter((one) => this.fairToHim(one)).length, total: seen.length };
+  });
+
   protected pairPercent(): number {
     const state = this.pairState();
     return state.kind === 'running' && state.total ? Math.round((100 * state.done) / state.total) : 0;
@@ -420,7 +505,7 @@ export class Scout {
     const state = this.pairResult();
     if (!state) return [];
     const rival = this.rivalFilter();
-    const swaps = state.swaps.filter((one) => !rival || one.rival === rival);
+    const swaps = state.swaps.filter((one) => (!rival || one.rival === rival) && this.fairToHim(one));
     return groupTrades(swaps, (one) => this.rank(one), rival ? Infinity : 3).map((group) => ({
       rival: group.rival,
       hidden: rival ? 0 : Math.max(0, group.offers.length - TARGETS_PER_RIVAL),
