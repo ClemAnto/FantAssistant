@@ -1,6 +1,6 @@
 {
   "name": "fantassistant-app",
-  "version": "0.1.60",
+  "version": "0.1.61",
   "scripts": {
     "audit:contrast": "node scripts/audit-contrast.mjs",
     "audit:slices": "node scripts/audit-slices.mjs",
