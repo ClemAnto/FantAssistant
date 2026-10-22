@@ -85,3 +85,41 @@ toolkit 1042 verdi, fogli + export + `data:pull` rifatti il 22/10 sera. **Non pu
   `withoutPadding`, `roleTilt`) e i campi che nessuna riga disegnava (`takeCover`, `giveCover`, `ourCost`, i «core»
   delle offerte) sono stati tolti il 22/10/2026 sera nella code-review: se servirà un 3x3 si ripartirà da `pairSwaps`.
 - Banco: `node app/scripts/e2e-scout.mjs <export.csv> <squadra> [classic|mantra] [classic|euro]`.
+
+## 7. Il layout rifatto: campetto e obiettivi (23/10/2026)
+
+Richiesta dell'operatore: «a sinistra il campetto con la mia formazione ideale, lo stesso principio del campetto
+dell'assistente al draft con le zone, le posizioni, la % di copertura e la fertilità; cliccando su una zona/posizione,
+a destra gli obiettivi delle altre squadre che possono migliorarla. Per il momento solo gli obiettivi, poi capiremo
+come costruire il piano».
+
+- **Il campetto È quello del draft** (`draft-pitch.draftPitchOf`, `placeYield`, riserve distribuite per copertura): cambia
+  solo da dove vengono i due numeri di un uomo, perché lo Scout non ha una sessione d'asta dietro
+  (`core/scout-pitch.ts`): COPERTURA = presenze attese (`ExpectedPlay`) / giornate della stagione; FERTILITÀ = fantamedia
+  sopra il 6 (il ripiego del draft senza contesto), e per un portiere sopra il **portiere titolare medio** del listone
+  (`keeperZeroOf`). Dichiarato: mancano i modificatori di lega (costanza, porta inviolata) e lo sconto dei bonus da
+  subentrato che il draft applica.
+- **Modulo**: «Auto» = quello che schiera l'undici più fertile (consigliati prima), oppure scelto a mano (`scout.module`).
+- **Una POSIZIONE o una LINEA** (l'etichetta verticale a sinistra della riga) si seleziona col click; a destra
+  `placeTargets`: ogni calciatore delle altre rose che può occupare quel posto e ne alza i **fantapunti a giornata**
+  (`placePoints` = 6 per giornata coperta, la media del portiere titolare per la porta, più la fertilità). Entra da
+  titolare se il suo `starterWeight` batte quello del titolare (che diventa prima riserva), altrimenti come riserva in
+  più. Colonne: FM, Pa, FVM, forma, +copertura, +fertilità, +pt/g, e «da te titolare/riserva · da loro tit./panch.»
+  (panchina = fuori dall'undici migliore della loro rosa, `scout.strengthOf`). Su una linea ogni uomo compare una volta,
+  sul posto dove aggiunge di più. Filtro per squadra.
+- **La ricerca degli scambi (1x1, 2x2, estensioni) non è più a schermo**: il codice resta in `core/scout.ts` per il piano.
+- Banco: `node app/scripts/e2e-scout.mjs <export.csv> <squadra> [classic|mantra] [classic|euro]`, riscritto su questa forma
+  (campetto solo con i suoi uomini, obiettivi solo dei rivali che nominano, ognuno con punti > 0, in ordine). Verde su
+  chiagnister/Vitanic classic; mantra non ancora girato.
+- Aperto: l'ordinamento è dominato dalla copertura (su un posto coperto al 57% quasi ogni titolare aggiunge +35%); il
+  piano dovrà dire a che prezzo, e cosa perde chi lo cede.
+- **Colonne ordinabili** (clic sul nome, secondo clic rovescia, vuoti sempre in fondo) e **due set di colonne** con due
+  icone nell'intestazione (23/10/2026): «default» = forma (barrette delle ultime 5), FVM, FM, Pa, +Cop, +Fert, +Pt/g;
+  «medie» = FM, MV, Pv, G:A della stagione scorsa e di quella corrente, separate da una linea (righe del gioco, in corsivo
+  se ricostruite come nel draft; gol rigori inclusi; per i portieri gol subiti : porte inviolate). La colonna «da te ·
+  da loro» non è in nessuno dei due set dichiarati ed è uscita.
+- **Terzo set «hype»** (23/10/2026): forma, FM, **Hype** = media fantavoto delle ultime 5 (senza voto = 5, la regola del
+  trend del draft) / fantamedia attesa, verde sopra 1 e rosso sotto; **Da noi** e **Da loro** = titolare · riserva (prima
+  riserva del posto) · panchina (riserva più indietro, o senza posto nel modulo), letti dal campetto del draft di ciascuna
+  rosa (`scout-pitch.standingsOf`; da noi: dove starebbe sul posto scelto). Il «titolare da loro» prima veniva
+  dall'undici di `strengthOf`, ora dal campetto: una definizione per le due rose. I tre set sono un radio a icone.

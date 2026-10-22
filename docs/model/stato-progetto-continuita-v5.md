@@ -10873,3 +10873,25 @@ Dettaglio completo: [scout-scambi-v1.md](scout-scambi-v1.md).
   aggiornato**: il sito pubblicato ha ancora i fogli con le presenze su 2 giornate.
 - **Prossimi passi**: pubblicare (decisione dell'operatore); ridurre le varianti quasi-uguali del 2x2; valutare se le
   soglie dichiarate (forma −0,25, valore 80%, equilibrio 50%) vanno strette.
+
+## 23 ottobre 2026 — LO SCOUT RIFATTO: CAMPETTO A SINISTRA, OBIETTIVI A DESTRA (non pubblicato)
+
+Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
+
+- **Layout nuovo** (richiesta dell'operatore): a sinistra il campetto della sua formazione ideale, lo stesso del Draft
+  Assistant (`draft-pitch`: undici sulla fertilità, riserve per copertura, copertura % e fertilità per posto, totali e
+  fantapunti a giornata, modulo Auto o a mano). Click su una POSIZIONE o sull'etichetta verticale di una LINEA → a destra
+  gli OBIETTIVI: i calciatori delle altre rose che possono occupare quel posto e ne alzano i fantapunti a giornata
+  (`core/scout-pitch.ts`: `fantaManOf`, `keeperZeroOf`, `placePoints`, `placeTargets`, `standingsOf`).
+- Numeri senza sessione d'asta: copertura = presenze attese / giornate; fertilità = FM − 6, per il portiere FM − il
+  portiere titolare medio del listone. Mancano (dichiarato) i modificatori di lega e lo sconto bonus da subentrato.
+- Tabella obiettivi: colonne ordinabili (clic, secondo clic rovescia, vuoti in fondo), filtro per squadra, tre set a
+  icone: **default** (forma a barrette, FVM, FM, Pa, +Cop, +Fert, +Pt/g), **medie** (FM, MV, Pv, G:A scorsa | corrente,
+  portieri gol subiti : porte inviolate, corsivo se ricostruita), **hype** (forma, FM, Hype = fantavoto medio ultime 5
+  con 5 per l'assenza / FM attesa, Da noi e Da loro = titolare · riserva · panchina sui due campetti).
+- La ricerca degli scambi 1x1/2x2 non è più a schermo; il codice resta in `core/scout.ts` per il PIANO, che è il prossimo
+  passo («poi capiremo come costruire il piano per raggiungerli»).
+- Verifica: build pulita, app 1577 test + 4 nuovi verdi, `e2e-scout.mjs` riscritto e verde su chiagnister/Vitanic
+  classic. Mantra non ancora girato. Pages non aggiornato.
+- **Aperti**: l'ordine per +Pt/g è dominato dalla copertura; l'Hype col 5 per l'assenza sta quasi sempre sotto 1
+  (alternativa: solo partite giocate, decisione sua); il piano (a che prezzo, cosa perde chi cede).

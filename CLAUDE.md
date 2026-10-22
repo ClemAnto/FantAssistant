@@ -7431,7 +7431,9 @@ leaves tombstones, not deletions** - the store has no delete.
 
 ## The SCOUT page and the 2-round presences, 22/10/2026
 `/scout` (`app/src/app/core/scout.ts`, `views/scout/`) proposes 1x1 and 2x2 trades on the rosters loaded for the
-Lineup page. Every rule is a CONSTRAINT born from a case the operator named, and the list is in
+Lineup page. **Since 23/10/2026 the page draws his ideal formation on the Draft Assistant's pitch and, for a place or
+a line clicked, the TARGETS of the other squads that raise it (`core/scout-pitch.ts`, §7 of the doc); the trade search
+is off screen and kept in `core/scout.ts` for the plan, which is the next step.** Every rule is a CONSTRAINT born from a case the operator named, and the list is in
 `docs/model/scout-scambi-v1.md` §2. Two lessons that outlive the page. **A comparison that names a man must name one
 who STAYS**: comparing the target with the man being given away is a like-for-like swap, not a need filled (Semenyo
 «better than» Barnes, who was the payment). **A guard built on a word measured for another question hides the right

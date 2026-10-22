@@ -1,109 +1,35 @@
-import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
-import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle } from '../../core/bundle';
+import { COVER_OK, DraftPlace, draftPitchOf, placeYield, recommendedModules } from '../../core/draft-pitch';
 import { ExpectedPlay } from '../../core/expected-play';
+import { FantaMan } from '../../core/fanta-eleven';
 import { LEGHE } from '../../core/leghe-api';
+import { ModuleLine } from '../../core/mantra-legal';
 import { CardKey, CardMan, CardStack, clubCard, clubOfCard, playerCard, playerOfCard } from '../../core/player-card';
 import { EDGE_BASE, Role } from '../../core/plancia';
-import { PlayerRulings } from '../../core/player-rulings';
-import { TrendCell, VOTE_TREND_MATCHES, trendVoteMean } from '../../core/player-trend';
+import { TrendCell, VOTE_TREND_MATCHES, trendPointsMean, trendVoteMean } from '../../core/player-trend';
 import { Platform, PlayersStore } from '../../core/players-store';
-import { SeasonLine, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RosterFileStore, leagueOfFile } from '../../core/roster-file';
-import { storedFlag, storedJson } from '../../core/view-state';
-import {
-  RivalNeed,
-  RivalReport,
-  ScoutMan,
-  ScoutRole,
-  ScoutSquad,
-  ElevenChange,
-  PairSwap,
-  FORM_TOLERANCE,
-  SimpleSwap,
-  appealOf,
-  contribution,
-  elevenWithoutNeedy,
-  Extension,
-  extendOffer,
-  groupTrades,
-  needMet,
-  pairSwaps,
-  expendableStarters,
-  rivalReports,
-  simpleSwaps,
-  strengthOf,
-} from '../../core/scout';
+import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
+import { ScoutMan, ScoutRole, ScoutSquad } from '../../core/scout';
+import { PlaceTarget, Standing, fantaManOf, keeperZeroOf, placePoints, placeTargets, placesOf, standingsOf } from '../../core/scout-pitch';
 import { ValuationStore } from '../../core/valuation-store';
+import { storedJson } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { PlayerCard } from '../../ui/player-card/player-card';
+import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
-import { VoteTrend } from '../../ui/vote-trend/vote-trend';
 import { RosterUpload } from '../../ui/roster-upload/roster-upload';
-
-/**
- * SCOUT (operator, 22/10/2026): the trades with the other squads of the league that make BOTH squads better, the
- * rivals' men they would let go most easily, and the holes in their elevens worth an offer.
- *
- * The squads come from the league's roster export the Lineup page loads (`core/roster-file.ts`: the file carries
- * EVERY squad of the league, not only his), each man priced as every page prices him - the sheet's fantamedia and
- * the app's expected appearances (`ExpectedPlay`). The arithmetic is `core/scout.ts`; this page only builds its
- * input and draws its answer, in points a matchday.
- */
-/** A 2x2 search as it is stored: ids and the numbers found, never the men (they are rebuilt from today's listone). */
-interface SavedChange { moduleBefore: string; moduleAfter: string; enter: number[]; leave: number[]; reserves: number[] }
-interface SavedPair {
-  rival: string; give: number[]; take: number[]; ours: number; theirs: number;
-  ourChange: SavedChange; theirChange: SavedChange; spare: number[]; fvmGive: number | null; fvmTake: number | null;
-}
-interface SavedPairs { roster: string; at: string; swaps: SavedPair[] }
-
-function readSavedPairs(raw: unknown): SavedPairs | null {
-  const o = raw as Partial<SavedPairs> | null;
-  return o && typeof o.roster === 'string' && typeof o.at === 'string' && Array.isArray(o.swaps) ? (o as SavedPairs) : null;
-}
-
-const saveChange = (c: ElevenChange): SavedChange => ({
-  moduleBefore: c.moduleBefore, moduleAfter: c.moduleAfter,
-  enter: c.enter.map((m) => m.id), leave: c.leave.map((m) => m.id), reserves: c.reserves.map((m) => m.id),
-});
-
-function savePair(one: PairSwap): SavedPair {
-  return {
-    rival: one.rival, give: one.give.map((m) => m.id), take: one.take.map((m) => m.id), ours: one.ours, theirs: one.theirs,
-    ourChange: saveChange(one.ourChange), theirChange: saveChange(one.theirChange),
-    spare: one.spare, fvmGive: one.fvmGive, fvmTake: one.fvmTake,
-  };
-}
-
-/** A stored pair back on today's men; null when one of them is no longer on the listone (the line would lie). */
-function restorePair(one: SavedPair, men: ReadonlyMap<number, ScoutMan>): PairSwap | null {
-  const all = (ids: number[]) => {
-    const out = ids.map((id) => men.get(id));
-    return out.every((m): m is ScoutMan => !!m) ? out : null;
-  };
-  const change = (c: SavedChange): ElevenChange | null => {
-    const enter = all(c.enter), leave = all(c.leave), reserves = all(c.reserves);
-    return enter && leave && reserves ? { moduleBefore: c.moduleBefore, moduleAfter: c.moduleAfter, enter, leave, reserves } : null;
-  };
-  const give = all(one.give), take = all(one.take), ours = change(one.ourChange), theirs = change(one.theirChange);
-  if (!give || !take || !ours || !theirs) return null;
-  // The form is TODAY's (it moves every matchday): recomputed on the men as they are, and an offer that has turned
-  // impossible since the search drops out.
-  const appeal = appealOf(give, take);
-  if (appeal != null && appeal < FORM_TOLERANCE) return null;
-  return { ...one, give, take, ourChange: ours, theirChange: theirs, appeal };
-}
+import { VoteTrend } from '../../ui/vote-trend/vote-trend';
 
 /** His last club matches (up to five that exist) and how many gave him no vote. */
 function recentOf(cells: readonly TrendCell[] | null): { matches: number; noVote: number } | null {
@@ -111,61 +37,76 @@ function recentOf(cells: readonly TrendCell[] | null): { matches: number; noVote
   return played.length ? { matches: played.length, noVote: played.filter((cell) => cell.vote === null).length } : null;
 }
 
-type Swap = SimpleSwap | PairSwap;
-
-/** One row of the list: an offer's best line, and the other ways of paying for the same target. */
-export interface OfferRow {
-  key: string;
-  swap: Swap;
-  alternatives: Swap[];
-  /** Lines cut by the 2x2 grouping (`groupTrades`'s `hidden`). */
-  hiddenLines: number;
+/** Hundredths of a fantapunto, the draft pitch's unit for fertility («+85»). */
+function hundredths(value: number | null | undefined): number | null {
+  return value == null || !Number.isFinite(value) ? null : Math.round(value * 100);
 }
 
-/** One man of an offer in its comparison table. */
-export interface CompareRow {
-  man: ScoutMan;
-  last: SeasonLine | null;
-  now: SeasonLine | null;
-  /** The press survey's word, as it wrote it. */
-  press: string | null;
-  /** When the press has no word: the sheet's rung, marked as ours. */
-  sheetRung: string | null;
+/** What the right side is about: one place of the pitch (by its index in drawing order), or a whole line. */
+type Selection = { kind: 'place'; at: number } | { kind: 'line'; line: ModuleLine } | null;
+
+/** A target as the right side lists it: the place it would improve, named. */
+interface TargetRow extends PlaceTarget {
+  slot: string;
+  fm: number | null;
+  pv: number | null;
+  fvm: number | null;
+  form: number | null;
+  /** His last club matches, for the form bars (`ui-vote-trend`). */
   trend: readonly TrendCell[];
+  /** The mean FANTAVOTO of his last five (a match with none counted 5, the Draft's trend rule). */
+  trendPoints: number | null;
+  /** HYPE (operator, 23/10/2026): that trend over the fantamedia expected of him. Over 1 = he is doing better than we expect. */
+  hype: number | null;
 }
 
-/** One row of an offer's four-sided table: MY man on the left, THEIRS on the right, and which way it goes. */
-export interface MatrixRow {
-  left: CompareRow | null;
-  right: CompareRow | null;
-  /** true = my man replaces theirs (→), false = their man replaces mine (←). */
-  toRight: boolean;
-  /** Whether the arriving man is really better: «meglio di», else «al posto di». */
-  better: boolean;
-  /** The arriving man replaces nobody because he does not make that eleven: he stays on the bench. */
-  bench: boolean;
-}
+const BASE_SORTS = ['name', 'rival', 'slot', 'fm', 'pv', 'fvm', 'form', 'cover', 'fertility', 'points', 'hype', 'ours', 'theirs'] as const;
+/** The averages of a season (the «medie» columns): fantamedia, media voto, presenze, gol:assist. */
+const SEASON_METRICS = ['fm', 'mv', 'pv', 'ga'] as const;
+type SeasonMetric = (typeof SEASON_METRICS)[number];
+type SeasonWhich = 'last' | 'now';
+type TargetSort = (typeof BASE_SORTS)[number] | `${SeasonMetric}@${SeasonWhich}`;
+const TARGET_SORTS: readonly string[] = [
+  ...BASE_SORTS,
+  ...(['last', 'now'] as const).flatMap((which) => SEASON_METRICS.map((m) => `${m}@${which}`)),
+];
 
-/** Targets shown per rival when every rival is listed: the rest open by choosing that rival. */
-const TARGETS_PER_RIVAL = 5;
+/**
+ * THE COLUMN SETS of the targets' table (operator, 23/10/2026), one icon each in its header: «default» - form bars, FVM,
+ * FM, Pa and what he adds to the place - and «medie» - FM, MV, Pv and G:A of last season and this one.
+ */
+type ColumnSet = 'default' | 'medie' | 'hype';
 
+/** The three standings in the order «Da noi · da loro» sorts them, the highest first. */
+const STANDING_RANK: Record<Standing, number> = { titolare: 3, riserva: 2, panchina: 1 };
+/** The columns a first click sorts A to Z; every other one starts from the highest. */
+const TEXT_SORTS = new Set<TargetSort>(['name', 'rival', 'slot']);
+
+const LINE_LABEL: Record<string, string> = { P: 'Porta', D: 'Difesa', M: 'Centrocampo', T: 'Trequarti', A: 'Attacco' };
+
+/**
+ * SCOUT (operator, 22/10/2026, rebuilt 23/10/2026: «a sinistra ci deve essere il campetto con la mia formazione ideale
+ * ... cliccando su una zona/posizione nella parte destra devono comparire gli obiettivi delle altre squadre che possono
+ * migliorare quella zona/posizione. Per il momento mostra solo gli obiettivi, poi capiremo come costruire il piano»).
+ *
+ * The pitch is the Draft Assistant's (`core/draft-pitch.ts`), on his squad from the league's roster export
+ * (`core/roster-file.ts`); the numbers behind it and the targets of a place are `core/scout-pitch.ts`. The trade
+ * search of 22/10 (`core/scout.ts`: `simpleSwaps`, `pairSwaps`) is no longer drawn here: it is kept for the plan.
+ */
 @Component({
   selector: 'app-scout',
   imports: [
     AppHeader,
     ClubCard,
-    DatePipe,
     DecimalPipe,
-    NgTemplateOutlet,
     FormsModule,
     NzButtonModule,
-    NzCheckboxModule,
-    NzDrawerModule,
     NzIconModule,
     NzRadioModule,
     NzSelectModule,
     NzTooltipModule,
     PlayerCard,
+    RoleBadge,
     RoleSet,
     RosterUpload,
     VoteTrend,
@@ -175,60 +116,14 @@ const TARGETS_PER_RIVAL = 5;
 export class Scout {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
-  private readonly players = inject(PlayersStore);
   private readonly play = inject(ExpectedPlay);
+  private readonly players = inject(PlayersStore);
   protected readonly rosterFile = inject(RosterFileStore);
-  private readonly rulings = inject(PlayerRulings);
   protected readonly connecting = signal(false);
-
-  /** Rival filter of the trade list; null = all. */
-  protected readonly rivalFilter = signal<string | null>(null);
-  /**
-   * THE ORDER: «fattibili» first by default - the form we offer over the form we ask, the operator's «focalizzarci
-   * sugli scambi utili e possibili» (the useful part is already the filter) - or by the gain, the smaller of the two.
-   */
-  protected readonly order = storedJson<'feasible' | 'gain' | 'need'>('scout.order', (raw) =>
-    raw === 'gain' || raw === 'need' ? raw : 'feasible',
-  );
-
-  /**
-   * The key every list sorts on, highest first. «Bisogno» (`roadmap-scambi-v1.md` step 4) puts first the offers that
-   * solve a problem the rival already feels, and orders the rest as «Fattibili».
-   */
-  protected rank(one: SimpleSwap | PairSwap): number {
-    const gain = Math.min(one.ours, one.theirs);
-    if (this.order() === 'gain') return gain;
-    const feasible = (one.appeal ?? -9) + gain / 100;
-    return this.order() === 'need' && this.needOf(one) ? 100 + feasible : feasible;
-  }
-
-  /**
-   * ONLY OFFERS WHERE THE FVM FAVOURS HIM (`roadmap-scambi-v1.md` step 2): what we give is worth, on his own price
-   * list, at least what we ask. A line with no FVM on one side is left OUT when the filter is on - an unknown is not a
-   * favour - and the count of what survives is on screen, because few survivors is itself the information.
-   */
-  protected readonly fvmFair = storedFlag('scout.fvmFair', false);
-  private fairToHim(one: { fvmGive: number | null; fvmTake: number | null }): boolean {
-    const balance = this.fvmBalance(one);
-    return !this.fvmFair() || (balance !== null && balance >= 0);
-  }
-  /** 1x1 (immediate, computed at once) or 2x2 (a search, launched by hand). */
-  protected readonly mode = storedJson<'1x1' | '2x2'>('scout.mode', (raw) => (raw === '2x2' ? '2x2' : '1x1'));
-  /**
-   * THE LAST 2x2 SEARCH, kept across a refresh (operator, 22/10/2026: «salva l'ultima ricerca e mostrala al refresh»).
-   * Stored by IDS with the numbers it found, per fantasquadra, and rebuilt on the men of today's listone; the page
-   * says when it was run, because the sheet may have moved since and a search is a reading that ages.
-   */
-  private readonly savedPairs = storedJson<SavedPairs | null>('scout.pairs', readSavedPairs);
-  protected readonly pairState = signal<
-    { kind: 'idle' } | { kind: 'running'; done: number; total: number } | { kind: 'done'; swaps: PairSwap[]; ms: number }
-  >({ kind: 'idle' });
-  /** The 2x2 search in flight: another one (or another roster) stops it. */
-  private pairRun = 0;
 
   constructor() {
     void this.store.load();
-    void this.players.load();
+    if (this.columns() === 'medie') void this.players.load();
   }
 
   private readonly platform = computed(() => (this.rosterFile.file()?.platform === 'euro' ? 'euro' : 'default'));
@@ -243,10 +138,7 @@ export class Scout {
   );
 
   protected chooseRoster(key: string): void {
-    this.rivalFilter.set(null);
-    this.pick(null);
-    this.pairRun += 1;
-    this.pairState.set({ kind: 'idle' });
+    this.selected.set(null);
     this.rosterFile.choose(key);
   }
 
@@ -266,6 +158,7 @@ export class Scout {
     loader: ({ params }) => (params === 'mantra' ? this.bundle.modules() : this.bundle.classicModules()),
   });
 
+  private readonly rules = computed(() => (this.rulebook.hasValue() ? this.rulebook.value() : null));
   protected readonly rounds = computed(() => this.store.seasonRoundsFor(this.sheet()));
 
   private readonly bundleRows = computed(() => {
@@ -333,334 +226,252 @@ export class Scout {
     };
   });
 
-  private readonly rules = computed(() => (this.rulebook.hasValue() ? this.rulebook.value() : null));
-
-  /** His squad on the rulebook: the eleven, and the strong men who are not in it (the operator's starting point). */
-  protected readonly ours = computed(() => {
-    const squads = this.squads();
-    const rounds = this.rounds();
-    const rules = this.rules();
-    if (!squads || !rounds || !rules) return null;
-    const strength = strengthOf(squads.mine.men, rules, rounds);
-    const bench = squads.mine.men
-      .filter((man) => !strength.eleven.has(man.id) && (this.perRound(man) ?? 0) > 0)
-      .sort((a, b) => this.perRound(b)! - this.perRound(a)!)
-      .slice(0, 10)
-      // What each is worth TO THE SQUAD: the cover he gives when a starter misses (`scout.contribution`).
-      .map((man) => ({ man, worth: contribution(squads.mine.men, man, rules, rounds) }));
-    return { strength, bench, expendable: expendableStarters(squads.mine.men, rules, rounds) };
+  /**
+   * THE AVERAGE STARTING KEEPER of the listone (`scout-pitch.keeperZeroOf`): a door's fertility is read against him,
+   * over every club of the platform and not only the ones the league's squads hold.
+   */
+  private readonly keeperZero = computed(() => {
+    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
+    if (!sheet) return EDGE_BASE - 1;
+    const keepers = [...this.bundleRows().values()]
+      .filter((row) => row.role === 'P')
+      .map((row) => ({ club: row.club, fm: sheet.get(row.fcId)?.fm ?? null, pv: sheet.get(row.fcId)?.pv ?? null }));
+    return keeperZeroOf(keepers);
   });
 
-  /** The rivals: what each can spare and where each eleven is short. */
-  protected readonly reports = computed<RivalReport[]>(() => {
-    const squads = this.squads();
-    const rounds = this.rounds();
-    const rules = this.rules();
-    if (!squads || !rounds || !rules) return [];
-    return rivalReports(squads.mine, squads.rivals, rules, rounds);
+  private readonly fantaOf = computed(() => {
+    const rounds = this.rounds() ?? 0;
+    const zero = this.keeperZero();
+    return (man: ScoutMan) => fantaManOf(man, rounds, zero);
   });
 
-  /** Each rival's needs, by name (`scout.rivalReports`). */
-  private readonly needs = computed(() => new Map(this.reports().map((report) => [report.name, report.needs])));
+  // ---------------------------------------------------------------- the pitch
+
+  /** The module he chose for his pitch; null = the one that fields the best eleven (recommended shapes first). */
+  protected readonly moduleChoice = storedJson<string | null>('scout.module', (raw) => (typeof raw === 'string' ? raw : null));
+
+  protected readonly moduleNames = computed(() => Object.keys(this.rules()?.modules ?? {}));
+
+  protected isRecommended(name: string): boolean {
+    return recommendedModules(this.mantra()).includes(name);
+  }
+
+  protected chooseModule(name: string | null): void {
+    this.moduleChoice.set(name);
+    this.selected.set(null);
+  }
 
   /**
-   * The need of the rival each offer meets (`scout.needMet`), computed ONCE per list - it rebuilds an eleven per offer,
-   * which a template must not do at every change detection.
+   * MY IDEAL FORMATION: the draft pitch of my whole squad - the eleven that gives the most fertility, the reserves
+   * spread where they add most coverage (`draftPitchOf` with `byCoverage`, as the Draft Assistant draws it).
    */
-  private readonly needByOffer = computed(() => {
-    const out = new Map<SimpleSwap | PairSwap, RivalNeed | null>();
+  protected readonly pitch = computed(() => {
     const squads = this.squads();
     const rules = this.rules();
-    const rounds = this.rounds();
-    if (!squads || !rules || !rounds) return out;
-    const menOf = new Map(squads.rivals.map((squad) => [squad.name, squad.men]));
-    const offers: (SimpleSwap | PairSwap)[] = [
-      ...this.allSwaps(),
-      ...(this.pairResult()?.swaps ?? []),
-      ...this.trail(),
-      ...(this.extended() ?? []),
-    ];
-    for (const one of offers) {
-      const needs = this.needs().get(one.rival) ?? [];
-      if (!needs.length) {
-        out.set(one, null);
-        continue;
-      }
-      const give = [one.give].flat();
-      const take = [one.take].flat();
-      const gone = new Set(take.map((m) => m.id));
-      const after = [...(menOf.get(one.rival) ?? []).filter((m) => !gone.has(m.id)), ...give];
-      const replaced = 'theirChange' in one ? this.pushed(one.theirChange, one.take) : [one.theirOut];
-      out.set(one, needMet(needs, give, take, replaced, elevenWithoutNeedy(after, needs, rules, rounds)));
-    }
-    return out;
+    if (!squads || !rules) return null;
+    const men = squads.mine.men.map(this.fantaOf());
+    const forced = this.moduleChoice();
+    return draftPitchOf(men, rules, recommendedModules(this.mantra()), forced && rules.modules[forced] ? forced : null, true);
   });
 
-  protected needOf(one: SimpleSwap | PairSwap): RivalNeed | null {
-    return this.needByOffer().get(one) ?? null;
+  private readonly places = computed(() => placesOf(this.pitch()));
+
+  /** Coverage and fertility of a place, as the draft pitch prints them: «87%» and «+85» (hundredths a matchday). */
+  protected yieldOf(place: DraftPlace): { cover: string; coverInk: string; fertility: string; fertilityInk: string } {
+    const { cover, fertility } = placeYield(place, false, 0);
+    const f = hundredths(fertility);
+    const coverInk = cover < 0.5 ? 'text-danger' : cover < COVER_OK ? 'text-warning' : 'text-success';
+    const fertilityInk = f != null && f < 0 ? 'text-danger' : 'text-success';
+    return { cover: `${Math.round(cover * 100)}%`, coverInk, fertility: f == null ? '—' : `${f > 0 ? '+' : ''}${f}`, fertilityInk };
   }
 
-  protected needText(need: RivalNeed): string {
-    const who = need.holder?.name ?? 'nessuno';
-    if (need.kind === 'out') return `${need.slot}: ${who} fuori ${need.holder?.outFor ?? 0} g`;
-    if (need.kind === 'novote') {
-      return `${need.slot}: ${who} senza voto in ${need.holder?.recent?.noVote} delle ultime ${need.holder?.recent?.matches}`;
+  /** The pitch's totals: coverage as a share of the eleven, fertility summed, and the fantapunti a matchday. */
+  protected readonly totals = computed(() => {
+    const places = this.places();
+    if (!places.length) return null;
+    const zero = this.keeperZero();
+    let cover = 0;
+    let fertility = 0;
+    let unknown = 0;
+    let points = 0;
+    for (const place of places) {
+      const one = placeYield(place, false, 0);
+      cover += one.cover;
+      if (one.fertility == null) unknown += one.cover > 0 ? 1 : 0;
+      else fertility += one.fertility;
+      points += placePoints(place, zero);
     }
-    return `${need.slot} sotto la media della lega`;
+    const share = cover / places.length;
+    const f = hundredths(fertility) ?? 0;
+    return {
+      cover: `${Math.round(share * 100)}%`,
+      coverInk: share < 0.5 ? 'text-danger' : share < COVER_OK ? 'text-warning' : 'text-success',
+      fertility: `${f > 0 ? '+' : ''}${f}`,
+      fertilityInk: f < 0 ? 'text-danger' : 'text-success',
+      unknown,
+      points,
+    };
+  });
+
+  protected lineLabel(line: string): string {
+    return LINE_LABEL[line] ?? line;
   }
 
-  /** Points a matchday a man makes when fielded every round he plays: fm x pv / rounds. */
-  protected perRound(man: ScoutMan): number | null {
-    const rounds = this.rounds();
-    return man.fm == null || man.pv == null || !rounds ? null : (man.fm * man.pv) / rounds;
+  // ---------------------------------------------------------------- the selection and its targets
+
+  protected readonly selected = signal<Selection>(null);
+
+  protected placeIndex(place: DraftPlace): number {
+    return this.places().indexOf(place);
   }
 
+  protected isSelected(place: DraftPlace): boolean {
+    const sel = this.selected();
+    if (!sel) return false;
+    return sel.kind === 'place' ? this.placeIndex(place) === sel.at : place.line === sel.line;
+  }
+
+  protected selectPlace(place: DraftPlace): void {
+    const at = this.placeIndex(place);
+    const sel = this.selected();
+    this.selected.set(sel?.kind === 'place' && sel.at === at ? null : { kind: 'place', at });
+  }
+
+  protected selectLine(line: ModuleLine): void {
+    const sel = this.selected();
+    this.selected.set(sel?.kind === 'line' && sel.line === line ? null : { kind: 'line', line });
+  }
+
+  /** Rival filter of the targets; null = every squad. */
+  protected readonly rivalFilter = signal<string | null>(null);
   protected readonly rivalNames = computed(() => this.squads()?.rivals.map((r) => r.name) ?? []);
 
+  /** Each rival's men as the pitch reads them, and where each stands on that squad's own pitch (`standingsOf`). */
+  private readonly rivalPool = computed(() => {
+    const squads = this.squads();
+    const rules = this.rules();
+    const rounds = this.rounds();
+    if (!squads || !rules || !rounds) return [];
+    const of = this.fantaOf();
+    return squads.rivals.map((squad) => {
+      const men = squad.men.map(of);
+      return {
+        name: squad.name,
+        men,
+        standing: standingsOf(draftPitchOf(men, rules, recommendedModules(this.mantra()), null, true)),
+        byId: new Map(squad.men.map((man) => [man.id, man])),
+      };
+    });
+  });
+
+  /** What the right side is titled with: the place's slot and holder, or the line. */
+  protected readonly selectionTitle = computed(() => {
+    const sel = this.selected();
+    if (!sel) return null;
+    if (sel.kind === 'line') return `${this.lineLabel(sel.line)} · tutte le posizioni`;
+    const place = this.places()[sel.at];
+    if (!place) return null;
+    return `${place.slot} · ${place.man ? place.man.name : 'posto scoperto'}`;
+  });
+
   /**
-   * THE 1x1 SWAPS (`scout.simpleSwaps`), as they are proposed: per rival, per man we go for, the men we can pay with.
-   * Computed at once - a few hundred comparisons - so there is no search to launch.
+   * THE TARGETS of what is selected (`scout-pitch.placeTargets`). On a whole line each man is listed once, on the place
+   * of that line where he adds most.
    */
-  private readonly allSwaps = computed<SimpleSwap[]>(() => {
-    const squads = this.squads();
-    const rounds = this.rounds();
-    const rules = this.rules();
-    if (!squads || !rounds || !rules) return [];
-    return simpleSwaps({ mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() });
-  });
-
-  /** The 1x1 on screen: the rival filter and the order only regroup, they never rerun the comparisons. */
-  protected readonly swaps = computed(() => {
-    const rival = this.rivalFilter();
-    const all = this.allSwaps().filter((one) => (!rival || one.rival === rival) && this.fairToHim(one));
-    // One offer per (target, starter of ours he beats): the head line names that starter, so lines paying with a
-    // man who IS that starter (and therefore compare the target with somebody else) are a different offer.
-    const byRival = new Map<string, Map<string, SimpleSwap[]>>();
-    for (const one of all) {
-      const offers = byRival.get(one.rival) ?? new Map<string, SimpleSwap[]>();
-      const key = `${one.take.id}|${one.ourOut?.id ?? 'empty'}`;
-      byRival.set(one.rival, offers);
-      offers.set(key, [...(offers.get(key) ?? []), one]);
-    }
-    // Our gain decides the order of the targets; for one target, the payment they gain most from comes first
-    // (the easiest to accept).
-    return [...byRival]
-      .map(([name, offers]) => ({
-        rival: name,
-        offers: [...offers.values()]
-          .map((lines) => ({
-            first: lines[0],
-            best: Math.max(...lines.map((one) => this.rank(one))),
-            lines: [...lines].sort((a, b) => this.rank(b) - this.rank(a)),
-          }))
-          .sort((a, b) => b.best - a.best),
-      }))
-      // Over every rival the best `TARGETS_PER_RIVAL` targets each; with one rival chosen, all of them.
-      .map((group) => ({
-        ...group,
-        hidden: rival ? 0 : Math.max(0, group.offers.length - TARGETS_PER_RIVAL),
-        offers: rival ? group.offers : group.offers.slice(0, TARGETS_PER_RIVAL),
-      }))
-      .sort((a, b) => b.offers[0].best - a.offers[0].best);
-  });
-
-  /** The 2x2 search, in slices so the page stays alive and draws its bar (`scout.pairSwaps`). */
-  protected async searchPairs(): Promise<void> {
-    const squads = this.squads();
-    const rounds = this.rounds();
-    const rules = this.rules();
-    if (!squads || !rounds || !rules) return;
-    const run = ++this.pairRun;
-    const started = performance.now();
-    const it = pairSwaps({ mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() });
-    let slice = performance.now();
-    for (;;) {
-      const step = it.next();
-      if (run !== this.pairRun) return;
-      if (step.done) {
-        this.pairState.set({ kind: 'done', swaps: step.value, ms: performance.now() - started });
-        const key = this.leagueKey();
-        if (key) this.savedPairs.set({ roster: key, at: new Date().toISOString(), swaps: step.value.map(savePair) });
-        return;
-      }
-      if (performance.now() - slice > 40) {
-        this.pairState.set({ kind: 'running', done: step.value.done, total: step.value.total });
-        await new Promise((go) => setTimeout(go));
-        slice = performance.now();
+  protected readonly targets = computed<TargetRow[]>(() => {
+    const sel = this.selected();
+    if (!sel) return [];
+    const places = this.places();
+    const chosen = sel.kind === 'place' ? [places[sel.at]].filter((p): p is DraftPlace => !!p) : places.filter((p) => p.line === sel.line);
+    const pool = this.rivalPool().filter((rival) => !this.rivalFilter() || rival.name === this.rivalFilter());
+    const zero = this.keeperZero();
+    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
+    const best = new Map<number, TargetRow>();
+    for (const place of chosen) {
+      for (const one of placeTargets(place, pool, zero)) {
+        const known = best.get(one.man.id);
+        if (known && known.points >= one.points) continue;
+        const scout = pool.find((rival) => rival.name === one.rival)?.byId.get(one.man.id);
+        const trend = sheet?.get(one.man.id)?.recentVotes ?? [];
+        const trendPoints = trendPointsMean(trend.slice(0, VOTE_TREND_MATCHES));
+        best.set(one.man.id, {
+          ...one,
+          slot: place.slot,
+          fm: scout?.fm ?? null,
+          pv: scout?.pv ?? null,
+          fvm: scout?.fvm ?? null,
+          form: scout?.form ?? null,
+          trend,
+          trendPoints,
+          hype: trendPoints == null || !scout?.fm ? null : trendPoints / scout.fm,
+        });
       }
     }
-  }
-
-  /** What the FVM filter leaves, of the lines it looks at (the rival filter applied first). */
-  protected readonly fvmCount = computed(() => {
-    const rival = this.rivalFilter();
-    const pool: { rival: string; fvmGive: number | null; fvmTake: number | null }[] =
-      this.mode() === '1x1' ? this.allSwaps() : (this.pairResult()?.swaps ?? []);
-    const seen = pool.filter((one) => !rival || one.rival === rival);
-    return { kept: seen.filter((one) => this.fairToHim(one)).length, total: seen.length };
-  });
-
-  // ---------------------------------------------------------------- the list and the offer open beside it
-
-  /**
-   * THE LIST (operator, 22/10/2026: «cerchiamo di fare rientrare tutto in una schermata, manteniamo il focus sulle cose
-   * principali, dettagli ed alternative solo a richiesta»): per rival, one row per offer - its best line, named and
-   * nothing else. The other ways of paying for the same target are its ALTERNATIVES, shown only in the panel.
-   */
-  protected readonly rows = computed<{ rival: string; hidden: number; offers: OfferRow[] }[]>(() => {
-    if (this.mode() === '1x1') {
-      return this.swaps().map((group) => ({
-        rival: group.rival,
-        hidden: group.hidden,
-        offers: group.offers.map((offer) => this.rowOf(offer.lines)),
-      }));
-    }
-    return this.pairGroups().map((group) => ({
-      rival: group.rival,
-      hidden: group.hidden,
-      offers: group.offers.map((offer) => this.rowOf(offer.lines, offer.hidden)),
-    }));
-  });
-
-  private rowOf(lines: readonly Swap[], hiddenLines = 0): OfferRow {
-    const [swap, ...alternatives] = lines;
-    return { key: this.keyOf(swap), swap, alternatives, hiddenLines };
-  }
-
-  protected keyOf(one: Swap): string {
-    return this.offerKey(one.rival, [one.give].flat(), [one.take].flat());
-  }
-
-  /** The row picked, by its key; none picked (or no longer in the list) = the first row. */
-  private readonly pickedKey = signal<string | null>(null);
-  /** The line shown of that row: its own, or one of its alternatives. */
-  private readonly pickedLine = signal<Swap | null>(null);
-  /** Extensions walked from that line, one man more each (`scout.extendOffer`): the last is what the panel shows. */
-  protected readonly trail = signal<Extension[]>([]);
-  /** The extensions offered for what the panel shows, once asked for; null = not asked. */
-  protected readonly extended = signal<Extension[] | null>(null);
-
-  protected readonly openRow = computed<OfferRow | null>(() => {
-    const all = this.rows().flatMap((group) => group.offers);
-    return all.find((row) => row.key === this.pickedKey()) ?? all[0] ?? null;
-  });
-
-  /** What the panel shows: the end of the trail, else the picked line of the open row. */
-  protected readonly current = computed<Swap | null>(() => {
-    const row = this.openRow();
-    if (!row) return null;
-    const trail = this.trail();
-    if (trail.length) return trail[trail.length - 1];
-    const line = this.pickedLine();
-    return line && (line === row.swap || row.alternatives.includes(line)) ? line : row.swap;
-  });
-
-  protected pick(row: OfferRow | null, line: Swap | null = null): void {
-    this.pickedKey.set(row?.key ?? null);
-    this.pickedLine.set(line);
-    this.trail.set([]);
-    this.extended.set(null);
-  }
-
-  /** ONE MAN MORE (`roadmap-scambi-v1.md` step 3): computed when asked, on the offer the panel shows. */
-  protected extend(): void {
-    const one = this.current();
-    const squads = this.squads();
-    const rules = this.rules();
-    const rounds = this.rounds();
-    if (!one || !squads || !rules || !rounds) return;
-    const base = { rival: one.rival, give: [one.give].flat(), take: [one.take].flat() };
-    this.extended.set(extendOffer(base, { mine: squads.mine, rivals: squads.rivals, rules, rounds, mantra: this.mantra() }));
-  }
-
-  protected walk(ext: Extension): void {
-    this.trail.set([...this.trail(), ext]);
-    this.extended.set(null);
-  }
-
-  protected back(): void {
-    this.trail.set(this.trail().slice(0, -1));
-    this.extended.set(null);
-  }
-
-  protected isExtension(one: Swap): one is Extension {
-    return 'added' in one;
-  }
-
-  /** The four-sided table of whatever the panel shows: a 1x1, a 2x2 or an extension. */
-  protected matrixOf(one: Swap): MatrixRow[] {
-    return 'theirChange' in one
-      ? this.matrix(one.give, one.take, this.pushed(one.theirChange, one.take), this.pushed(one.ourChange, one.give), {
-          mine: one.ourChange.enter,
-          theirs: one.theirChange.enter,
-        })
-      : this.matrix([one.give], [one.take], one.theirOut ? [one.theirOut] : [], one.ourOut ? [one.ourOut] : []);
-  }
-
-  protected spareOf(one: Swap): number[] {
-    return 'theirChange' in one ? one.spare : one.spare ? [one.take.id] : [];
-  }
-
-  /** The drawers: his squad, and the rivals' cards. */
-  protected readonly drawer = signal<'mine' | 'rivals' | null>(null);
-
-  /** What an extension made better for the rival, in words. */
-  protected betterText(ext: Extension): string {
-    const parts: string[] = [];
-    if (ext.better.theirs != null) parts.push(`per loro +${ext.better.theirs.toFixed(2)}`);
-    if (ext.better.fvm != null) parts.push(`FVM +${Math.round(ext.better.fvm)} a suo favore`);
-    if (ext.better.form != null) parts.push(`forma +${ext.better.form.toFixed(2)}`);
-    return parts.join(' · ');
-  }
-
-  protected pairPercent(): number {
-    const state = this.pairState();
-    return state.kind === 'running' && state.total ? Math.round((100 * state.done) / state.total) : 0;
-  }
-
-  /** The 2x2 on screen: the search just run, or the last one saved for this fantasquadra. */
-  protected readonly pairResult = computed<{ swaps: PairSwap[]; ms: number | null; at: string | null } | null>(() => {
-    const state = this.pairState();
-    if (state.kind === 'done') return { swaps: state.swaps, ms: state.ms, at: null };
-    if (state.kind === 'running') return null;
-    const saved = this.savedPairs();
-    const squads = this.squads();
-    if (!saved || !squads || saved.roster !== this.leagueKey()) return null;
-    const men = new Map([squads.mine, ...squads.rivals].flatMap((squad) => squad.men.map((m) => [m.id, m] as const)));
-    const swaps = saved.swaps.map((one) => restorePair(one, men)).filter((one): one is PairSwap => !!one);
-    return { swaps, ms: null, at: saved.at };
+    return [...best.values()].sort((a, b) => b.points - a.points);
   });
 
   /**
-   * The 2x2 as they are read: per rival, one offer per TARGET (the most valuable man we take), its lines the ways of
-   * paying for him, no man twice in an offer (`scout.groupTrades`).
+   * THE TARGETS' ORDER (operator, 23/10/2026: «le colonne devono essere ordinabili cliccando sul nome della colonna»):
+   * a click sorts on that column, a second click reverses it. Numbers start from the highest, names from A; a blank
+   * goes last in both directions («vuoto = ignoto», never a zero). Default: the points a matchday it adds.
    */
-  protected readonly pairGroups = computed(() => {
-    const state = this.pairResult();
-    if (!state) return [];
-    const rival = this.rivalFilter();
-    const swaps = state.swaps.filter((one) => (!rival || one.rival === rival) && this.fairToHim(one));
-    return groupTrades(swaps, (one) => this.rank(one), rival ? Infinity : 3).map((group) => ({
-      rival: group.rival,
-      hidden: rival ? 0 : Math.max(0, group.offers.length - TARGETS_PER_RIVAL),
-      offers: rival ? group.offers : group.offers.slice(0, TARGETS_PER_RIVAL),
-    }));
+  protected readonly sort = storedJson<{ key: TargetSort; desc: boolean }>('scout.targetSort', (raw) => {
+    const o = raw as { key?: string; desc?: unknown } | null;
+    return o && typeof o.key === 'string' && TARGET_SORTS.includes(o.key)
+      ? { key: o.key as TargetSort, desc: !!o.desc }
+      : { key: 'points', desc: true };
   });
 
-  // ---------------------------------------------------------------- the comparison table of an offer
+  protected sortBy(key: TargetSort): void {
+    const now = this.sort();
+    this.sort.set(now.key === key ? { key, desc: !now.desc } : { key, desc: !TEXT_SORTS.has(key) });
+  }
 
-  /**
-   * THE FACTS BEHIND AN OFFER (operator, 22/10/2026: «per valutare uno scambio ho bisogno di vedere una tabella con i
-   * calciatori che chiedo e per ogni calciatore devo vedere la fantamedia, media voto e presenze della scorsa stagione
-   * e di quella attuale e poi il gradino della stampa e il trend ... nella tabella ci devono essere anche i calciatori
-   * che offro»). Facts and not our numbers: the seasons are what the game SCORED (`season-line.seasonLines`, the
-   * reader the Draft Assistant already uses - a rebuilt line in italic where the platform did not score his club),
-   * the word is the press survey's, the strip is the sheet's last five (`ui-vote-trend`, as on the Lineup page).
-   */
+  protected sortArrow(key: TargetSort): string {
+    const now = this.sort();
+    return now.key === key ? (now.desc ? ' ↓' : ' ↑') : '';
+  }
+
+  protected readonly sortedTargets = computed<TargetRow[]>(() => {
+    const { key, desc } = this.sort();
+    const value = (t: TargetRow): number | string | null => {
+      switch (key) {
+        case 'name': return t.man.name;
+        case 'rival': return t.rival;
+        case 'slot': return t.slot;
+        case 'ours': return STANDING_RANK[t.ours];
+        case 'theirs': return t.theirs ? STANDING_RANK[t.theirs] : null;
+        case 'hype': return t.hype;
+        case 'fm': case 'pv': case 'fvm': case 'form': case 'cover': case 'fertility': case 'points': return t[key];
+      }
+      const [metric, which] = key.split('@') as [SeasonMetric, SeasonWhich];
+      return this.seasonValue(this.lineOf(t.man.id, which), metric, this.isKeeper(t.man));
+    };
+    return [...this.targets()].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+      const c = typeof x === 'string' ? x.localeCompare(String(y)) : x - (y as number);
+      return (desc ? -c : c) || b.points - a.points;
+    });
+  });
+
+  protected readonly columns = storedJson<ColumnSet>('scout.targetColumns', (raw) => (raw === 'medie' || raw === 'hype' ? raw : 'default'));
+
+  protected chooseColumns(set: ColumnSet): void {
+    this.columns.set(set);
+    // The averages rebuild a season the platform did not score from his matches: the per-match layer, loaded once.
+    if (set === 'medie') void this.players.load();
+  }
+
+  protected readonly seasonKeys: readonly SeasonWhich[] = ['last', 'now'];
+  protected readonly seasonMetrics = SEASON_METRICS;
+
+  /** The two seasons the averages read, from the bundle's manifest, with the scored lines and Transfermarkt's. */
   private readonly readings = resource({
     params: () => {
       const sheet = this.sheet();
-      return sheet ? { path: sheet.path, platform: this.platform() as Platform } : undefined;
+      return sheet && this.columns() === 'medie' ? { path: sheet.path, platform: this.platform() as Platform } : undefined;
     },
     loader: async ({ params }) => {
       const [stats, manifest, sheet] = await Promise.all([
@@ -672,104 +483,75 @@ export class Scout {
       const last = manifest.input_season ?? null;
       const wanted = [now, last].filter((one): one is string => !!one);
       return {
-        now,
-        last,
+        platform: params.platform,
+        seasons: { now, last } as Record<SeasonWhich, string | null>,
         lines: seasonLines({ seasonStats: stats, platform: params.platform, seasons: wanted }),
-        rebuilt: last ? seasonLinesFromSheet(sheet, last) : new Map<number, SeasonLine>(),
+        tm: last ? seasonLinesFromSheet(sheet, last) : new Map<number, SeasonLine>(),
       };
     },
   });
 
-  protected readonly seasonsShown = computed(() => {
+  protected seasonLabel(which: SeasonWhich): string {
     const r = this.readings.hasValue() ? this.readings.value() : null;
-    return { now: r?.now ?? null, last: r?.last ?? null };
-  });
-
-  protected offerKey(rival: string, give: readonly ScoutMan[], take: readonly ScoutMan[]): string {
-    return `${rival}|${give.map((m) => m.id).join(',')}|${take.map((m) => m.id).join(',')}`;
-  }
-
-  protected namesOf(men: readonly ScoutMan[]): string {
-    return men.map((m) => m.name).join(' + ');
-  }
-
-  /** One row per man of the offer: last season, this season, the press word, the strip. */
-  private compare(men: readonly ScoutMan[]): CompareRow[] {
-    const r = this.readings.hasValue() ? this.readings.value() : null;
-    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
-    const press = this.rulings.press();
-    return men.map((man): CompareRow => {
-      const mine = r?.lines.get(man.id);
-      const last = (r?.last ? mine?.get(r.last) : undefined) ?? (r?.last ? r?.rebuilt.get(man.id) : undefined) ?? null;
-      const now = (r?.now ? mine?.get(r.now) : undefined) ?? null;
-      const word = press.get(man.id);
-      const numbers = sheet?.get(man.id) ?? null;
-      return {
-        man,
-        last,
-        now,
-        press: word ? (word.pressTier ?? word.rung) : null,
-        // Without a press word, the sheet's own rung - said as ours, not as the press's.
-        sheetRung: word ? null : (numbers?.titolarita ?? null),
-        trend: numbers?.recentVotes ?? [],
-      };
-    });
+    return r?.seasons[which] ?? (which === 'now' ? 'stagione' : 'scorsa');
   }
 
   /**
-   * THE OFFER AS FOUR SIDES (operator, 22/10/2026: «per i richiesti e per gli offerti mostra i calciatori che andrebbero
-   * a sostituire»): MY men on the left, THEIRS on the right, one row per replacement -
-   *   my man I give  --- meglio di --->  their starter he replaces;
-   *   my starter he replaces  <--- meglio di ---  their man I take.
-   * The replaced are what each eleven pushes OUT (`ElevenChange.leave`, the men traded away excluded); on a 1x1 they are
-   * the starters the two comparisons named. A pair is matched by base role first; an arrow says «meglio di» only when
-   * it is true, «al posto di» otherwise (a change of shape can replace a man with a weaker one on another line), and a
-   * side with nobody reads «posto vuoto».
+   * A season's line, as the Draft Assistant reads it: the game's scored line; where the platform did not score his club,
+   * rebuilt from his matches on the synthetic vote (in italic); for last season, failing that, Transfermarkt's
+   * appearances and goals with no vote.
    */
-  protected matrix(
-    give: readonly ScoutMan[],
-    take: readonly ScoutMan[],
-    theirOut: readonly ScoutMan[],
-    ourOut: readonly ScoutMan[],
-    /** On a 2x2, who enters each eleven: a man with no partner who does NOT enter it stays on the bench. */
-    enters?: { mine: readonly ScoutMan[]; theirs: readonly ScoutMan[] },
-  ): MatrixRow[] {
-    const r = this.compare([...take, ...ourOut, ...give, ...theirOut]);
-    const of = (man: ScoutMan) => r.find((one) => one.man.id === man.id) ?? null;
-    const pair = (from: readonly ScoutMan[], to: readonly ScoutMan[]): [ScoutMan | null, ScoutMan | null][] => {
-      const left = [...to];
-      const out: [ScoutMan | null, ScoutMan | null][] = [];
-      for (const man of from) {
-        const same = left.findIndex((o) => o.roles[0] === man.roles[0]);
-        const fits = left.findIndex((o) => o.roles.some((x) => man.roles.includes(x)));
-        const pick = same >= 0 ? same : fits >= 0 ? fits : left.length ? 0 : -1;
-        out.push([man, pick >= 0 ? left.splice(pick, 1)[0] : null]);
-      }
-      for (const rest of left) out.push([null, rest]);
-      return out;
-    };
-    const better = (a: ScoutMan | null, b: ScoutMan | null) => !!a && (!b || (this.perRound(a) ?? 0) > (this.perRound(b) ?? 0));
-    const benched = (man: ScoutMan | null, eleven: readonly ScoutMan[] | undefined) =>
-      !!man && !!eleven && !eleven.some((m) => m.id === man.id);
-    return [
-      ...pair(give, theirOut).map(([mine, theirs]) => ({
-        left: mine && of(mine), right: theirs && of(theirs), toRight: true, better: better(mine, theirs),
-        bench: !theirs && benched(mine, enters?.theirs),
-      })),
-      ...pair(take, ourOut).map(([theirs, mine]) => ({
-        left: mine && of(mine), right: theirs && of(theirs), toRight: false, better: better(theirs, mine),
-        bench: !mine && benched(theirs, enters?.mine),
-      })),
-    ];
+  protected lineOf(id: number, which: SeasonWhich): SeasonLine | null {
+    const r = this.readings.hasValue() ? this.readings.value() : null;
+    const season = r?.seasons[which];
+    if (!r || !season) return null;
+    const scored = r.lines.get(id)?.get(season) ?? null;
+    if (scored?.pv != null) return scored;
+    if (this.players.ready()) {
+      const rebuilt = seasonLineFromMatches(this.players.matchesOf(id, r.platform, season), season);
+      if (rebuilt) return rebuilt;
+    }
+    return (which === 'last' ? r.tm.get(id) : undefined) ?? scored;
   }
 
-  /** The men each eleven pushes out on a 2x2: who leaves it, except the men traded away. */
-  protected pushed(change: ElevenChange, traded: readonly ScoutMan[]): ScoutMan[] {
-    return change.leave.filter((m) => !traded.some((t) => t.id === m.id));
+  protected isKeeper(man: FantaMan): boolean {
+    return man.roles.some((role) => role === 'por' || role === 'p');
   }
 
-  protected fvmBalance(one: { fvmGive: number | null; fvmTake: number | null }): number | null {
-    return one.fvmGive == null || one.fvmTake == null ? null : one.fvmGive - one.fvmTake;
+  /**
+   * «Gol» is ALWAYS goals including penalties (the line's `goals` already is), and for a keeper the pair is goals
+   * conceded and clean sheets (operator, 23/10/2026).
+   */
+  protected metricLabel(metric: SeasonMetric): string {
+    return metric === 'ga' ? 'G:A' : metric.toUpperCase();
+  }
+
+  protected pairOf(line: SeasonLine | null, keeper: boolean): string {
+    if (!line) return '—';
+    const [a, b] = keeper ? [line.conceded, line.cleanSheets] : [line.goals, line.assists];
+    return a == null && b == null ? '—' : `${a ?? 0}:${b ?? 0}`;
+  }
+
+  /** The number a season column sorts on; the pair sorts on its first half (goals, or conceded for a keeper). */
+  private seasonValue(line: SeasonLine | null, metric: SeasonMetric, keeper: boolean): number | null {
+    if (!line) return null;
+    if (metric === 'ga') return keeper ? line.conceded : line.goals;
+    return line[metric];
+  }
+
+  protected pct(value: number): string {
+    const v = Math.round(value * 100);
+    return `${v > 0 ? '+' : ''}${v}%`;
+  }
+
+  protected fert(value: number | null): string {
+    const v = hundredths(value);
+    return v == null ? '—' : `${v > 0 ? '+' : ''}${v}`;
+  }
+
+  protected manPv(man: FantaMan): string {
+    const rounds = this.rounds();
+    return man.share == null || !rounds ? '—' : (man.share * rounds).toFixed(0);
   }
 
   // ---------------------------------------------------------------- the player card (click on a name, every page)
@@ -833,7 +615,8 @@ export class Scout {
   protected readonly cardCount = computed(() => this.openCards().length + this.clubCards().length);
   protected readonly frontCard = computed(() => this.cards.front());
 
-  protected openPlayer(id: number): void {
+  protected openPlayer(id: number, event?: Event): void {
+    event?.stopPropagation();
     this.cards.openCard(playerCard(id));
   }
 
