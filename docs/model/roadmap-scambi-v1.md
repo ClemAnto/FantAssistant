@@ -206,3 +206,17 @@ stringere, allentare o togliere.
 I passi 1, 2, 3 e 4 sono indipendenti fra loro e si possono fare in qualunque ordine; 1 per primo solo perché i
 suoi dati hanno bisogno di tempo. Dopo ognuno l'operatore prova la pagina su una lega vera e decide se andare
 avanti, cambiare l'ordine o togliere il passo.
+
+## Impaginazione — APERTA (22/10/2026 sera)
+
+Richiesta dell'operatore: «troppo confusionario ... fare rientrare tutto in una schermata, focus sulle cose principali,
+dettagli ed alternative solo a richiesta». Proposte tre impaginazioni (A lista + pannello, B un avversario alla
+volta, C le migliori in carte); scelta **A**, e sulla riga della lista **solo i nomi**. Implementata in `a24bc49`:
+una barra sola, la lista a sinistra (una riga per offerta, la sua linea migliore), a destra l'offerta scelta (chi
+dai/ricevi, guadagni, forma, FVM, bisogno risolto, tabella di confronto, «Aggiungi un calciatore», «altri modi di
+pagarlo»), la rosa e le card degli avversari in due cassetti; il banco `e2e-scout` è riscritto su questa forma.
+
+**Verdetto dell'operatore: «non ci siamo ancora, troppo confusionario»** - ci pensa e si riprende nella prossima
+chat. Da chiedergli prima di toccare il codice: cosa confonde (il pannello di destra, la tabella a 20 colonne, la
+barra, i cassetti?) e cosa vuole vedere per primo. Due candidati già detti: la tabella di confronto con la sola
+stagione corrente (l'altra a richiesta), un segnale minimo sulla riga per l'offerta che risolve un suo problema.
