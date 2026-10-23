@@ -10895,3 +10895,19 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   classic. Mantra non ancora girato. Pages non aggiornato.
 - **Aperti**: l'ordine per +Pt/g è dominato dalla copertura; l'Hype col 5 per l'assenza sta quasi sempre sotto 1
   (alternativa: solo partite giocate, decisione sua); il piano (a che prezzo, cosa perde chi cede).
+
+## 23 ottobre 2026 — FORMAZIONE: IL VOTO BASE DELLA PROSSIMA PARTITA E IL SET «STAGIONE» (non pubblicato)
+
+- **Caso Woltemade/Noslin** (FVA 7,0 contro 6,9): la differenza era tutta la quota (+0,12 a Woltemade); trend, casa e
+  gol di quest'anno erano già dentro o misurati a zero. Poi la sua regola: «più peso al presente ... FVA nella
+  prossima partita». **`fva.recentMv`** (K 10, decadimento 0,95), misurata leave-one-season-out sul voto base della
+  partita successiva: 11/11 stagioni Serie A e 6/6 EuroLeghe, ottimo interno; su gol e resto dei bonus non paga.
+  Dettaglio: `formazione-leghe-v1.md` §4-terdecies. Entra come `mvNext` nella sola parte base.
+- **Set di colonne** della tabella Formazione: default e «stagione» (FM, MV, Pg, G:A, xG:xA, FVM).
+- **COMMIT PARZIALE, da sapere**: committati `core/fva.ts`, il suo spec e i doc. `views/lineup/lineup.ts` e `.html`
+  portano INSIEME le due metà (questa e quella di un'altra sessione: FVA dopo la partita, colonna «Stampa»,
+  `core/next-round.*`) e restano NON committati: senza `next-round` la loro metà non compila. Il cablaggio di
+  `recentMv` (campo `votes` in `football()`, `mvNext` nell'input FVA) e il set «stagione» stanno lì. Albero combinato
+  verificato: build ok, 1582 test verdi. Da committare insieme quando l'altra metà è chiusa.
+- Aperti: vedere il set «stagione» a schermo (nessun CSV per il banco `e2e-lineup-file`); `recentMv` sui portieri
+  non misurato.

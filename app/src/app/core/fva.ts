@@ -49,6 +49,38 @@ export const MATCH_GOALS_PER_100 = 0.127;
 export const MATCH_DELTA_MAX = 300;
 
 /**
+ * THE BASE VOTE OF THE NEXT MATCH, NOT OF THE REST OF THE SEASON (operator, 23/10/2026: «va dato più peso al
+ * momento presente rispetto alla scorsa stagione ma anche a 10 partite fa ... FVA nella prossima partita»).
+ * The sheet's MV is a SEASON forecast and lets this season in at K = 40 (R25), so four votes of 5.5 move it by a
+ * tenth. For the NEXT match the votes already played weigh more, and the recent ones more than the old:
+ *
+ *   MV_next = (RECENT_MV_K x MV_sheet + sum_i d^age_i x vote_i) / (RECENT_MV_K + sum_i d^age_i)
+ *
+ * over this season's real championship votes, age 0 = the last one. MEASURED (23/10/2026, outfield, next-match
+ * base vote, previous season with 15+ votes as the prior, leave-one-season-out on a grid K 2-40 x d 0.7-1.0):
+ * every fold picks K 8-10 and d 0.95 - both INTERIOR - and the held-out MAE falls 0.5202 -> 0.5171 on Serie A
+ * (11 seasons of 11) and 0.5072 -> 0.5040 on EuroLeghe (6 of 6); laid over the sheet's own blend instead of the raw
+ * prior it reads 0.5175 / 0.5042, i.e. the same. The same recency on the GOALS and on the rest of the bonus buys
+ * nothing (goals 0.1105 -> 0.1103 squared error, the rest worse): the base vote is where the present shows, so it
+ * stays there. Keepers are not measured and keep the sheet's MV.
+ */
+export const RECENT_MV_K = 10;
+export const RECENT_MV_DECAY = 0.95;
+
+/** The next-match base vote from the sheet's MV and this season's votes, oldest first. Null prior stays null. */
+export function recentMv(prior: number | null, votes: readonly number[]): number | null {
+  if (prior === null || !votes.length) return prior;
+  let num = RECENT_MV_K * prior;
+  let den = RECENT_MV_K;
+  votes.forEach((vote, i) => {
+    const w = RECENT_MV_DECAY ** (votes.length - 1 - i);
+    num += w * vote;
+    den += w;
+  });
+  return num / den;
+}
+
+/**
  * The game's goal bonus (`config/scoring_config.json` default, and Leghe's default for both games). A league can
  * change it PER ROLE and Leghe does serve that (`settings/calculate` → `bnMls.bmgs`, P/D/C/A on classic, read
  * 09/10/2026 in its backend: `CalcoloHelper.CalcolaTotaleBonus`), as it serves the keeper's clean-sheet bonus
@@ -99,6 +131,12 @@ export function goalChance(oddsProb: number, goals: number | null, appearances: 
 export interface FvaInput {
   keeper: boolean;
   mv: number | null;
+  /**
+   * The NEXT match's base vote (`recentMv`): it replaces `mv` in the base part only. `mv` stays the sheet's season
+   * MV because the rest of the bonus is derived from FM - MV, and the two halves of that pair must be the sheet's.
+   * Null/absent = the sheet's MV.
+   */
+  mvNext?: number | null;
   fm: number | null;
   /** Forecast minutes per appearance (`desc_minutes_next`); null = unknown, and then `k` is 1. */
   minutes: number | null;
@@ -207,7 +245,7 @@ export function fvaOf(input: FvaInput): Fva {
     const value = towardSix(input.fm, k) + vote + rest;
     return { value, base: value - vote - rest, goals: 0, others: 0, k, source: 'sheet', match: vote + rest };
   }
-  const base = towardSix(input.mv, k);
+  const base = towardSix(input.mvNext ?? input.mv, k);
   const historyGoals = GOAL_BONUS * input.goalsPerMatch;
   const fromOdds = input.oddsProb !== null && input.oddsProb > 0;
   // «ALTRI» IS MEASURED WHERE THE PRICE TAKES THE GOALS (operator, 09/10/2026, after «perché Gabriel Jesus ha un

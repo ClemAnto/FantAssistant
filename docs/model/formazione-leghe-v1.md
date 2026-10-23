@@ -731,6 +731,26 @@ Limiti detti. Due settimane d'archivio; ri-misurare a ~500 gol e a qualche centi
 quota ma nessuna presenza su file resta sulla fantamedia del foglio (ramo `sheet`) mentre la tabella stampa comunque la
 percentuale. Il prezzo vale «se gioca»: Godts a 2,36 come Douè non dice che partirà titolare.
 
+## §4-terdecies. Il voto base della PROSSIMA partita pesa il presente, e un set di colonne «stagione» (23/10/2026)
+
+Caso Woltemade/Noslin: FVA 7,0 contro 6,9, con Noslin in forma e Woltemade a 5,5 di media alla Juve. Richiesta:
+«più peso al momento presente rispetto alla scorsa stagione ma anche a 10 partite fa ... FVA nella prossima partita».
+La parte base dell'FVA leggeva l'MV del foglio, che è una previsione di STAGIONE e fa entrare quest'anno a K 40.
+
+**Misurato** (voto base della partita successiva, movimento, prior = stagione precedente con 15+ voti,
+leave-one-season-out su K 2-40 × decadimento 0,7-1,0): ogni piega sceglie **K 8-10 e d 0,95**, tutti e due interni;
+MAE 0,5202 → **0,5171** su Serie A (11 stagioni su 11) e 0,5072 → **0,5040** su EuroLeghe (6 su 6). Applicato SOPRA
+l'MV del foglio invece che sul prior grezzo legge 0,5175 / 0,5042, cioè lo stesso. La stessa recenza sui GOL
+(0,1105 → 0,1103 di errore quadratico) e sul resto dei bonus (peggio) non compra niente: resta sul voto base.
+`fva.recentMv` (`RECENT_MV_K` 10, `RECENT_MV_DECAY` 0,95: un voto di dieci partite fa pesa 0,6 dell'ultimo), solo sui
+voti VERI di campionato della stagione in corso, solo movimento (portieri non misurati). Entra come `mvNext` nella
+sola parte base: «altri» senza quota resta FM − MV del FOGLIO, o la correzione si annullerebbe. Sul caso:
+Woltemade 6,135 → 5,96, Noslin 6,18 → 6,33 — circa 0,3 di FVA, più dello 0,12 della quota. Non gatato (lettura dell'app).
+
+**Set di colonne** (stessa giornata): due icone accanto al filtro per ruolo, come in Scout. Default (trend, voto,
+FM, FVA, quota) e **stagione**: FM, MV, Pg, G:A, xG:xA (totali, attenuati se la fonte copre meno partite di Pg —
+SofaScore chiuso dal 24/09), FVM del listone nel gioco della lega. Scelta ricordata (`lineup.columns`).
+
 ## §5. Aperti, in ordine
 
 **Dal 22 ottobre 2026 (§4-duodecies):** rimisurare la curva delle quote gol e la porta inviolata a ~500 gol;

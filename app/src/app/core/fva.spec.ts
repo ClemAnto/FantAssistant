@@ -12,6 +12,8 @@ import {
   goalChance,
   REST_PRIOR_MATCHES,
   restPerMatch,
+  recentMv,
+  RECENT_MV_K,
 } from './fva';
 
 const outfield = { keeper: false, mv: 6.5, fm: 7.5, minutes: 90, goalsPerMatch: 0.25, oddsProb: null };
@@ -164,5 +166,27 @@ describe('goalChance: the price calibrated on what happened (22/10/2026)', () =>
   it('is not discounted by the minutes: the price already knows if he starts', () => {
     const priced = { ...outfield, appearances: 20, oddsProb: 0.4 };
     expect(fvaOf({ ...priced, minutes: 30 }).goals).toBeCloseTo(fvaOf(priced).goals, 9);
+  });
+});
+
+describe('recentMv: the next match weighs the present (23/10/2026)', () => {
+  it('leaves the sheet MV alone without votes, and moves toward recent votes with them', () => {
+    expect(recentMv(6.2, [])).toBe(6.2);
+    expect(recentMv(null, [5])).toBeNull();
+    const low = recentMv(6.2, [5.5, 5.5, 5.5, 5.5])!;
+    expect(low).toBeLessThan(6.2);
+    expect(low).toBeGreaterThan(5.5);
+    // Four equal votes at K 10 move the prior by a bit under 4/14 of the gap (the decay trims the old ones).
+    expect(6.2 - low).toBeLessThan((0.7 * 4) / (RECENT_MV_K + 4));
+  });
+
+  it('weighs a recent vote more than an old one', () => {
+    expect(recentMv(6, [5, 7])!).toBeGreaterThan(recentMv(6, [7, 5])!);
+  });
+
+  it('moves the FVA without a price: the rest of the bonus is still derived from the SHEET MV', () => {
+    const plain = fvaOf(outfield).value!;
+    const next = fvaOf({ ...outfield, mvNext: 6.0 }).value!;
+    expect(plain - next).toBeCloseTo(0.5, 9);
   });
 });
