@@ -162,6 +162,24 @@ def test_from_and_to_select_a_slice_and_a_bad_name_is_refused(tmp_path):
         update.run(ctx, steps_to="nope")
 
 
+def test_step_picks_non_contiguous_steps_in_the_PLANS_order_and_a_bad_name_is_refused(tmp_path):
+    """The nightly's slices group steps by cadence: given out of order, they still run in the plan's."""
+    ctx = _ctx(tmp_path)
+    out = update.run(ctx, only=("injuries", "transfers"), plan_only=True)
+    assert out["steps"] == ["transfers", "injuries"]
+    with pytest.raises(RuntimeError, match="not a step"):
+        update.run(ctx, only=("nope",), plan_only=True)
+
+
+def test_the_dispatcher_passes_the_step_selection():
+    """A flag the parser accepts and the dispatcher drops is the defect this CLI has paid for three times."""
+    import inspect
+
+    from euroleghe_ingest import cli
+    call = inspect.getsource(cli).split('elif args.command == "update":', 1)[1].split("elif args.command")[0]
+    assert "only=tuple(args.only)" in call
+
+
 # ----------------------------------------------------------------- what the run does
 def test_a_failed_step_does_not_end_the_run_and_lands_in_the_summary(tmp_path, monkeypatch, capsys):
     calls: list = []

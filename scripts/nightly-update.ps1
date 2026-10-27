@@ -44,9 +44,7 @@ param(
     [switch]$Unregister,
     [switch]$Status,
     # One slice by name (see $Slices). Without it, every slice runs in order.
-    [string]$Slice,
-    # When the FIRST slice starts; the others follow at the end of the previous slice's limit.
-    [string]$At = '00:30'
+    [string]$Slice
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,27 +58,48 @@ $legacyTasks = @('FantAssistant nightly update', 'FantAssistant morning build', 
 # Two weeks of logs: enough to see a source that has been refusing for days.
 $keepLogs = 14
 
-# THE SLICES, in order. `Minutes` is the HARD limit: the slice is killed at that point, and the next
-# one starts at that time whatever happened. Nothing above 120, which is the operator's rule.
+# THE SLICES, grouped by CADENCE (operator, 27/10/2026: «vedi cio' che serve aggiornare piu' spesso da
+# quello che serve aggiornare meno spesso ... qualcosa magari possiamo aggiornarla ogni 15gg»).
+# `Minutes` is the HARD limit, nothing above 120. `Days` empty = every night; `Weeks` 2 = every other
+# week. The question asked of every step is «when does its fact CHANGE»:
+#   - EVERY NIGHT: the votes and the listone (a round is voted the morning after it ends, the FVM moves
+#     every week), today's squads and roles, the calendar, the Elo, the probabili/indisponibili, and
+#     the SofaScore per-match layer, which only fetches the rounds it has not got.
+#   - THE MORNINGS AFTER A ROUND (Mon, Tue, Fri): Transfermarkt's per-match layer, which is the
+#     backup of SofaScore since 24/09 (the trend, the matchday map) - re-read for everybody, so it is
+#     paid only when there is something new: Sunday's matches on Monday, Monday's on Tuesday, a
+#     midweek round on Friday, all before a lineup is handed in.
+#   - SATURDAY AND SUNDAY: the coaches and transfers (a sacking lands before the lineup), cups and
+#     friendlies, and the injury ARCHIVE in two halves - today's absences are `fc_site`, every night.
+#   - EVERY OTHER WEEK: the squad pages and contracts (squads change in the windows), the value curve,
+#     badges, tournaments, the heatmap gaps, the recent form of men with no history.
+# A test (`test_nightly_slices.py`) holds the one property a list like this can lose in silence: every
+# acquisition step of the plan is in EXACTLY one slice.
 $Slices = @(
-    [pscustomobject]@{ Name = 'base'; Minutes = 75
-        Why  = 'listone e voti, SofaScore, trasferimenti, Elo, calendario, probabili, forma recente'
-        Args = @('--phase', 'acquire', '--skip', 'injuries:ids', '--skip', 'injuries',
-            '--skip', 'market', '--skip', 'performance') },
-    [pscustomobject]@{ Name = 'rose'; Minutes = 120
-        Why  = 'Transfermarkt: rose, contratti e archivio infortuni'
-        Args = @('--from', 'injuries:ids', '--to', 'injuries') },
-    [pscustomobject]@{ Name = 'valori'; Minutes = 90
-        Why  = 'Transfermarkt: la curva del valore di mercato'
-        Args = @('--from', 'market', '--to', 'market') },
-    [pscustomobject]@{ Name = 'presenze'; Minutes = 90
-        Why  = 'Transfermarkt: le partite giocate (il ripiego di SofaScore)'
-        Args = @('--from', 'performance', '--to', 'performance') },
-    # THE BUILD IS A SLICE OF ITS OWN and the last one: derivation, the sheets, the packs, the bundle
-    # and the app's copy, on whatever the acquisition slices brought - more recent than yesterday
-    # anyway, and the manifest carries its own date.
-    [pscustomobject]@{ Name = 'build'; Minutes = 75
-        Why  = 'derivazione, fogli, pacchetti, bundle, copia nell app, e il quadro del mattino'
+    [pscustomobject]@{ Name = 'base'; Minutes = 75; At = '00:30'; Days = @(); Weeks = 1
+        Why  = 'ogni notte: voti e listone, rose e ruoli SofaScore, calendario, Elo, probabili'
+        Args = @('--step', 'inbox', '--step', 'rosters', '--step', 'stats', '--step', 'ratings:default',
+            '--step', 'ratings:euro', '--step', 'positions:season', '--step', 'positions:roles',
+            '--step', 'elo', '--step', 'fixtures', '--step', 'fc_site', '--step', 'positions:match',
+            '--step', 'positions:complete') },
+    [pscustomobject]@{ Name = 'presenze'; Minutes = 90; At = '01:45'; Days = @('Monday', 'Tuesday', 'Friday'); Weeks = 1
+        Why  = 'dopo le giornate: le partite giocate da Transfermarkt (il ripiego di SofaScore)'
+        Args = @('--step', 'performance') },
+    [pscustomobject]@{ Name = 'infortuni'; Minutes = 120; At = '01:45'; Days = @('Saturday', 'Sunday'); Weeks = 1
+        Why  = 'nel weekend: allenatori e trasferimenti, coppe e amichevoli, archivio infortuni'
+        Args = @('--step', 'transfers', '--step', 'positions:extra', '--step', 'injuries') },
+    [pscustomobject]@{ Name = 'rose'; Minutes = 120; At = '01:45'; Days = @('Wednesday'); Weeks = 2
+        Why  = 'ogni 15 giorni: rose e contratti Transfermarkt, stemmi, tornei, heatmap, forma recente'
+        Args = @('--step', 'positions:crests', '--step', 'tournaments', '--step', 'positions:heatmap',
+            '--step', 'injuries:ids', '--step', 'recent_form') },
+    [pscustomobject]@{ Name = 'valori'; Minutes = 90; At = '01:45'; Days = @('Thursday'); Weeks = 2
+        Why  = 'ogni 15 giorni: la curva del valore di mercato (dopo le rose del giorno prima)'
+        Args = @('--step', 'market') },
+    # THE BUILD IS A SLICE OF ITS OWN, every night and after the longest second slot: derivation, the
+    # sheets, the packs, the bundle and the app's copy, on whatever the acquisition brought - more
+    # recent than yesterday anyway, and the manifest carries its own date.
+    [pscustomobject]@{ Name = 'build'; Minutes = 75; At = '03:45'; Days = @(); Weeks = 1
+        Why  = 'ogni notte: derivazione, fogli, pacchetti, bundle, copia nell app, quadro del mattino'
         Args = @('--phase', 'derive', '--phase', 'sheets', '--phase', 'packs', '--phase', 'bundle',
             '--phase', 'app') }
 )
@@ -221,14 +240,24 @@ except Exception as exc:
     return 0
 }
 
-function Get-SliceTimes {
-    $start = [datetime]::ParseExact($At, 'HH:mm', $null)
-    $times = [ordered]@{}
-    foreach ($one in $Slices) {
-        $times[$one.Name] = $start
-        $start = $start.AddMinutes($one.Minutes)
+# WHEN a slice runs, in the operator's words: the trigger is derived from the same fields the table
+# declares, so the schedule and the table cannot say two different things.
+function Get-SliceTrigger {
+    param($one)
+    if (-not $one.Days -or $one.Days.Count -eq 0) {
+        return New-ScheduledTaskTrigger -Daily -At $one.At
     }
-    $times
+    New-ScheduledTaskTrigger -Weekly -WeeksInterval $one.Weeks -DaysOfWeek $one.Days -At $one.At
+}
+
+function Get-SliceWhen {
+    param($one)
+    $it = @{ Monday = 'lun'; Tuesday = 'mar'; Wednesday = 'mer'; Thursday = 'gio'; Friday = 'ven';
+        Saturday = 'sab'; Sunday = 'dom' }
+    if (-not $one.Days -or $one.Days.Count -eq 0) { return "ogni notte alle $($one.At)" }
+    $days = ($one.Days | ForEach-Object { $it[$_] }) -join ' '
+    if ($one.Weeks -gt 1) { return "$days ogni $($one.Weeks) settimane alle $($one.At)" }
+    "$days alle $($one.At)"
 }
 
 if ($Register) {
@@ -238,7 +267,6 @@ if ($Register) {
     foreach ($old in $legacyTasks) {
         Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction SilentlyContinue
     }
-    $times = Get-SliceTimes
     foreach ($one in $Slices) {
         $action = New-ScheduledTaskAction -Execute $pwsh `
             -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Slice $($one.Name)" -WorkingDirectory $repo
@@ -254,17 +282,24 @@ if ($Register) {
             -MultipleInstances IgnoreNew
         $name = "$taskPrefix - $($one.Name)"
         Register-ScheduledTask -TaskName $name -Action $action `
-            -Trigger (New-ScheduledTaskTrigger -Daily -At $times[$one.Name].ToString('HH:mm')) `
+            -Trigger (Get-SliceTrigger $one) `
             -Settings $settings -Description "euroleghe-ingest, notte: $($one.Why)" -Force | Out-Null
-        Write-Host ("registrata: '{0}' alle {1}, limite {2} min" -f $name, $times[$one.Name].ToString('HH:mm'), $one.Minutes)
+        Write-Host ("registrata: '{0}' {1}, limite {2} min" -f $name, (Get-SliceWhen $one), $one.Minutes)
     }
+    # A slice that the table no longer declares must not keep running under its old name.
+    $declared = $Slices | ForEach-Object { "$taskPrefix - $($_.Name)" }
+    Get-ScheduledTask -TaskName "$taskPrefix - *" -ErrorAction SilentlyContinue |
+        Where-Object { $declared -notcontains $_.TaskName } | ForEach-Object {
+            Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
+            Write-Host "rimossa: '$($_.TaskName)' (non e' piu' una fetta dichiarata)"
+        }
     Write-Host "  log in $logDir\nightly-<data>.log, quadro del mattino in $logDir\morning.txt"
     exit 0
 }
 
 if ($Unregister) {
-    foreach ($one in $Slices) {
-        Unregister-ScheduledTask -TaskName "$taskPrefix - $($one.Name)" -Confirm:$false -ErrorAction SilentlyContinue
+    Get-ScheduledTask -TaskName "$taskPrefix - *" -ErrorAction SilentlyContinue | ForEach-Object {
+        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
     }
     foreach ($old in $legacyTasks) {
         Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction SilentlyContinue
@@ -279,8 +314,8 @@ if ($Status) {
         $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if (-not $task) { Write-Host "  $($one.Name): NON registrata"; continue }
         $info = Get-ScheduledTaskInfo -TaskName $name
-        Write-Host ("  {0,-9} {1} | ultima {2} | esito {3} | prossima {4}" -f `
-                $one.Name, $task.State, $info.LastRunTime, $info.LastTaskResult, $info.NextRunTime)
+        Write-Host ("  {0,-9} {1} ({2}) | ultima {3} | esito {4} | prossima {5}" -f `
+                $one.Name, (Get-SliceWhen $one), $task.State, $info.LastRunTime, $info.LastTaskResult, $info.NextRunTime)
     }
     foreach ($old in $legacyTasks) {
         if (Get-ScheduledTask -TaskName $old -ErrorAction SilentlyContinue) {

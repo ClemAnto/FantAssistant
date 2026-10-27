@@ -374,7 +374,7 @@ ACTIONS = {"stats_derive": _run_stats_derive, "sheets": _run_sheets, "packs": _r
 def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool = False,
         offline: bool = False, daily: bool = False, steps_from: str | None = None,
         steps_to: str | None = None, skip: tuple[str, ...] = (), seasons=None,
-        refresh: bool = True, **kwargs) -> dict:
+        refresh: bool = True, only: tuple[str, ...] = (), **kwargs) -> dict:
     """Run the update. `plan_only` prints the plan and touches nothing.
 
     A failure does not end the run: it is caught, named and carried to the SUMMARY, because stopping at
@@ -396,12 +396,17 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
                  seasons=tuple(seasons) if seasons else None, refresh=refresh, daily=daily)
 
     keys = [step.key for step in steps]
-    for name, value in (("--from", steps_from), ("--to", steps_to)):
+    for name, value in (("--from", steps_from), ("--to", steps_to),
+                        *(("--step", one) for one in only)):
         if value and value not in keys:
             raise RuntimeError(f"{name}={value!r} is not a step. Steps: {', '.join(keys)}")
     start = keys.index(steps_from) if steps_from else 0
     stop = keys.index(steps_to) + 1 if steps_to else len(steps)
-    selected = tuple(step for step in steps[start:stop] if step.key not in skip)
+    # `--step` picks steps that are not contiguous (the nightly's slices group them by CADENCE, not by
+    # position), and they still run in the plan's own order: the dependency graph is not the caller's
+    # to rearrange.
+    selected = tuple(step for step in steps[start:stop]
+                     if step.key not in skip and (not only or step.key in only))
 
     print_plan(ctx, selected)
     if daily:

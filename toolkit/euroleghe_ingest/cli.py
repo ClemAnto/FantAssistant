@@ -94,6 +94,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_upd.add_argument("--to", dest="steps_to", metavar="STEP", help="stop after this step")
     p_upd.add_argument("--skip", action="append", metavar="STEP", default=[],
                        help="skip a step (repeatable)")
+    p_upd.add_argument("--step", dest="only", action="append", metavar="STEP", default=[],
+                       help="only these steps, in the plan's order (repeatable)")
     p_upd.add_argument("--season", action="append", metavar="YYYY-YY",
                        help="limit the votes/listone download to these seasons (repeatable)")
     p_upd.add_argument("--no-refresh", dest="refresh", action="store_false",
@@ -568,7 +570,8 @@ def main(argv: list[str] | None = None) -> int:
                                    daily=args.daily,
                                    phases=tuple(args.phase) if args.phase else None,
                                    steps_from=args.steps_from, steps_to=args.steps_to,
-                                   skip=tuple(args.skip), seasons=args.season,
+                                   skip=tuple(args.skip), only=tuple(args.only),
+                                   seasons=args.season,
                                    refresh=args.refresh)
             elif args.command == "timepack":
                 load("timepack").run(ctx, date=args.date, plan=args.plan,

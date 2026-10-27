@@ -10940,6 +10940,16 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   `database is locked` del mattino. Ora il limite lo applica lo script con `taskkill /T /F` sull'albero, l'uscita va
   nel log con `cmd /c >>` e in UTF-8 (`PYTHONIOENCODING`, prima «·» diventava «À»). Provato con una fetta da un
   minuto su `market`: tagliata in tempo, zero orfani.
+- **Rielaborata per CADENZA** (sue regole: «vedi ciò che serve aggiornare più spesso da quello che serve aggiornare meno
+  spesso», «qualcosa magari possiamo aggiornarla ogni 15gg»): sei fette, ognuna ≤ 2 ore —
+  `base` ogni notte 00:30 (inbox, rosters, stats, i due ratings, positions season/roles/match/complete, elo, fixtures,
+  fc_site) · `presenze` lun mar ven 01:45 (`performance`: il mattino dopo le giornate di domenica, lunedì e del turno
+  infrasettimanale, prima che si consegni una formazione) · `infortuni` sab dom 01:45 (transfers, positions:extra,
+  injuries a rotazione in due metà: le assenze di oggi le porta `fc_site` ogni notte) · `rose` mer ogni 2 settimane
+  (crests, tournaments, heatmap, injuries:ids, recent_form) · `valori` gio ogni 2 settimane (market, il giorno dopo le
+  rose di cui legge gli id) · `build` ogni notte 03:45. Nuovo `update --step` (passi non contigui, nell'ordine del
+  piano); `test_nightly_slices.py` pretende ogni passo d'acquisizione in esattamente una fetta e nessuna oltre 120'.
+  Il prezzo, detto: la curva di mercato e i contratti invecchiano fino a 15 giorni, i cambi di allenatore fino a 5.
 - `update` stampa l'ora di ogni passo e i minuti che ha preso (`modules/update.py`): la prossima taratura legge il log.
 - Da guardare: il primo `morning.txt` delle fette (28/10) e se `rose` sta nei 120' (il 26/10 gli infortuni ne
   presero 136 da soli; se taglia, riprende la notte dopo). Ridurre la CADENZA delle camminate TM (mercato e

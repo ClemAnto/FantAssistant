@@ -5669,10 +5669,15 @@ la regola che una scansione che comincia a essere rifiutata si abbandona). E non
 CLOUD, per la ragione già a verbale sul publishing: servono `data/`, la cache e le credenziali in
 `.env`, che stanno sulla macchina dell'operatore e su nessun runner. `scripts/nightly-update.ps1`, log in
 `data/logs/` (**gitignorata**: un log di `update` porta le note di `snapshot` coi NOMI dei giocatori, e
-il repo è pubblico). **Dal 27/10/2026 la notte è in CINQUE FETTE da massimo due ore** (sua regola: «5
-ore sono troppe»), cinque attività pianificate: `base` 00:30 (75') · `rose` 01:45 (120') · `valori`
-03:45 (90') · `presenze` 05:15 (90') · `build` 06:45 (75', con il quadro del mattino). Vedi la
-sezione «Una fetta della notte si uccide INTERA» più sotto.
+il repo è pubblico). **Dal 27/10/2026 la notte è in FETTE da massimo due ore, per CADENZA** (sue
+regole: «5 ore sono troppe», «vedi ciò che serve aggiornare più spesso ... qualcosa ogni 15gg»):
+`base` ogni notte 00:30 (75': voti e listone, SofaScore, calendario, Elo, probabili) · `presenze` lun
+mar ven 01:45 (90': `performance`, il ripiego di SofaScore, il mattino dopo le giornate) · `infortuni`
+sab dom 01:45 (120': allenatori e trasferimenti, coppe, archivio infortuni) · `rose` mer ogni 2
+settimane (120': rose e contratti TM, stemmi, tornei, heatmap, forma recente) · `valori` gio ogni 2
+settimane (90': curva del mercato) · `build` ogni notte 03:45 (75', con il quadro del mattino). Le
+fette si scelgono con `update --step` e `tests/test_nightly_slices.py` pretende ogni passo
+d'acquisizione in ESATTAMENTE una. Vedi «Una fetta della notte si uccide INTERA» più sotto.
 
 **L'INTERRUTTORE È `config/nightly.json`** — `{enabled, decided_on}`, la quinta cosa dichiarata dopo i
 board rulings, le note sui giocatori, le dritte e le coppe. NON `Disable-ScheduledTask`, e la ragione è
@@ -6010,7 +6015,9 @@ lunga mangiava la finestra di tutte quelle dopo (il 26/10 gli infortuni, 2h16, h
 e presenze); **`ExecutionTimeLimit` uccide PowerShell e NON il Python sotto di lui**, che continuava a
 scrivere in una pipe senza lettore e moriva su `OSError: [Errno 22]` — ogni riga notturna di
 `ingest_runs` dal 09/10 dice esattamente questo — **tenendo il database**; quindi la costruzione del
-mattino trovava `database is locked`. Ora cinque fette, ognuna un'attività sua con un limite suo, e il
+mattino trovava `database is locked`. Ora sei fette raggruppate per CADENZA (la domanda fatta a ogni
+passo è «quando cambia il suo fatto»: ogni notte, il mattino dopo le giornate, nel weekend, ogni 15
+giorni), ognuna un'attività sua con un limite suo, e il
 limite lo applica lo SCRIPT: l'update gira sotto `cmd /c` con l'uscita accodata direttamente al log
 (nessuna pipe che possa morirgli sotto) e allo scadere `taskkill /T /F` prende l'albero intero; quello
 del pianificatore resta un paracadute dieci minuti dopo. Una fetta tagliata scrive «TAGLIATA» e non un
