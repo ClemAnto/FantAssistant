@@ -1,5 +1,11 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato (IX): 22 ottobre 2026 — LO SCOUT SCAMBI e LE PRESENZE SU 2 GIORNATE.** Nuova pagina `/scout`: scambi
+**Aggiornato (X): 27 ottobre 2026 — PUBBLICATO v0.1.64.** Scout rifatto sul campetto (23/10), voto base della
+prossima partita che pesa il presente (`fva.recentMv`), colonna «Stampa» e set «stagione» sulla pagina Formazione
+(`formazione-leghe-v1.md` §4-terdecies e §4-quattuordecies). Dati del 27/10; la notte non è arrivata in fondo da sola
+(fogli oltre le 5 ore, mattino su `database is locked`) e i pacchetti del viaggio nel tempo non sono rifatti.
+Continuità del 23-27/10.
+
+· precedente: **Aggiornato (IX): 22 ottobre 2026 — LO SCOUT SCAMBI e LE PRESENZE SU 2 GIORNATE.** Nuova pagina `/scout`: scambi
 1x1 e 2x2 che migliorano subito l'undici di entrambe le squadre, con le regole dell'operatore come vincoli e la tabella
 MIEI | SUOI («+ dettagli»). Lungo la strada trovato e curato nel toolkit un bug che prevedeva le presenze su 2
 giornate in tutti i fogli (`features.target_matchdays`). In `scout-scambi-v1.md` e nella continuità del 22/10 (sera).

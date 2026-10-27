@@ -197,20 +197,37 @@
             @if (shown().length !== roster().length) {
               <span class="ml-2 text-[10px] text-muted" data-lineup-role-count>{{ shown().length }} di {{ roster().length }}</span>
             }
+            <!-- I SET DI COLONNE (sua richiesta, 23/10/2026), come nelle altre tabelle: un'icona per set, quello a schermo acceso. -->
+            <nz-radio-group class="ml-auto" nzSize="small" nzButtonStyle="solid" data-lineup-columns [ngModel]="columns()" (ngModelChange)="columns.set($event)">
+              <label nz-radio-button nzValue="default" data-lineup-columns-set="default"
+                nz-tooltip nzTooltipTitle="Default: trend, voto, FVA, quota"><nz-icon nzType="appstore" /></label>
+              <label nz-radio-button nzValue="season" data-lineup-columns-set="season"
+                nz-tooltip nzTooltipTitle="Stagione in corso: FM, MV, partite, G:A, xG, FVM, stampa"><nz-icon nzType="table" /></label>
+            </nz-radio-group>
           </div>
-          <div class="lineup-grid px-1 text-[10px] uppercase text-muted">
+          <div class="lineup-grid px-1 text-[10px] uppercase text-muted" [class.season]="columns() === 'season'">
             <span class="sort" (click)="sortBy('role')">R{{ arrow('role') }}</span>
             <span class="sort" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span>Partita</span>
+            <!-- FVA RIGHT AFTER THE MATCH, in every column set (operator, 23/10/2026). -->
+            <span class="sort text-right text-warning" (click)="sortBy('fva')" nz-tooltip nzTooltipTitle="Fanta Voto Atteso, se gioca"
+              >FVA{{ arrow('fva') }}</span
+            >
+            @if (columns() === 'season') {
+            <span class="sort text-right" (click)="sortBy('seasonFm')" nz-tooltip nzTooltipTitle="Fantamedia della stagione in corso, in campionato">FM{{ arrow('seasonFm') }}</span>
+            <span class="sort text-right" (click)="sortBy('seasonMv')" nz-tooltip nzTooltipTitle="Media voto della stagione in corso, in campionato">MV{{ arrow('seasonMv') }}</span>
+            <span class="sort text-right" (click)="sortBy('played')" nz-tooltip nzTooltipTitle="Partite giocate in campionato, stagione in corso">Pg{{ arrow('played') }}</span>
+            <span class="sort text-right" (click)="sortBy('ga')" nz-tooltip nzTooltipTitle="Gol:assist in campionato, stagione in corso">G:A{{ arrow('ga') }}</span>
+            <span class="sort text-right normal-case" (click)="sortBy('xg')" nz-tooltip nzTooltipTitle="Gol attesi, totali della stagione in corso">xG{{ arrow('xg') }}</span>
+            <span class="sort text-right" (click)="sortBy('fvm')" nz-tooltip nzTooltipTitle="Fantavalore di mercato del listone">FVM{{ arrow('fvm') }}</span>
+            <span class="sort" (click)="sortBy('press')" nz-tooltip nzTooltipTitle="Come lo schiera la stampa nella prossima partita">Stampa{{ arrow('press') }}</span>
+            } @else {
             <span class="sort" (click)="sortBy('trend')" nz-tooltip nzTooltipTitle="Voti delle ultime 5">Trend{{ arrow('trend') }}</span>
             <span class="sort text-right" (click)="sortBy('ga')" nz-tooltip nzTooltipTitle="Gol:assist in campionato, stagione in corso">G:A{{ arrow('ga') }}</span>
             <span class="sort text-right" (click)="sortBy('chance')" nz-tooltip nzTooltipTitle="Probabilità di prendere il voto"
               >Voto{{ arrow('chance') }}</span
             >
             <span class="sort text-right" (click)="sortBy('fm')" nz-tooltip nzTooltipTitle="Fantamedia prevista">Fm{{ arrow('fm') }}</span>
-            <span class="sort text-right text-warning" (click)="sortBy('fva')" nz-tooltip nzTooltipTitle="Fanta Voto Atteso, se gioca"
-              >FVA{{ arrow('fva') }}</span
-            >
             <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri); accanto, la probabilità corretta che segni se gioca, o che non prenda gol"
               >Quota{{ arrow('odds') }}</span
             >
@@ -218,6 +235,7 @@
               >{{ draft() ? 'Mia' : 'Consiglio' }}{{ arrow('advised') }}</span
             >
             <span nz-tooltip nzTooltipTitle="Dove lo mette la formazione già inviata a Leghe">Inviata</span>
+            }
           </div>
           <!-- THE TABLE IS A DROP LIST TOO: a man dragged from it goes on the pitch or the bench, and a man dropped back
                on it leaves the lineup. Sorting is off - the table keeps its own order, the drop only says «out». -->
@@ -234,6 +252,7 @@
                 [attr.data-fc-id]="man.fcId"
                 [attr.data-chance]="man.chance"
                 class="lineup-grid cursor-grab items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
+                [class.season]="columns() === 'season'"
                 [class.opacity-50]="!!man.outLabel"
                 cdkDrag
                 [cdkDragData]="man.fcId"
@@ -244,7 +263,10 @@
                 <ui-roles class="min-w-0 overflow-hidden" [roles]="man.roles" size="xs" />
                 <span class="flex min-w-0 items-center gap-1">
                   <ui-crest class="shrink-0" [club]="man.clubName ?? man.club" [clubId]="man.clubId" [crests]="store.crests()" fallback="shield" size="xs" />
+                  <!-- THE NAME COMES FIRST (operator, 23/10/2026: «il nome del calciatore sempre ben visibile»): the
+                       marks beside it shrink a hundred times faster, so they are cut before a letter of the name is. -->
                   <button type="button" class="min-w-0 truncate text-left font-medium hover:underline" (click)="openPlayer(man.fcId)">{{ man.name }}</button>
+                  <span class="flex min-w-0 shrink-100 items-center gap-1 overflow-hidden">
                   @if (man.pillar) {
                     <span
                       class="shrink-0 text-[10px]"
@@ -263,6 +285,7 @@
                   @if (man.note) {
                     <span nz-tooltip [nzTooltipTitle]="man.note" class="shrink-0 text-[10px] text-warning"><nz-icon nzType="info-circle" /></span>
                   }
+                  </span>
                 </span>
                 <!-- His own club in BOLD (operator, 09/10/2026), which also says home or away: the match
                      is written home first, as Leghe serves it. -->
@@ -271,6 +294,20 @@
                   ><span [class.font-bold]="man.home === true" [class.text-fg]="man.home === true">{{ sides[0] }}</span
                   >@if (sides.length > 1) {-<span [class.font-bold]="man.home === false" [class.text-fg]="man.home === false">{{ sides[1] }}</span>}</span
                 >
+                <span class="text-right font-semibold tabular-nums text-warning" nz-tooltip [nzTooltipTitle]="man.fvaWhy">{{ pts(man.fva) }}</span>
+                @if (columns() === 'season') {
+                @let st = man.season;
+                <span class="text-right tabular-nums" [class.italic]="st?.synthetic">{{ st?.fm == null ? '–' : (st!.fm | number: '1.2-2') }}</span>
+                <span class="text-right tabular-nums" [class.italic]="st?.synthetic">{{ st?.mv == null ? '–' : (st!.mv | number: '1.2-2') }}</span>
+                <span class="text-right tabular-nums">{{ st ? st.played : '–' }}</span>
+                <span class="text-right tabular-nums">{{ man.ga ? man.ga.goals + ':' + man.ga.assists : '–' }}</span>
+                <span class="text-right tabular-nums" [class.text-muted]="!!st && st.xgOn < st.played" nz-tooltip
+                  [nzTooltipTitle]="st && st.xgOn < st.played ? 'Attesi su ' + st.xgOn + ' partite di ' + st.played + ': la fonte non li ha per le altre' : ''">{{ xgText(st) }}</span>
+                <span class="text-right tabular-nums">{{ man.fvm ?? '–' }}</span>
+                <span class="text-[10px]" data-lineup-press [class.text-primary]="man.press?.word === 'Titolare'"
+                  [class.text-warning]="man.press?.word === 'Ballottaggio'" [class.text-muted]="!man.press || man.press.word === 'Panchina'"
+                  nz-tooltip [nzTooltipTitle]="pressTip(man.press)">{{ man.press?.word ?? '–' }}</span>
+                } @else {
                 <ui-vote-trend [cells]="man.trend" [height]="10" />
                 <span class="text-right tabular-nums">{{ man.ga ? man.ga.goals + ':' + man.ga.assists : '–' }}</span>
                 <span class="text-right tabular-nums">{{ pct(man.chance) }}</span>
@@ -281,7 +318,6 @@
                   [nzTooltipTitle]="man.fmFromLeghe ? 'Fantamedia di stagione da Leghe: il foglio non lo prezza' : ''"
                   >{{ man.fm === null ? '–' : (man.fm | number: '1.2-2') }}</span
                 >
-                <span class="text-right font-semibold tabular-nums text-warning" nz-tooltip [nzTooltipTitle]="man.fvaWhy">{{ pts(man.fva) }}</span>
                 @if (man.odds; as o) {
                   <!-- Two fixed-width sub-columns, both right-aligned, so the prices line up on their decimals and
                        the percentages on theirs whatever the width of the other (operator, 22/10/2026). -->
@@ -306,6 +342,7 @@
                 }
                 <span class="text-[10px]" [class.text-primary]="man.advised === 'Titolare'" [class.text-muted]="man.advised !== 'Titolare'">{{ man.advised ?? '' }}</span>
                 <span class="text-[10px] text-muted">{{ man.placed ?? '' }}</span>
+                }
               </li>
             } @empty {
               <li class="px-1 text-xs text-muted">

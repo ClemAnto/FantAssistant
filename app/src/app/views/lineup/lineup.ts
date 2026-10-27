@@ -23,7 +23,7 @@ import { DropTarget, LineupDraft, NO_SWITCH, draftOf, drawDraft, move, relayout 
 import { LegheSession } from '../../core/leghe-session';
 import { RosterFileStore, leagueOfFile, matchdayFromFile } from '../../core/roster-file';
 import { PlayerStatus } from '../../core/player-status';
-import { FvaInput, fvaOf, fvaWords, goalChance, restPerMatch } from '../../core/fva';
+import { FvaInput, fvaOf, fvaWords, goalChance, recentMv, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
 import { TimeTravel } from '../../core/time-travel';
 import {
@@ -50,6 +50,7 @@ import {
   clubOfCard,
   playerCard,
   playerOfCard,
+  SeasonTotals,
   seasonTotals,
 } from '../../core/player-card';
 import { EDGE_BASE, Role } from '../../core/plancia';
@@ -57,6 +58,9 @@ import { TrendCell, trendVoteMean } from '../../core/player-trend';
 import { Standings, placeOf, standingsOf } from '../../core/standings';
 import { PlayersStore, isChampionship } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
+import { NextRoundStore } from '../../core/next-round-store';
+import { PressCall, pressCallsFor } from '../../core/next-round';
+import { storedJson } from '../../core/view-state';
 import { WidgetFeed, widgetMen } from '../../core/widget-feed';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
@@ -119,10 +123,24 @@ export interface RosterLine extends NextMatchRow {
   ga: { goals: number; assists: number } | null;
   /** A pillar (`core/pillars.ts`), one suspended by a bad streak, or neither: the star beside the name. */
   pillar: PillarState;
+  /**
+   * This season's championship, as the player card counts it (`seasonTotals`): the «stagione» column set.
+   * xG and xA are TOTALS (the card's mean per match times the matches it stands on), beside goals and assists.
+   */
+  season: SeasonTotals | null;
+  /** His FVM on this listone, in the league's game (`ValuationStore.fvmOf`); null = the listone does not quote him. */
+  fvm: number | null;
+  /** Where the press fields him in his next match (`next-round.pressCallsFor`); null = not read. */
+  press: PressCall | null;
 }
 
+/** The table's column sets (operator, 23/10/2026): the default one, and this season's stats. */
+export type LineupColumns = 'default' | 'season';
+
 /** The roster table's sortable columns. */
-export type LineupSort = 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'fva' | 'odds' | 'advised';
+export type LineupSort =
+  | 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'fva' | 'odds' | 'advised'
+  | 'seasonFm' | 'seasonMv' | 'played' | 'xg' | 'fvm' | 'press';
 
 /** Three drawings of the same pitch: ours, his own edit of it, or what Leghe already holds. */
 export type PitchSource = 'advised' | 'edited' | 'sent';
@@ -182,8 +200,15 @@ type SaveState =
     /* ONE track list for the header and every row, so a column never drifts out of line. */
     .lineup-grid {
       display: grid;
-      grid-template-columns: 4.5rem minmax(0, 1fr) 6.5rem 2rem 2.5rem 2.5rem 2.75rem 2.25rem 4.75rem 4.75rem 4.75rem;
+      grid-template-columns: 3rem minmax(0, 1fr) 6.5rem 2.25rem 2rem 2.5rem 2.5rem 2.75rem 4.75rem 4.75rem 4.75rem;
       column-gap: 0.5rem;
+    }
+    /*
+     * The «stagione» set: FVA (shared, after the match), FM, MV, Pg, G:A, xG, FVM and the press's word in place of the default's middle columns,
+     * and no «Consiglio» / «Inviata» (operator, 23/10/2026): the room goes to the name.
+     */
+    .lineup-grid.season {
+      grid-template-columns: 3rem minmax(0, 1fr) 6.5rem 2.25rem 2.75rem 2.75rem 2rem 2.5rem 2.5rem 2.75rem 5.25rem;
     }
     .sort { cursor: pointer; user-select: none; }
   `,
@@ -200,6 +225,8 @@ export class Lineup {
   /** The roster comes from the league's export file, not from a login (`core/roster-file.ts`, 16/10/2026). */
   protected readonly rosterFile = inject(RosterFileStore);
   private readonly status = inject(PlayerStatus);
+  /** The press sheet's next round (`core/next-round-store`): where the sources field each man in his next match. */
+  private readonly nextRound = inject(NextRoundStore);
   protected readonly connecting = signal(false);
 
   /** «Invia al widget» (10/10/2026): the Android widget's squad, sent to the Sheet (`core/widget-feed.ts`). */
@@ -320,6 +347,8 @@ export class Lineup {
   });
   protected readonly sortKey = signal<LineupSort>('advised');
   protected readonly sortDesc = signal(false);
+  /** Which column set the table shows; remembered, like the other tables' sets. */
+  protected readonly columns = storedJson<LineupColumns>('lineup.columns', (raw) => (raw === 'season' ? 'season' : 'default'));
 
   /** The roles the table is filtered on (operator, 09/10/2026), lowercase: any of them; none = everybody. */
   protected readonly roleFilter = signal<ReadonlySet<string>>(new Set());
@@ -328,6 +357,7 @@ export class Lineup {
     void this.store.load();
     this.odds.load();
     void this.players.load();
+    this.nextRound.load();
   }
 
   /** The matchday read, or null while there is none (a resource in error throws on `value()`). */
@@ -570,6 +600,24 @@ export class Lineup {
     return new Map(rows.map((r) => [r.fcId, r]));
   });
 
+  /**
+   * WHERE THE PRESS FIELDS EACH MAN NEXT (operator, 23/10/2026), from the same reduction that draws the clubs
+   * page's «Prossimo turno» pitch. The club is joined by the listone's squad ids, never by name.
+   */
+  private readonly pressCalls = computed(() => {
+    const md = this.md();
+    if (!md) return new Map<number, PressCall>();
+    const squads = new Map<number, number[]>();
+    for (const row of this.store.allRosters().get(this.platform()) ?? []) {
+      if (row.clubId === null || row.sold) continue;
+      const one = squads.get(row.clubId) ?? [];
+      one.push(row.fcId);
+      squads.set(row.clubId, one);
+    }
+    const rows = this.bundleRows();
+    const men = md.roster.map((r) => ({ fcId: r.fcId, clubId: rows.get(r.fcId)?.clubId ?? null }));
+    return pressCallsFor(this.nextRound.round(), squads, men, Date.now());
+  });
   /** Every club's squad on this listone, by the bundle's club id: the names a bookmakers' match is checked against. */
   private readonly squads = computed(() => {
     const out = new Map<number, { club: string; names: string[] }>();
@@ -640,6 +688,9 @@ export class Lineup {
         appearances: number;
         restPerMatch: number | null;
         ga: { goals: number; assists: number } | null;
+        now: SeasonTotals | null;
+        /** This season's real championship votes, oldest first: what the next match's base vote reads (`recentMv`). */
+        votes: number[];
       }
     >();
     const platform = this.platform();
@@ -659,6 +710,11 @@ export class Lineup {
         appearances: played,
         restPerMatch: restPerMatch(championship),
         ga: gaOf(now),
+        now,
+        votes: cellsNow
+          .filter((one) => isChampionship(one.kind) && one.state === 'played' && one.vote != null && !one.voteSynthetic)
+          .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+          .map((one) => one.vote as number),
       });
     }
     return out;
@@ -772,6 +828,9 @@ export class Lineup {
         input: {
           keeper,
           mv: expected?.mv ?? r.vote,
+          // The NEXT match's base vote: the sheet's season MV with this season's votes weighed in, the recent ones
+          // more (`fva.recentMv`, measured). Keepers keep the sheet's: their next-match vote was not measured.
+          mvNext: keeper ? null : recentMv(expected?.mv ?? r.vote, this.football().get(r.fcId)?.votes ?? []),
           fm,
           minutes: expected?.minutesNext ?? null,
           goalsPerMatch: keeper ? null : (this.football().get(r.fcId)?.goalsPerMatch ?? null),
@@ -1195,6 +1254,7 @@ export class Lineup {
     const rows = this.bundleRows();
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
     const oddsByMan = this.oddsByMan();
+    const press = this.pressCalls();
     const lines: RosterLine[] = md.roster.map((r) => {
       const man = priced.get(r.fcId)!;
       const own = rows.get(r.fcId);
@@ -1216,6 +1276,9 @@ export class Lineup {
         trend: sheet?.get(r.fcId)?.recentVotes ?? [],
         ga: this.football().get(r.fcId)?.ga ?? null,
         pillar: this.pillars().get(r.fcId) ?? null,
+        season: this.football().get(r.fcId)?.now ?? null,
+        fvm: this.store.fvmOf(this.platform(), r.fcId, this.game() === 'mantra' ? 'mantra' : 'classic'),
+        press: press.get(r.fcId) ?? null,
       };
     });
     const roleRank = (r: RosterLine) => {
@@ -1247,6 +1310,18 @@ export class Lineup {
           return oddsSortValue(a.odds) - oddsSortValue(b.odds);
         case 'advised':
           return this.placeRank(a.advised) - this.placeRank(b.advised) || roleRank(a) - roleRank(b);
+        case 'seasonFm':
+          return num(b.season?.fm ?? null) - num(a.season?.fm ?? null);
+        case 'seasonMv':
+          return num(b.season?.mv ?? null) - num(a.season?.mv ?? null);
+        case 'played':
+          return num(b.season?.played ?? null) - num(a.season?.played ?? null);
+        case 'xg':
+          return num(xgTotal(b.season)) - num(xgTotal(a.season));
+        case 'fvm':
+          return num(b.fvm) - num(a.fvm);
+        case 'press':
+          return pressRank(a.press) - pressRank(b.press);
       }
     };
     const sign = this.sortDesc() ? -1 : 1;
@@ -1261,6 +1336,20 @@ export class Lineup {
       this.sortKey.set(key);
       this.sortDesc.set(false);
     }
+  }
+
+  /** `1.8`, the season's xG total (operator, 23/10/2026: xG alone, no xA); a dash where the source published none. */
+  protected xgText(totals: SeasonTotals | null): string {
+    const xg = xgTotal(totals);
+    return xg === null ? '–' : xg.toFixed(1);
+  }
+
+  /** The press cell's tooltip: how many sources field him, which ones, and when the reading was taken. */
+  protected pressTip(call: PressCall | null): string {
+    if (!call) return 'La stampa non ha letto il suo club per la prossima partita';
+    const who = call.votes ? `${call.votes} fonti su ${call.of} lo schierano` + (call.by.length ? `: ${call.by.join(', ')}` : '') : `Nessuna delle ${call.of} fonti lo schiera`;
+    const when = call.takenAt ? ` · letto ${call.takenAt.toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '';
+    return who + when;
   }
 
   protected arrow(key: LineupSort): string {
@@ -1415,6 +1504,15 @@ function asSaveMan(man: LineupMan): SaveMan {
 }
 
 /** The pair the table prints `3:1`; null when he has no championship match this season. */
+/** The press words in the order a lineup reads them; unread last. */
+function pressRank(call: PressCall | null): number {
+  return call ? ['Titolare', 'Ballottaggio', 'Panchina'].indexOf(call.word) : 3;
+}
+/** xG as a season TOTAL: the card's mean per match times the matches it stands on. */
+export function xgTotal(totals: SeasonTotals | null): number | null {
+  return totals?.xg == null ? null : totals.xg * totals.xgOn;
+}
+
 function gaOf(totals: { goals: number; assists: number } | null): { goals: number; assists: number } | null {
   return totals ? { goals: totals.goals, assists: totals.assists } : null;
 }

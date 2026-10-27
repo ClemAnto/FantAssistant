@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  afterOfficial, leadMinutes, linesFor, nextClubFor, nextPitch, nextShapes, parseNextRound,
+  afterOfficial, leadMinutes, linesFor, nextClubFor, nextPitch, nextShapes, parseNextRound, pressCallsFor,
 } from './next-round';
 
 /**
@@ -179,6 +179,36 @@ describe('which club of the payload is the one on screen', () => {
   it('answers null with nothing read and null with an empty squad, which are two silences', () => {
     expect(nextClubFor(null, [1, 2, 3])).toBeNull();
     expect(nextClubFor(parseNextRound(two), [])).toBeNull();
+  });
+});
+
+describe('the press word for each man of a roster', () => {
+  const ids = (from: number, n: number) => Array.from({ length: n }, (_, i) => from + i);
+  const at = (id: number, votes: number) => man(`M${id}`, votes, 4, { fc_id: id, by: ['a'] });
+  // Ten certain men (1-10), two at the cut for the last shirt (11, 12), one named by a single source (13).
+  const round = parseNextRound({
+    clubs: {
+      alfa: {
+        club: 'Alfa', of: 4, kickoff: '2026-10-25T14:00:00Z',
+        men: [...ids(1, 10).map((id) => at(id, 4)), at(11, 2), at(12, 2), at(13, 1)],
+      },
+    },
+  });
+  const squads = new Map([[7, ids(1, 15)]]);
+  const before = Date.parse('2026-10-25T10:00:00Z');
+
+  it('titolare, ballottaggio (tied, or named by one source) and panchina', () => {
+    const calls = pressCallsFor(round, squads, [1, 11, 13, 15].map((fcId) => ({ fcId, clubId: 7 })), before);
+    expect(calls.get(1)!.word).toBe('Titolare');
+    expect(calls.get(11)!.word).toBe('Ballottaggio');
+    expect(calls.get(13)!.word).toBe('Ballottaggio');
+    expect(calls.get(15)!).toMatchObject({ word: 'Panchina', votes: 0, of: 4 });
+  });
+
+  it('says nothing about a club the payload does not carry, or a match already played', () => {
+    expect(pressCallsFor(round, new Map([[8, [90, 91, 92]]]), [{ fcId: 90, clubId: 8 }], before).size).toBe(0);
+    const after = Date.parse('2026-10-25T18:00:00Z');
+    expect(pressCallsFor(round, squads, [{ fcId: 1, clubId: 7 }], after).size).toBe(0);
   });
 });
 

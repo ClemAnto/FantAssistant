@@ -10911,3 +10911,18 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   verificato: build ok, 1582 test verdi. Da committare insieme quando l'altra metà è chiusa.
 - Aperti: vedere il set «stagione» a schermo (nessun CSV per il banco `e2e-lineup-file`); `recentMv` sui portieri
   non misurato.
+
+## 23-27 ottobre 2026 — LA COLONNA «STAMPA», DUE DEPLOY, E LA NOTTE CHE NON ARRIVA IN FONDO (v0.1.64, pubblicato)
+
+- **Chiuso il commit parziale del 23/10**: l'«altra metà» di `lineup.ts`/`.html` era la colonna «Stampa» e il ritocco
+  del set «stagione» (`formazione-leghe-v1.md` §4-quattuordecies), ora committati insieme a `core/next-round.*` e al
+  cablaggio di `recentMv`. `pressCallsFor`: titolare / ballottaggio / panchina dal payload dal vivo, club per `fc_id`,
+  vuoto dopo tre ore dal calcio d'inizio. Solo xG, FVA dopo la partita, nome sempre visibile.
+- **Deploy**: v0.1.63 il 23/10 (dopo `update` completo), **v0.1.64 il 27/10**, bundle 27/10 14:50 UTC, 17/17 tabelle,
+  34,5 MB. Verificati in rete l'hash di `main-*.js` e il `generated_at` del manifest.
+- **La notte del 27/10 non ha prodotto il deliverable**: l'acquisizione e la derivazione sono finite, ma i fogli hanno
+  superato il limite di 5 ore e la costruzione del mattino è caduta su `database is locked`. Ricostruiti a mano
+  `--phase sheets,bundle,app` in pochi minuti. **Pacchetti del viaggio nel tempo NON rifatti** (date passate, ~20 min).
+  Se si ripete, rivedere la finestra della notte o far aspettare il mattino sul lock (`retry_on_lock`).
+- Restano stantii gli strati già noti: ruoli granulari e calendario (SofaScore 403 dal 24/09), forza dei club
+  (ClubElo 502, archivio fermo), curva di mercato, giudice stampa.

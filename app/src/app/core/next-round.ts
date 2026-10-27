@@ -264,6 +264,70 @@ export function nextClubFor(round: NextRound | null, squad: Iterable<number>): N
   return hits >= CLUB_JOIN_MIN && !tied ? best : null;
 }
 
+/**
+ * DOVE LA STAMPA METTE UN UOMO NELLA PROSSIMA PARTITA (operatore, 23/10/2026: una colonna della pagina
+ * Formazione «con lo schieramento della stampa per la prossima partita (titolare/panchina/ballottaggio)»).
+ *
+ * Tre parole, lette dalla stessa riduzione che disegna il campetto «Prossimo turno», non da una seconda:
+ * `Titolare` = fra i certi; `Ballottaggio` = fra i pari merito che si giocano le maglie rimaste, OPPURE
+ * nominato da almeno una fonte senza entrare nell'undici (una fonte lo fa partire, quindi la maglia è in
+ * discussione); `Panchina` = il suo club è stato letto e nessuna fonte lo schiera.
+ */
+export type PressWord = 'Titolare' | 'Ballottaggio' | 'Panchina';
+
+export interface PressCall {
+  readonly word: PressWord;
+  /** Quante fonti lo schierano su quante hanno letto il club: zero per chi va in panchina. */
+  readonly votes: number;
+  readonly of: number;
+  readonly by: readonly string[];
+  readonly kickoff: Date | null;
+  readonly takenAt: Date | null;
+}
+
+/**
+ * Quanto dopo il calcio d'inizio una lettura smette di valere per «la prossima partita»: a partita finita la
+ * lettura salvata (§ `NextRoundStore.cache`) descrive una partita giocata, e una parola su quella si
+ * leggerebbe come una su quella che viene. Tre ore coprono una partita e il suo recupero.
+ */
+export const PRESS_STALE_AFTER_MS = 3 * 60 * 60 * 1000;
+
+/**
+ * La parola della stampa per ogni uomo di una rosa, AGGANCIANDO IL CLUB PER `fc_id` (`nextClubFor`, mai per
+ * nome). `squads` è la rosa del listone per club; `men` gli uomini da etichettare col loro club. Un uomo il
+ * cui club il payload non porta, o porta per una partita già giocata, non ha parola: vuoto = ignoto.
+ */
+export function pressCallsFor(
+  round: NextRound | null,
+  squads: ReadonlyMap<number, readonly number[]>,
+  men: Iterable<{ fcId: number; clubId: number | null }>,
+  now: number,
+): Map<number, PressCall> {
+  const out = new Map<number, PressCall>();
+  if (!round) return out;
+  const clubOf = new Map<number, NextClub | null>();
+  for (const man of men) {
+    if (man.clubId === null) continue;
+    if (!clubOf.has(man.clubId)) {
+      const club = nextClubFor(round, squads.get(man.clubId) ?? []);
+      const stale = !!club?.kickoff && now - club.kickoff.getTime() > PRESS_STALE_AFTER_MS;
+      clubOf.set(man.clubId, stale ? null : club);
+    }
+    const club = clubOf.get(man.clubId);
+    if (!club) continue;
+    const at = { of: club.sources, kickoff: club.kickoff, takenAt: club.takenAt };
+    const find = (list: readonly NextMan[]) => list.find((m) => m.fcId === man.fcId);
+    const certain = find(club.certain);
+    const named = certain ?? find(club.contested) ?? find(club.out);
+    if (named) {
+      out.set(man.fcId, { word: certain ? 'Titolare' : 'Ballottaggio', votes: named.votes, by: named.by, ...at });
+    } else {
+      out.set(man.fcId, { word: 'Panchina', votes: 0, by: [], ...at });
+    }
+  }
+  return out;
+}
+
 // =================================================================================================
 // IL MODULO E I POSTI - moduli REALI, e la nostra assegnazione
 // =================================================================================================

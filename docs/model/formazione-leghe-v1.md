@@ -751,6 +751,27 @@ Woltemade 6,135 → 5,96, Noslin 6,18 → 6,33 — circa 0,3 di FVA, più dello 
 FM, FVA, quota) e **stagione**: FM, MV, Pg, G:A, xG:xA (totali, attenuati se la fonte copre meno partite di Pg —
 SofaScore chiuso dal 24/09), FVM del listone nel gioco della lega. Scelta ricordata (`lineup.columns`).
 
+## §4-quattuordecies. La colonna «Stampa» e il set «stagione» ritoccato (23/10/2026, pubblicato v0.1.63-64)
+
+Cinque richieste sulla tabella, tutte di presentazione: nessun numero del motore si muove.
+- **Colonna «Stampa»** (`next-round.pressCallsFor`): la parola che la stampa dà a ogni uomo per la PROSSIMA partita,
+  letta dallo stesso payload dal vivo del campetto «Prossimo turno» (lo stesso `NextRoundStore`, una riduzione e due
+  lettori). `Titolare` = fra i certi; `Ballottaggio` = fra i pari merito sulle maglie rimaste, oppure nominato da
+  almeno una fonte senza entrare nell'undici; `Panchina` = il suo club è letto e nessuna fonte lo schiera. Il club si
+  aggancia per `fc_id` (`nextClubFor`), mai per nome; un club che il payload non porta resta VUOTO, e così uno la cui
+  partita è iniziata da più di tre ore (`PRESS_STALE_AFTER_MS`): una lettura su una partita giocata si leggerebbe
+  come una sulla prossima. Ordinabile (titolare → ballottaggio → panchina → ignoto), tooltip con fonti, voti su
+  letture e ora della presa. REPORTING: è la stampa, giudice e mai input.
+- **Set «stagione»**: solo **xG** (scritto con la x minuscola), via xA; via Consiglio e Inviata (restano nel set di
+  default); il **FVA subito dopo la colonna della partita** in tutt'e due i set.
+- **Il nome resta leggibile**: i marchi dopo il nome stanno in uno span che si stringe prima di lui, e la colonna del
+  ruolo è più stretta. Griglie: default `3rem minmax(0,1fr) 6.5rem 2.25rem 2rem 2.5rem 2.5rem 2.75rem 4.75rem
+  4.75rem 4.75rem`, stagione `3rem minmax(0,1fr) 6.5rem 2.25rem 2.75rem 2.75rem 2rem 2.5rem 2.5rem 2.75rem 5.25rem`.
+
+Verifica: 30/30 test di `next-round.spec.ts`, build pulito, pubblicata e controllata in rete (v0.1.63 il 23/10,
+v0.1.64 il 27/10 coi dati del giorno). Aperto: il set «stagione» e la colonna non hanno un banco e2e (nessun CSV per
+`e2e-lineup-file`).
+
 ## §5. Aperti, in ordine
 
 **Dal 22 ottobre 2026 (§4-duodecies):** rimisurare la curva delle quote gol e la porta inviolata a ~500 gol;
