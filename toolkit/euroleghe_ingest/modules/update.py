@@ -123,6 +123,73 @@ def complete_step(ctx: Context, key: str, now: dt.datetime | None = None) -> Non
     _write_state(ctx, steps)
 
 
+# BEFORE THE LINEUP (operator, 27/10/2026: «prevedi un sistema che recuperi tutte le informazioni
+# necessarie, recuperando ad esempio gli aggiornamenti falliti, prima dell'inserimento formazione, giorno
+# delle partite»). A lineup is handed in before the FIRST match of a round, so the morning of that day is
+# the last moment a reading can still change it. The preset is three things, all already in this file:
+#   - the DAILY readings (`DAILY`): the probabili/indisponibili of that morning, today's squads and roles,
+#     the calendar, then the sheets, the bundle and the app's copy;
+#   - the CATCH-UP: every input of the lineup whose last cycle did not complete, or completed longer
+#     ago than the fact can stand (`LINEUP_CATCHUP`) - read from the same record `begin_step` writes,
+#     so a step cut or failed in the night is re-run here and RESUMES rather than restarts;
+#   - the derivation, when the catch-up brought new votes or matches, because the sheets read it.
+# What is left out is the weekly and fortnightly archives (injury history, value curve, squad pages):
+# none of them moves between a Friday and a Saturday, and today's absences are `fc_site`'s.
+LINEUP_CATCHUP: dict[str, float] = {
+    # the last round's votes and the listone's FVM: a round is voted the morning after it ends
+    "ratings:default": 24, "ratings:euro": 24,
+    # SofaScore's per-match layer (closed since 24/09: these fail in seconds, and come back by themselves)
+    "positions:season": 24, "positions:match": 24, "positions:complete": 24,
+    # Transfermarkt's per-match layer, the trend's backup: read the mornings after the rounds
+    "performance": 48,
+    # the coaches: a sacking changes the board the lineup is drawn against
+    "transfers": 168,
+}
+
+
+def lineup_catchup(ctx: Context, now: dt.datetime | None = None) -> dict[str, str]:
+    """{step: why} for the lineup's inputs that are interrupted, never completed, or too old."""
+    now = now or dt.datetime.now(tz=dt.UTC)
+    state = read_state(ctx)
+    out: dict[str, str] = {}
+    for key, hours in LINEUP_CATCHUP.items():
+        entry = state.get(key) or {}
+        done = entry.get("completed_at")
+        if not done:
+            out[key] = ("interrotto o fallito, giro del "
+                        f"{dt.datetime.fromisoformat(entry['started_at']).astimezone():%d/%m %H:%M}"
+                        if entry.get("started_at") else "mai completato")
+            continue
+        age = now - dt.datetime.fromisoformat(done)
+        if age > dt.timedelta(hours=hours):
+            out[key] = f"ultimo completo {age.total_seconds() / 3600:.0f} ore fa (tiene {hours:.0f})"
+    return out
+
+
+def lineup_day(ctx: Context, today: dt.date | None = None) -> list[str]:
+    """Why TODAY is a day a lineup is handed in - empty when it is not.
+
+    A round of ANY of the five championships that STARTS today: Leghe locks at the first Serie A match,
+    and a EuroLeghe round bundles a different real round in each championship, whose future mapping is
+    not on file (`matchday_map` is derived from votes), so the earliest of them cannot be told apart in
+    advance. Every league's round start is therefore a lineup day - three runs on a weekend that opens on
+    Friday in France and closes on Sunday in Spain, which is the price of never missing a deadline.
+    Read off `fixtures`, by date: the unit is the match, and a round begins on its earliest fixture.
+    """
+    from euroleghe_ingest.config import LEAGUES
+    names = {"serie_a": "Serie A", "premier_league": "Premier League", "la_liga": "Liga",
+             "bundesliga": "Bundesliga", "ligue_1": "Ligue 1"}
+    today = today or dt.datetime.now(tz=dt.UTC).date()
+    conn = ctx.require_conn()
+    marks = ",".join("?" * len(LEAGUES))
+    started = conn.execute(
+        f"SELECT league, round FROM fixtures f WHERE league IN ({marks}) AND date = ? "
+        f"AND date = (SELECT MIN(date) FROM fixtures g WHERE g.league = f.league "
+        f"AND g.season = f.season AND g.round = f.round) GROUP BY league, round ORDER BY league",
+        (*LEAGUES, today.isoformat())).fetchall()
+    return [f"comincia la {rnd}a giornata di {names.get(league, league)}" for league, rnd in started]
+
+
 # How many consecutive failures abandon the ACQUISITION phase. «A long sweep that starts getting refused
 # is a sweep to abandon» (17/08/2026, the 91 cache files): continuing does not reopen the source, and the
 # offline half of an update is still worth doing on the data already in hand. Three and not five because
@@ -441,7 +508,8 @@ ACTIONS = {"stats_derive": _run_stats_derive, "sheets": _run_sheets, "packs": _r
 def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool = False,
         offline: bool = False, daily: bool = False, steps_from: str | None = None,
         steps_to: str | None = None, skip: tuple[str, ...] = (), seasons=None,
-        refresh: bool = True, only: tuple[str, ...] = (), **kwargs) -> dict:
+        refresh: bool = True, only: tuple[str, ...] = (), before_lineup: bool = False,
+        force: bool = False, **kwargs) -> dict:
     """Run the update. `plan_only` prints the plan and touches nothing.
 
     A failure does not end the run: it is caught, named and carried to the SUMMARY, because stopping at
@@ -459,6 +527,22 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
         phases = tuple(key for key in PHASE_KEYS if key != "acquire")
     if isinstance(seasons, str):
         seasons = (seasons,)
+    if before_lineup:
+        # A SELECTION too, built from the record and the calendar; it never adds a step of its own.
+        reasons = lineup_day(ctx)
+        if not reasons and not force:
+            print("[update] --before-lineup: oggi non comincia nessun turno (né di Serie A né un blocco "
+                  "dei cinque campionati) - niente da fare. `--force` per farlo lo stesso")
+            return {"steps": [], "skipped": True}
+        needed = lineup_catchup(ctx)
+        print(f"[update] --before-lineup: {'; '.join(reasons) or 'forzato'}")
+        for key, why in needed.items():
+            print(f"[update]   da recuperare: {key} - {why}")
+        if not needed:
+            print("[update]   niente da recuperare: la notte ha completato ogni input della formazione")
+        acquired = [key for key in needed if key in {s.key for s in bootstrap.plan()}]
+        only = tuple(set(DAILY) | set(needed) | ({s.key for s in DERIVE} if acquired else set()))
+        daily = False
     steps = plan(tuple(phases) if phases else None,
                  seasons=tuple(seasons) if seasons else None, refresh=refresh, daily=daily)
 

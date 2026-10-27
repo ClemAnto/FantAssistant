@@ -243,6 +243,62 @@ def test_the_refreshing_modules_ask_the_shared_predicate_and_not_the_bare_flag()
     assert "ctx.needs_download(" in inspect.getsource(injuries.fetch_squads)
 
 
+# ----------------------------------------------------------------- the matchday morning
+def _fixture(ctx, league, rnd, date, event):
+    ctx.conn.execute("INSERT INTO fixtures (event_id, season, league, round, date, home_key, away_key, "
+                     "played, source, observed_on) VALUES (?, '2026-27', ?, ?, ?, 'a', 'b', 0, 't', ?)",
+                     (event, league, rnd, date, date))
+
+
+def test_a_lineup_day_is_the_day_a_round_of_one_of_the_five_STARTS(tmp_path):
+    import datetime as dt
+    ctx = _ctx(tmp_path)
+    _fixture(ctx, "serie_a", 10, "2026-10-31", "1")
+    _fixture(ctx, "serie_a", 10, "2026-11-01", "2")      # the round goes on: Sunday is not a start
+    _fixture(ctx, "ligue_1", 9, "2026-10-30", "3")
+    _fixture(ctx, "serie_b", 9, "2026-10-29", "4")      # a feeder: nobody hands a lineup in for it
+    assert update.lineup_day(ctx, dt.date(2026, 10, 31)) == ["comincia la 10a giornata di Serie A"]
+    assert update.lineup_day(ctx, dt.date(2026, 10, 30)) == ["comincia la 9a giornata di Ligue 1"]
+    assert update.lineup_day(ctx, dt.date(2026, 11, 1)) == []
+    assert update.lineup_day(ctx, dt.date(2026, 10, 29)) == []
+
+
+def test_the_catch_up_takes_what_was_cut_failed_or_is_too_old_and_nothing_else(tmp_path):
+    import datetime as dt
+    ctx = _ctx(tmp_path)
+    now = dt.datetime(2026, 10, 31, 8, 30, tzinfo=dt.UTC)
+    for key in update.LINEUP_CATCHUP:                     # everything fresh from last night...
+        update.begin_step(ctx, key, now=now - dt.timedelta(hours=6))
+        update.complete_step(ctx, key, now=now - dt.timedelta(hours=5))
+    update.begin_step(ctx, "performance", now=now - dt.timedelta(hours=4))    # ...but this was cut
+    steps = update.read_state(ctx)
+    steps["transfers"]["completed_at"] = (now - dt.timedelta(days=9)).isoformat()  # ...and this is old
+    update._write_state(ctx, steps)
+    assert set(update.lineup_catchup(ctx, now)) == {"performance", "transfers"}
+
+
+def test_before_lineup_does_nothing_on_a_day_no_round_starts_and_on_one_it_adds_the_catch_up(tmp_path):
+    import datetime as dt
+    ctx = _ctx(tmp_path)
+    assert update.run(ctx, before_lineup=True, plan_only=True)["skipped"] is True
+    out = update.run(ctx, before_lineup=True, force=True, plan_only=True)
+    # nothing on record: every lineup input is owed, the derivation follows the new votes, then the day's
+    assert {"ratings:default", "performance", "transfers"} <= set(out["steps"])
+    assert {"stats:derive", "synth", "fc_site", "sheets", "bundle"} <= set(out["steps"])
+    assert "market" not in out["steps"] and "injuries" not in out["steps"], "the archives wait"
+    # today a round starts: no force needed
+    _fixture(ctx, "serie_a", 10, dt.datetime.now(tz=dt.UTC).date().isoformat(), "1")
+    assert "sheets" in update.run(ctx, before_lineup=True, plan_only=True)["steps"]
+
+
+def test_the_dispatcher_passes_the_matchday_flags():
+    import inspect
+
+    from euroleghe_ingest import cli
+    call = inspect.getsource(cli).split('elif args.command == "update":', 1)[1].split("elif args.command")[0]
+    assert "before_lineup=args.before_lineup" in call and "force=args.force" in call
+
+
 # ----------------------------------------------------------------- what the run does
 def test_a_failed_step_does_not_end_the_run_and_lands_in_the_summary(tmp_path, monkeypatch, capsys):
     calls: list = []

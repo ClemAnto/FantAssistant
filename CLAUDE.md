@@ -5678,7 +5678,12 @@ giornate) · `infortuni` sab dom (allenatori e trasferimenti, coppe, archivio in
 ogni 2 settimane (rose e contratti TM, stemmi, tornei, heatmap, forma recente) · `valori` gio ogni 2
 settimane (curva del mercato). **Un passo interrotto si RIPRENDE** (sua regola: «anche il giorno dopo
 per recuperare»): `data/cache/update-state.json` tiene per passo inizio del giro e completamento, e una
-fetta rimasta a metà torna la notte dopo. Le fette si scelgono con `update --step` e
+fetta rimasta a metà torna la notte dopo. **E il mattino di un turno** (sua regola: «recuperi tutte le
+informazioni necessarie ... prima dell'inserimento formazione») una quarta attività, `formazione` alle
+09:30, lancia `update --before-lineup`: se oggi comincia un turno di uno dei cinque campionati recupera gli
+input della formazione interrotti, falliti o vecchi (`LINEUP_CATCHUP`), prende probabili e indisponibili
+del mattino e rifà fogli e bundle; negli altri giorni non fa niente. Non pubblica online. Le fette si
+scelgono con `update --step` e
 `tests/test_nightly_slices.py` pretende ogni passo d'acquisizione in ESATTAMENTE una. Vedi «Una fetta
 della notte si uccide INTERA» più sotto.
 

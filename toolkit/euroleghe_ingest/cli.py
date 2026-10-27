@@ -85,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
                                   "fixtures, the Elo) plus the sheets, the bundle and the app's copy. "
                                   "Leaves out the weekly archives (injuries, market, the per-match "
                                   "layer, the votes) and says so")
+    _upd_preset.add_argument("--before-lineup", dest="before_lineup", action="store_true",
+                             help="the MATCHDAY preset: on the day a round starts, the daily readings "
+                                  "plus every lineup input that failed, was cut or is too old, then "
+                                  "the sheets and the bundle. Does nothing on other days")
+    p_upd.add_argument("--force", action="store_true",
+                       help="with --before-lineup: run even if no round starts today")
     p_upd.add_argument("--phase", action="append", metavar="NAME",
                        choices=list(load("update").PHASE_KEYS),
                        help="only these phases, in the declared order (repeatable): "
@@ -571,6 +577,7 @@ def main(argv: list[str] | None = None) -> int:
                                    phases=tuple(args.phase) if args.phase else None,
                                    steps_from=args.steps_from, steps_to=args.steps_to,
                                    skip=tuple(args.skip), only=tuple(args.only),
+                                   before_lineup=args.before_lineup, force=args.force,
                                    seasons=args.season,
                                    refresh=args.refresh)
             elif args.command == "timepack":

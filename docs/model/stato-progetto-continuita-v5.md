@@ -10960,6 +10960,12 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   `build` 03:45. Registro seminato con la notte del 27/10 (tutti i passi d'acquisizione completati), quindi stanotte
   la fascia esegue solo `rose`. Uscita di Python senza buffer (`PYTHONUNBUFFERED`): una fetta tagliata perdeva
   proprio le ultime righe del log.
+- **Il mattino di un turno**: quarta attività `formazione` ogni mattina alle 09:30 → `update --before-lineup`, che agisce
+  solo se oggi comincia un turno di uno dei cinque campionati: recupera gli input della formazione interrotti, falliti
+  o vecchi (`LINEUP_CATCHUP`), prende probabili e indisponibili del mattino, rifà fogli, bundle e copia nell'app, e
+  riscrive `morning.txt`. Parte anche a batteria o all'accensione se il PC era spento. Non pubblica online: è una
+  scelta dell'operatore se aggiungere `deploy:pages` (sporca `package.json`/`version.ts` a ogni corsa). Dettaglio:
+  spec «Novità v9.108».
 - `update` stampa l'ora di ogni passo e i minuti che ha preso (`modules/update.py`): la prossima taratura legge il log.
 - Da guardare: il primo `morning.txt` delle fette (28/10) e se `rose` sta nei 120' (il 26/10 gli infortuni ne
   presero 136 da soli; se taglia, riprende la notte dopo). Ridurre la CADENZA delle camminate TM (mercato e

@@ -47,7 +47,9 @@ param(
     # One slice by name (see $Slices). Without it, every slice runs in order.
     [string]$Slice,
     # The archive slot: whatever archive slice is DUE tonight, its own day or a catch-up.
-    [switch]$Archives
+    [switch]$Archives,
+    # The matchday run: on the day a round starts, catch up what failed and take that morning's readings.
+    [switch]$BeforeLineup
 )
 
 $ErrorActionPreference = 'Stop'
@@ -137,7 +139,7 @@ function Write-Morning {
     # WHAT COUNTS AS THE NIGHT'S VERDICT: a run that did nothing has as many ways of saying so as a
     # run that worked, and a switch file with a typo is read as ON and must still leave a trace here.
     $verdict = @(Get-Content $log -ErrorAction SilentlyContinue |
-        Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|TAGLIATA|RINVIATA|riprendo il giro|=== archivi:|=== .*: exit' })
+        Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|TAGLIATA|RINVIATA|riprendo il giro|=== archivi:|before-lineup|da recuperare|=== .*: exit' })
     Set-Content -Path $morning -Value ("=== la notte del {0} ===" -f (Get-Date).ToString('yyyy-MM-dd')) -Encoding utf8
     Add-Content -Path $morning -Value $verdict -Encoding utf8
     Add-Content -Path $morning -Value '' -Encoding utf8
@@ -277,6 +279,21 @@ function Get-SliceWhen {
 # completed (`data/cache/update-state.json`), and it is the same record that makes a resumed step skip
 # the pages it already read. One record, two readers.
 $archiveSlot = [pscustomobject]@{ Name = 'archivi'; Minutes = 120; At = '01:45' }
+
+# ---------------------------------------------------------------- the matchday morning
+#
+# BEFORE THE LINEUP (operator, 27/10/2026: «prevedi un sistema che recuperi tutte le informazioni
+# necessarie, recuperando ad esempio gli aggiornamenti falliti, prima dell'inserimento formazione,
+# giorno delle partite»). Every morning at 09:30, and `update --before-lineup` decides on its own whether
+# a round starts today (`update.lineup_day`): if not, it says so and stops in seconds. If so, it re-runs
+# every input of the lineup that the night left interrupted, failed or too old (`update.LINEUP_CATCHUP`,
+# resuming its cycle), takes that morning's probabili/indisponibili and squads, and rebuilds the sheets,
+# the bundle and the app's copy. 09:30 because a lineup locks at the FIRST match of a round, and the
+# earliest a European round starts is a lunchtime kick-off. What it does NOT do is publish: the online
+# site is still `npm run deploy:pages`, by hand.
+$lineupSlot = [pscustomobject]@{ Name = 'formazione'; Minutes = 90; At = '09:30'
+    Why  = 'il giorno di un turno: recupera gli aggiornamenti falliti, probabili del mattino, fogli e bundle'
+    Args = @('--before-lineup') }
 # The week the every-other-week slices count from: a Monday, so «week 0» is the one of 28/10/2026.
 $biweeklyAnchor = [datetime]'2026-10-26'
 
@@ -372,6 +389,8 @@ if ($Register) {
             Why = ($Slices | Where-Object Name -eq 'base').Why },
         [pscustomobject]@{ Name = $archiveSlot.Name; Minutes = $archiveSlot.Minutes; At = $archiveSlot.At
             Arg = '-Archives'; Why = 'ogni notte: la fetta d archivio del giorno, o quella rimasta a meta' },
+        [pscustomobject]@{ Name = $lineupSlot.Name; Minutes = $lineupSlot.Minutes; At = $lineupSlot.At
+            Arg = '-BeforeLineup'; Why = $lineupSlot.Why },
         [pscustomobject]@{ Name = 'build'; Minutes = ($Slices | Where-Object Name -eq 'build').Minutes
             At = ($Slices | Where-Object Name -eq 'build').At; Arg = '-Slice build'
             Why = ($Slices | Where-Object Name -eq 'build').Why }
@@ -385,9 +404,13 @@ if ($Register) {
         # battery, and not stopped if it goes onto battery halfway.
         # The scheduler's limit is a BACKSTOP ten minutes past the slice's own, which is the one that
         # kills the whole tree; the scheduler's would kill this script and leave Python behind.
+        # ...EXCEPT THE MATCHDAY MORNING, for the opposite reason: it exists for a deadline that day, so
+        # a machine that was off at 09:30 runs it when it comes on (StartWhenAvailable) and on battery
+        # too - waiting for tomorrow would miss the lineup it is for.
+        $matchday = $one.Name -eq $lineupSlot.Name
         $settings = New-ScheduledTaskSettingsSet -WakeToRun `
             -ExecutionTimeLimit (New-TimeSpan -Minutes ($one.Minutes + 10)) `
-            -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries:$false `
+            -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries:$matchday -StartWhenAvailable:$matchday `
             -MultipleInstances IgnoreNew
         $name = "$taskPrefix - $($one.Name)"
         Register-ScheduledTask -TaskName $name -Action $action `
@@ -421,7 +444,7 @@ if ($Unregister) {
 }
 
 if ($Status) {
-    foreach ($unit in @('base', $archiveSlot.Name, 'build')) {
+    foreach ($unit in @('base', $archiveSlot.Name, 'build', $lineupSlot.Name)) {
         $name = "$taskPrefix - $unit"
         $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if (-not $task) { Write-Host "  ${unit}: NON registrata"; continue }
@@ -465,6 +488,13 @@ Assert-Toolkit
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Get-NightLog
 
+if ($BeforeLineup) {
+    $code = Invoke-Slice $lineupSlot $log
+    # The morning's picture again, with the matchday run in it: the file opened before a lineup is
+    # handed in must not describe the night only.
+    Write-Morning -log $log
+    exit $code
+}
 if ($Archives) {
     exit (Invoke-Archives $log)
 }

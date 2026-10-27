@@ -521,6 +521,19 @@ ogni 15gg», «quando un'operazione si interrompe a metà possa essere ripresa s
   debiti dal più vecchio, con «RINVIATA» se restano meno di 15'. Provato su `transfers`: tagliato dopo un minuto,
   la ripresa non ha riscaricato le 15 pagine lette e ha chiuso il giro in 22'.
 - `update` stampa l'ora di ogni passo e i suoi minuti. Nessun numero del motore si muove.
+- **Il mattino di un turno** (stessa sera: «un sistema che recuperi tutte le informazioni necessarie, recuperando ad
+  esempio gli aggiornamenti falliti, prima dell'inserimento formazione»): `update --before-lineup` e la quarta
+  attività, `formazione`, ogni mattina alle 09:30. `update.lineup_day` legge `fixtures`: è un giorno di formazione se
+  comincia OGGI un turno di uno dei cinque campionati (Leghe chiude alla prima di Serie A; un turno EuroLeghe unisce
+  turni diversi e la mappa futura non è su file, quindi ogni inizio conta — fino a tre corse in un weekend). Negli
+  altri giorni dice «niente da fare» ed esce in secondi; `--force` lo fa comunque. Nei giorni giusti: le letture di
+  `DAILY` (probabili e indisponibili del mattino, rose e ruoli, calendario, Elo, fogli, bundle, copia nell'app) più
+  `update.lineup_catchup` — ogni input della formazione col giro interrotto, mai completato o più vecchio di quanto
+  regge (`LINEUP_CATCHUP`: voti e SofaScore 24 ore, `performance` 48, `transfers` 7 giorni), ripreso col suo giro —
+  e la derivazione se il recupero ha portato voti nuovi. Fuori gli archivi settimanali e quindicinali. L'attività
+  parte anche a batteria e, se a quell'ora il PC era spento, appena si accende: esiste per una scadenza di quel
+  giorno. NON pubblica: il sito online resta `npm run deploy:pages`. Limite noto: `fixtures` è fermo al 24/09
+  (SofaScore 403), quindi un rinvio successivo non si vede.
 
 ## Novità v9.107 (16 ottobre 2026 — GLI INFORTUNI DELLE SOLE MIE ROSE, `injuries --team`)
 
