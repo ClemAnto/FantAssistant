@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 
 from euroleghe_ingest.context import Context
@@ -418,7 +419,13 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
             break
         if abandoned and step.phase == "acquire":
             continue
-        print(f"\n[update] === {index}/{len(selected)} · {step.phase} · {step.key} ===", flush=True)
+        # THE LOCAL CLOCK ON EVERY STEP, and the minutes it took when it ends: the nightly is cut into
+        # slices with a hard limit each (scripts/nightly-update.ps1), and a slice can only be sized on
+        # what its steps really cost - the plan's minutes are a COLD cache, and the night of 27/10/2026
+        # had to be reconstructed from the mtimes of 4000 cache files because the log had no times.
+        began = time.monotonic()
+        print(f"\n[update] === {index}/{len(selected)} · {step.phase} · {step.key} · "
+              f"{time.strftime('%H:%M')} ===", flush=True)
         try:
             if step.action:
                 ACTIONS[step.action](ctx)
@@ -428,6 +435,7 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
                 ctx.conn.commit()
             done.append(step.key)
             consecutive = 0
+            print(f"[update] {step.key}: {(time.monotonic() - began) / 60:.0f} min", flush=True)
         except NotImplementedError as exc:
             print(f"[update] {step.key}: skipped ({exc})")
         except KeyboardInterrupt:

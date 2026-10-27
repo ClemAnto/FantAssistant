@@ -10926,3 +10926,21 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   Se si ripete, rivedere la finestra della notte o far aspettare il mattino sul lock (`retry_on_lock`).
 - Restano stantii gli strati già noti: ruoli granulari e calendario (SofaScore 403 dal 24/09), forza dei club
   (ClubElo 502, archivio fermo), curva di mercato, giudice stampa.
+
+## 27 ottobre 2026 (sera) — LA NOTTE IN CINQUE FETTE DA MASSIMO DUE ORE
+
+- **Sua regola**: «5 ore sono troppe, dobbiamo suddividere in più step da max un paio d'ore». `scripts/nightly-update.ps1`
+  riscritto per FETTE, cinque attività pianificate registrate e verificate (`-Status`), le vecchie due rimosse:
+  `base` 00:30 (75': listone e voti, SofaScore, trasferimenti, Elo, calendario, probabili, forma recente) · `rose`
+  01:45 (120': rose TM, contratti, infortuni) · `valori` 03:45 (90': curva del mercato) · `presenze` 05:15 (90':
+  `performance`, il ripiego di SofaScore) · `build` 06:45 (75': derivazione, fogli, pacchetti, bundle, app, quadro
+  del mattino). Tarate sulla notte del 27/10 ricostruita dagli mtime della cache.
+- **Il difetto vero sotto la richiesta**: il limite del pianificatore uccideva PowerShell e lasciava vivo Python, che
+  moriva su `OSError: [Errno 22]` (ogni riga notturna di `ingest_runs` dal 09/10) tenendo il DB: da qui il
+  `database is locked` del mattino. Ora il limite lo applica lo script con `taskkill /T /F` sull'albero, l'uscita va
+  nel log con `cmd /c >>` e in UTF-8 (`PYTHONIOENCODING`, prima «·» diventava «À»). Provato con una fetta da un
+  minuto su `market`: tagliata in tempo, zero orfani.
+- `update` stampa l'ora di ogni passo e i minuti che ha preso (`modules/update.py`): la prossima taratura legge il log.
+- Da guardare: il primo `morning.txt` delle fette (28/10) e se `rose` sta nei 120' (il 26/10 gli infortuni ne
+  presero 136 da soli; se taglia, riprende la notte dopo). Ridurre la CADENZA delle camminate TM (mercato e
+  presenze non ogni notte) toglierebbe ore vere, ma è una scelta sua sulla freschezza e non è stata fatta.

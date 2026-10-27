@@ -5667,9 +5667,12 @@ notte?»). Dettaglio: spec «Novità v9.88».** La risposta è **un'attività pi
 lavoro è deterministico e il giudizio sta già dentro `update` (un ordine solo, ogni passo riprendibile,
 la regola che una scansione che comincia a essere rifiutata si abbandona). E non può essere un agente
 CLOUD, per la ragione già a verbale sul publishing: servono `data/`, la cache e le credenziali in
-`.env`, che stanno sulla macchina dell'operatore e su nessun runner. `scripts/nightly-update.ps1`, 03:00,
-limite 5 ore, log in `data/logs/` (**gitignorata**: un log di `update` porta le note di `snapshot` coi
-NOMI dei giocatori, e il repo è pubblico).
+`.env`, che stanno sulla macchina dell'operatore e su nessun runner. `scripts/nightly-update.ps1`, log in
+`data/logs/` (**gitignorata**: un log di `update` porta le note di `snapshot` coi NOMI dei giocatori, e
+il repo è pubblico). **Dal 27/10/2026 la notte è in CINQUE FETTE da massimo due ore** (sua regola: «5
+ore sono troppe»), cinque attività pianificate: `base` 00:30 (75') · `rose` 01:45 (120') · `valori`
+03:45 (90') · `presenze` 05:15 (90') · `build` 06:45 (75', con il quadro del mattino). Vedi la
+sezione «Una fetta della notte si uccide INTERA» più sotto.
 
 **L'INTERRUTTORE È `config/nightly.json`** — `{enabled, decided_on}`, la quinta cosa dichiarata dopo i
 board rulings, le note sui giocatori, le dritte e le coppe. NON `Disable-ScheduledTask`, e la ragione è
@@ -5997,6 +6000,24 @@ Tre cose che restano.
   siano si SCOPRE quando il foglio arriva vuoto, e `Context.progress` vieta «uno spinner travestito da
   numero». Quindi `TOTAL_UNKNOWN` con la ragione accanto, **più un secondo test che verifica che chi è
   esentato parli comunque**: un'esenzione che nessuno controlla è un buco con un commento sopra.
+
+## Una fetta della notte si uccide INTERA, e una fonte lunga non mangia la finestra delle altre
+**27/10/2026, dalla sua regola «5 ore sono troppe, dobbiamo suddividere in più step da max un paio
+d'ore».** La notte del 27/10, ricostruita dagli mtime della cache perché il log non aveva orari: listone,
+voti, SofaScore e trasferimenti 02:00-02:50, poi **Transfermarkt da solo 02:50-06:55** (rose 63', valori
+73', presenze 77'), i fogli raggiunti alle 07:00 e tagliati. Tre difetti, uno sotto l'altro: una fonte
+lunga mangiava la finestra di tutte quelle dopo (il 26/10 gli infortuni, 2h16, hanno tenuto fuori valori
+e presenze); **`ExecutionTimeLimit` uccide PowerShell e NON il Python sotto di lui**, che continuava a
+scrivere in una pipe senza lettore e moriva su `OSError: [Errno 22]` — ogni riga notturna di
+`ingest_runs` dal 09/10 dice esattamente questo — **tenendo il database**; quindi la costruzione del
+mattino trovava `database is locked`. Ora cinque fette, ognuna un'attività sua con un limite suo, e il
+limite lo applica lo SCRIPT: l'update gira sotto `cmd /c` con l'uscita accodata direttamente al log
+(nessuna pipe che possa morirgli sotto) e allo scadere `taskkill /T /F` prende l'albero intero; quello
+del pianificatore resta un paracadute dieci minuti dopo. Una fetta tagliata scrive «TAGLIATA» e non un
+errore, perché ogni passo è riprendibile. Provato prima di registrarle: una fetta da un minuto su
+`market` tagliata in tempo e **zero Python orfani**. E `update` ora stampa l'ORA di ogni passo e i suoi
+minuti, così la prossima taratura delle fette legge il log invece della cache. *Un limite che uccide il
+padre e lascia vivo il figlio non è un limite: è un lock lasciato in giro con un orario.*
 
 ## Una CADENZA è un'altra cosa da un REFRESH, e un archivio ha la sua
 **11/09/2026, dalla domanda «non c'è un modo per ottimizzare gli aggiornamenti?».** Il difetto più
