@@ -3,6 +3,9 @@
 prossima partita che pesa il presente (`fva.recentMv`), colonna «Stampa» e set «stagione» sulla pagina Formazione
 (`formazione-leghe-v1.md` §4-terdecies e §4-quattuordecies). Dati del 27/10; la notte non è arrivata in fondo da sola
 (fogli oltre le 5 ore, mattino su `database is locked`) e i pacchetti del viaggio nel tempo non sono rifatti.
+**La sera stessa la notte è stata rifatta**: fette da massimo due ore raggruppate per cadenza (ogni notte, dopo le
+giornate, nel weekend, ogni 15 giorni), il limite che uccide l'albero intero, e un passo interrotto che riprende il
+suo giro — spec «Novità v9.108». Da guardare il 28/10: il primo `morning.txt` e `nightly-update.ps1 -Status`.
 Continuità del 23-27/10.
 
 · precedente: **Aggiornato (IX): 22 ottobre 2026 — LO SCOUT SCAMBI e LE PRESENZE SU 2 GIORNATE.** Nuova pagina `/scout`: scambi

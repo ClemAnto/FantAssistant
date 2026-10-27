@@ -495,6 +495,33 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.108 (27 ottobre 2026 — LA NOTTE IN FETTE, PER CADENZA, E UN PASSO INTERROTTO SI RIPRENDE)
+
+Tre richieste dell'operatore in una sera: «5 ore sono troppe, dobbiamo suddividere in più step da max un paio
+d'ore», «vedi ciò che serve aggiornare più spesso da quello che serve aggiornare meno spesso ... qualcosa magari
+ogni 15gg», «quando un'operazione si interrompe a metà possa essere ripresa successivamente, anche il giorno dopo».
+
+- **Il difetto sotto la prima**: `ExecutionTimeLimit` uccideva PowerShell e non Python, che moriva su
+  `OSError: [Errno 22]` (ogni riga notturna di `ingest_runs` dal 09/10) tenendo il DB; il mattino trovava
+  `database is locked`. Ora il limite lo applica `scripts/nightly-update.ps1`: `cmd /c ... >> log 2>&1`, uscita
+  UTF-8 e senza buffer, e `taskkill /T /F` sull'albero allo scadere. Il venv su Windows lancia DUE `python.exe`
+  (lanciatore e interprete), quindi un kill del solo figlio diretto non basterebbe comunque.
+- **Fette per cadenza** (≤ 120' ciascuna): `base` ogni notte (inbox, rosters, stats, i due ratings, positions
+  season/roles/match/complete, elo, fixtures, fc_site) · `presenze` lun mar ven (`performance`) · `infortuni` sab
+  dom (transfers, positions:extra, injuries) · `rose` mer ogni 2 settimane (crests, tournaments, heatmap,
+  injuries:ids, recent_form) · `valori` gio ogni 2 settimane (market) · `build` ogni notte. Selezione con il nuovo
+  `update --step` (passi non contigui, eseguiti nell'ordine del piano); `tests/test_nightly_slices.py` pretende
+  ogni passo d'acquisizione in esattamente una fetta e nessuna oltre 120'.
+- **Ripresa**: `update` scrive per passo `started_at`/`completed_at` in `data/cache/update-state.json`, PRIMA che
+  il passo giri. Un giro aperto da meno di `RESUME_DAYS` = 3 tiene il suo inizio → `Context.refresh_since` →
+  `ctx.needs_download(path, refresh)` (letto da `market`, `performance`, `transfers`, `injuries.fetch_squads`) non
+  riscarica il già letto. Fuori da `update` `refresh_since` è None e `--refresh` vuol dire tutto, come prima.
+- **Recupero**: tre attività (`base` 00:30, `archivi` 01:45, `build` 03:45); la fascia `archivi` esegue le fette
+  DOVUTE (il loro giorno è arrivato e non tutti i passi si sono completati da allora), quella del giorno prima e i
+  debiti dal più vecchio, con «RINVIATA» se restano meno di 15'. Provato su `transfers`: tagliato dopo un minuto,
+  la ripresa non ha riscaricato le 15 pagine lette e ha chiuso il giro in 22'.
+- `update` stampa l'ora di ogni passo e i suoi minuti. Nessun numero del motore si muove.
+
 ## Novità v9.107 (16 ottobre 2026 — GLI INFORTUNI DELLE SOLE MIE ROSE, `injuries --team`)
 
 Dalla richiesta dell'operatore: «puoi aggiornare gli infortuni/infortunati solo delle mie rose?». Il giro
