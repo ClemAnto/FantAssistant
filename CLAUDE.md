@@ -5671,13 +5671,16 @@ CLOUD, per la ragione già a verbale sul publishing: servono `data/`, la cache e
 `data/logs/` (**gitignorata**: un log di `update` porta le note di `snapshot` coi NOMI dei giocatori, e
 il repo è pubblico). **Dal 27/10/2026 la notte è in FETTE da massimo due ore, per CADENZA** (sue
 regole: «5 ore sono troppe», «vedi ciò che serve aggiornare più spesso ... qualcosa ogni 15gg»):
-`base` ogni notte 00:30 (75': voti e listone, SofaScore, calendario, Elo, probabili) · `presenze` lun
-mar ven 01:45 (90': `performance`, il ripiego di SofaScore, il mattino dopo le giornate) · `infortuni`
-sab dom 01:45 (120': allenatori e trasferimenti, coppe, archivio infortuni) · `rose` mer ogni 2
-settimane (120': rose e contratti TM, stemmi, tornei, heatmap, forma recente) · `valori` gio ogni 2
-settimane (90': curva del mercato) · `build` ogni notte 03:45 (75', con il quadro del mattino). Le
-fette si scelgono con `update --step` e `tests/test_nightly_slices.py` pretende ogni passo
-d'acquisizione in ESATTAMENTE una. Vedi «Una fetta della notte si uccide INTERA» più sotto.
+tre attività ogni notte — `base` 00:30 (75': voti e listone, SofaScore, calendario, Elo, probabili),
+la **fascia `archivi`** 01:45 (120') e `build` 03:45 (75', con il quadro del mattino) — e la fascia
+sceglie da sé la fetta d'archivio DOVUTA: `presenze` lun mar ven (`performance`, il mattino dopo le
+giornate) · `infortuni` sab dom (allenatori e trasferimenti, coppe, archivio infortuni) · `rose` mer
+ogni 2 settimane (rose e contratti TM, stemmi, tornei, heatmap, forma recente) · `valori` gio ogni 2
+settimane (curva del mercato). **Un passo interrotto si RIPRENDE** (sua regola: «anche il giorno dopo
+per recuperare»): `data/cache/update-state.json` tiene per passo inizio del giro e completamento, e una
+fetta rimasta a metà torna la notte dopo. Le fette si scelgono con `update --step` e
+`tests/test_nightly_slices.py` pretende ogni passo d'acquisizione in ESATTAMENTE una. Vedi «Una fetta
+della notte si uccide INTERA» più sotto.
 
 **L'INTERRUTTORE È `config/nightly.json`** — `{enabled, decided_on}`, la quinta cosa dichiarata dopo i
 board rulings, le note sui giocatori, le dritte e le coppe. NON `Disable-ScheduledTask`, e la ragione è
@@ -6025,6 +6028,23 @@ errore, perché ogni passo è riprendibile. Provato prima di registrarle: una fe
 `market` tagliata in tempo e **zero Python orfani**. E `update` ora stampa l'ORA di ogni passo e i suoi
 minuti, così la prossima taratura delle fette legge il log invece della cache. *Un limite che uccide il
 padre e lascia vivo il figlio non è un limite: è un lock lasciato in giro con un orario.*
+
+**E un taglio non deve ricominciare da capo** (stessa sera: «quando un'operazione per qualche motivo si
+interrompe a metà possa essere ripresa successivamente, anche il giorno dopo per recuperare»). Il
+«riprendibile» scritto in testa al piano valeva solo per la cache che NON si rinfresca: un `refresh` che
+cammina 1300 pagine e viene tagliato al 60% ripartiva dalla prima, quindi una camminata più lunga della
+sua finestra non finiva MAI. Due pezzi, un registro solo. `update` scrive per passo quando è cominciato il
+giro e se si è completato (`data/cache/update-state.json`, scritto PRIMA che il passo giri, così un kill
+lo lascia aperto); un passo aperto da meno di `RESUME_DAYS` = 3 tiene l'inizio del suo giro e lo passa
+ai moduli come `Context.refresh_since`, e `ctx.needs_download(path, refresh)` — UN predicato, letto da
+`market`, `performance`, `transfers` e dalle rose di `injuries` — non riscarica quello letto da allora.
+Oltre tre giorni la metà letta è vecchia anche lei, e si riparte. E la fascia `archivi` legge lo stesso
+registro: una fetta è DOVUTA quando il suo giorno è arrivato e non tutti i suoi passi si sono completati
+da allora, quindi quella tagliata, caduta o con la macchina spenta torna la notte dopo e non fra quindici
+giorni. La fetta del giorno va prima e i debiti dopo, dal più vecchio: un debito lungo non deve togliere
+`performance` al mattino dopo una giornata, e quello che non finisce lo riprende. Provato su `transfers`:
+tagliato dopo un minuto (15 pagine, giro aperto), la corsa dopo stampa «riprendo il giro» e non riscarica
+quelle 15.
 
 ## Una CADENZA è un'altra cosa da un REFRESH, e un archivio ha la sua
 **11/09/2026, dalla domanda «non c'è un modo per ottimizzare gli aggiornamenti?».** Il difetto più

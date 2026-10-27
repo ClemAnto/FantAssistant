@@ -223,8 +223,8 @@ def run(ctx: Context, limit: int | None = None, refresh: bool = False,
     # quotati e salta con un `continue` quelli gia' in cache, quindi contare i giri farebbe correre la
     # barra mentre non si scarica niente - un errore di unita' dentro una barra di avanzamento, che e'
     # il posto in cui si nota meno.
-    todo = len(targets) if refresh else sum(
-        1 for _fc_id, tm_id in targets if not _cache_path(ctx, tm_id).exists())
+    todo = sum(1 for _fc_id, tm_id in targets
+               if ctx.needs_download(_cache_path(ctx, tm_id), refresh))
     print(f"[market] curva del valore per {len(targets)} quotati"
           + (" di ogni stagione" if all_seasons else " di oggi")
           + (" (--refresh)" if refresh else f" - {todo} da scaricare")
@@ -235,7 +235,7 @@ def run(ctx: Context, limit: int | None = None, refresh: bool = False,
             if ctx.cancelled():
                 raise KeyboardInterrupt
             cache = _cache_path(ctx, tm_id)
-            if cache.exists() and not refresh:
+            if not ctx.needs_download(cache, refresh):
                 continue
             _polite_sleep(ctx.cancel_event)
             counts["requests"] += 1

@@ -42,10 +42,13 @@ TWO THINGS THE PHASES KNOW ABOUT EACH OTHER, because they are the reason an orde
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.modules import bootstrap, load
@@ -55,6 +58,70 @@ DESCRIPTION = "Update everything in dependency order: acquire -> derive -> sheet
 DEPENDS_ON: list[str] = []
 RAW_INPUTS: list[str] = []
 NETWORK = True
+
+# A STEP INTERRUPTED HALFWAY IS RESUMED, NOT RESTARTED (operator, 27/10/2026: «quando un'operazione per
+# qualche motivo si interrompe a meta' possa essere ripresa successivamente, anche il giorno dopo per
+# recuperare»). Every run records, per step, when its current cycle began and whether it completed
+# (`<cache>/update-state.json`, beside the cache it describes and gitignored with it). A step whose
+# last cycle did NOT complete - killed at its slice's limit, a crash, the machine switched off - keeps
+# that cycle's start, which `Context.refresh_since` hands to the refreshing modules: a page read since
+# then is not paid for twice. The nightly runner reads the same file to put a slice that did not
+# finish back on the next night (`scripts/nightly-update.ps1`, `Test-SliceDone`).
+#
+# THREE DAYS, and not forever: a cycle is resumed only while what it has already read is still fresh
+# enough to stand for «this refresh». Older than that, the half that was read is stale itself, and
+# keeping it would call a week-old page today's.
+RESUME_DAYS = 3
+
+
+def state_path(ctx: Context) -> Path:
+    return ctx.config.cache_dir / "update-state.json"
+
+
+def read_state(ctx: Context) -> dict:
+    """{step: {started_at, completed_at}}; an unreadable file is an EMPTY record, never an error -
+    the worst it costs is one refresh paid in full."""
+    try:
+        return json.loads(state_path(ctx).read_text(encoding="utf-8")).get("steps", {})
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_state(ctx: Context, steps: dict) -> None:
+    path = state_path(ctx)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"steps": steps}, indent=1, sort_keys=True), encoding="utf-8")
+    tmp.replace(path)          # atomic: a run killed while writing must not leave half a record
+
+
+def begin_step(ctx: Context, key: str, now: dt.datetime | None = None) -> tuple[dt.datetime, bool]:
+    """Open (or resume) the step's cycle and WRITE it before the step runs, so a kill leaves it open.
+
+    Returns the cycle's start and whether it is a resumption.
+    """
+    now = now or dt.datetime.now(tz=dt.UTC)
+    steps = read_state(ctx)
+    entry = steps.get(key) or {}
+    began = None
+    if entry.get("started_at") and not entry.get("completed_at"):
+        began = dt.datetime.fromisoformat(entry["started_at"])
+        if now - began > dt.timedelta(days=RESUME_DAYS):
+            began = None
+    resumed = began is not None
+    began = began or now
+    steps[key] = {"started_at": began.isoformat(timespec="seconds"), "completed_at": None}
+    _write_state(ctx, steps)
+    return began, resumed
+
+
+def complete_step(ctx: Context, key: str, now: dt.datetime | None = None) -> None:
+    steps = read_state(ctx)
+    entry = steps.get(key) or {}
+    entry["completed_at"] = (now or dt.datetime.now(tz=dt.UTC)).isoformat(timespec="seconds")
+    steps[key] = entry
+    _write_state(ctx, steps)
+
 
 # How many consecutive failures abandon the ACQUISITION phase. «A long sweep that starts getting refused
 # is a sweep to abandon» (17/08/2026, the 91 cache files): continuing does not reopen the source, and the
@@ -431,6 +498,12 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
         began = time.monotonic()
         print(f"\n[update] === {index}/{len(selected)} · {step.phase} · {step.key} · "
               f"{time.strftime('%H:%M')} ===", flush=True)
+        cycle, resumed = begin_step(ctx, step.key)
+        ctx.refresh_since = cycle
+        if resumed:
+            print(f"[update] {step.key}: riprendo il giro cominciato il "
+                  f"{cycle.astimezone():%d/%m alle %H:%M} - quello letto da allora non si riscarica",
+                  flush=True)
         try:
             if step.action:
                 ACTIONS[step.action](ctx)
@@ -439,10 +512,14 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
             if ctx.conn is not None:
                 ctx.conn.commit()
             done.append(step.key)
+            complete_step(ctx, step.key)
             consecutive = 0
             print(f"[update] {step.key}: {(time.monotonic() - began) / 60:.0f} min", flush=True)
         except NotImplementedError as exc:
             print(f"[update] {step.key}: skipped ({exc})")
+            # A step with nothing to do here is DONE for tonight: left open it would read as
+            # interrupted and put its slice back on every night after.
+            complete_step(ctx, step.key)
         except KeyboardInterrupt:
             print(f"[update] interrupted during {step.key} - rerun to continue from here")
             break
@@ -457,6 +534,7 @@ def run(ctx: Context, *, phases: tuple[str, ...] | None = None, plan_only: bool 
                 print(f"[update] {consecutive} sources in a row refused - abandoning the acquisition "
                       f"and going on with what is already on disk. A sweep that starts getting refused "
                       f"does not reopen the source by continuing.")
+    ctx.refresh_since = None
     return _summary(selected, done, failed, abandoned)
 
 

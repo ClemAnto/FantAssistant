@@ -10950,6 +10950,16 @@ Dettaglio: [scout-scambi-v1.md](scout-scambi-v1.md) §7.
   rose di cui legge gli id) · `build` ogni notte 03:45. Nuovo `update --step` (passi non contigui, nell'ordine del
   piano); `test_nightly_slices.py` pretende ogni passo d'acquisizione in esattamente una fetta e nessuna oltre 120'.
   Il prezzo, detto: la curva di mercato e i contratti invecchiano fino a 15 giorni, i cambi di allenatore fino a 5.
+- **Un'operazione interrotta si RIPRENDE** (sua regola: «anche il giorno dopo per recuperare»). `update` scrive per
+  passo inizio del giro e completamento in `data/cache/update-state.json` (prima che il passo giri, così un kill lo
+  lascia aperto); un giro aperto da meno di 3 giorni passa il suo inizio ai moduli (`Context.refresh_since`) e
+  `ctx.needs_download` — un predicato solo, in `market`, `performance`, `transfers` e nelle rose di `injuries` — non
+  riscarica quello già letto. Le quattro fette d'archivio non hanno più un'attività ciascuna: una **fascia `archivi`**
+  ogni notte alle 01:45 esegue quelle DOVUTE (il loro giorno è arrivato e non tutti i passi si sono completati da
+  allora): prima quella del giorno, poi i debiti dal più vecchio. Attività registrate: `base` 00:30, `archivi` 01:45,
+  `build` 03:45. Registro seminato con la notte del 27/10 (tutti i passi d'acquisizione completati), quindi stanotte
+  la fascia esegue solo `rose`. Uscita di Python senza buffer (`PYTHONUNBUFFERED`): una fetta tagliata perdeva
+  proprio le ultime righe del log.
 - `update` stampa l'ora di ogni passo e i minuti che ha preso (`modules/update.py`): la prossima taratura legge il log.
 - Da guardare: il primo `morning.txt` delle fette (28/10) e se `rose` sta nei 120' (il 26/10 gli infortuni ne
   presero 136 da soli; se taglia, riprende la notte dopo). Ridurre la CADENZA delle camminate TM (mercato e

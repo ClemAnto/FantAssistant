@@ -5,6 +5,8 @@ from __future__ import annotations
 import sqlite3
 import threading
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 from euroleghe_ingest.config import Config
 
@@ -23,6 +25,23 @@ class Context:
     conn: sqlite3.Connection | None = None
     dry_run: bool = False
     cancel_event: threading.Event | None = None
+    # WHEN THE REFRESH THIS RUN BELONGS TO BEGAN (operator, 27/10/2026: «quando un'operazione si
+    # interrompe a meta' possa essere ripresa successivamente, anche il giorno dopo»). A refresh walk
+    # cut off halfway used to start again from the first page, so a walk longer than its window never
+    # finished. `update` sets this from its own record of the step: a NEW cycle starts now (every
+    # cached page is older, so everything is re-read, exactly the old `refresh`), a RESUMED one keeps
+    # the time it began, and what was read since then is not paid for twice. None outside `update`.
+    refresh_since: datetime | None = None
+
+    def needs_download(self, path: Path, refresh: bool) -> bool:
+        """THE one predicate of a refreshable cache: absent, or refreshed and read before this cycle."""
+        if not path.exists():
+            return True
+        if not refresh:
+            return False
+        if self.refresh_since is None:
+            return True
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC) < self.refresh_since
 
     def require_conn(self) -> sqlite3.Connection:
         if self.conn is None:

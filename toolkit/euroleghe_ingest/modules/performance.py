@@ -260,7 +260,7 @@ def run(ctx: Context, **kwargs) -> dict[str, int]:
             if ctx.cancelled():
                 raise KeyboardInterrupt
             cache = ctx.config.cache_dir / f"transfermarkt_perf_{tm_id}.json"
-            if cache.exists() and not refresh:
+            if not ctx.needs_download(cache, refresh):
                 payload = json.loads(cache.read_text(encoding="utf-8"))
             else:
                 _polite_sleep(ctx.cancel_event)

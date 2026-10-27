@@ -533,7 +533,7 @@ def fetch_squads(ctx: Context, seasons: tuple[str, ...], refresh: bool = False,
             for season in seasons:
                 year = season.split("-")[0]
                 path = _cache(ctx.config, "kader", f"{tm_id}_{year}")
-                if not refresh and not _stale(path, stale_days):
+                if not ctx.needs_download(path, refresh) and not _stale(path, stale_days):
                     continue
                 _polite_sleep(ctx.cancel_event)
                 html = _get_html(session, SQUAD_ENDPOINT.format(tm_id=tm_id, year=year))
@@ -541,7 +541,7 @@ def fetch_squads(ctx: Context, seasons: tuple[str, ...], refresh: bool = False,
                     _atomic_write_text(path, html)
             # the current squad is the only page carrying the contract column -> dated snapshot
             path = _cache(ctx.config, "squad", f"{tm_id}_{today}")
-            if not path.exists() or refresh:
+            if ctx.needs_download(path, refresh):
                 _polite_sleep(ctx.cancel_event)
                 html = _get_html(session, CURRENT_SQUAD_ENDPOINT.format(tm_id=tm_id))
                 if html:

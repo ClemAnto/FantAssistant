@@ -180,6 +180,69 @@ def test_the_dispatcher_passes_the_step_selection():
     assert "only=tuple(args.only)" in call
 
 
+# ----------------------------------------------------------------- an interrupted step is RESUMED
+def test_a_step_that_did_not_complete_resumes_its_cycle_and_a_completed_one_starts_a_new_one(tmp_path):
+    """Operator, 27/10/2026: an operation interrupted halfway is picked up later, «anche il giorno dopo»."""
+    import datetime as dt
+    ctx = _ctx(tmp_path)
+    night = dt.datetime(2026, 10, 28, 1, 45, tzinfo=dt.UTC)
+    began, resumed = update.begin_step(ctx, "market", now=night)
+    assert (began, resumed) == (night, False)
+    # killed at the slice's limit: no completion. The next night RESUMES the same cycle
+    began, resumed = update.begin_step(ctx, "market", now=night + dt.timedelta(days=1))
+    assert (began, resumed) == (night, True)
+    update.complete_step(ctx, "market", now=night + dt.timedelta(days=1, hours=1))
+    # completed: the next refresh is a new cycle
+    later = night + dt.timedelta(days=2)
+    assert update.begin_step(ctx, "market", now=later) == (later, False)
+    # ...and a cycle left open too long is not resumed: what it read is stale itself
+    much_later = later + dt.timedelta(days=update.RESUME_DAYS + 1)
+    assert update.begin_step(ctx, "market", now=much_later) == (much_later, False)
+
+
+def test_a_resumed_refresh_does_not_re_download_what_this_cycle_already_read(tmp_path):
+    import datetime as dt
+    import os
+    ctx = _ctx(tmp_path)
+    old = ctx.config.cache_dir / "old.json"
+    new = ctx.config.cache_dir / "new.json"
+    for path in (old, new):
+        path.write_text("{}", encoding="utf-8")
+    cycle = dt.datetime(2026, 10, 28, 1, 45, tzinfo=dt.UTC)
+    os.utime(old, (cycle.timestamp() - 3600,) * 2)       # read before the cycle began
+    os.utime(new, (cycle.timestamp() + 3600,) * 2)       # read by the interrupted half of it
+    ctx.refresh_since = cycle
+    assert ctx.needs_download(old, refresh=True)
+    assert not ctx.needs_download(new, refresh=True)
+    assert ctx.needs_download(ctx.config.cache_dir / "absent.json", refresh=False)
+    assert not ctx.needs_download(old, refresh=False)
+    ctx.refresh_since = None                              # outside `update`: --refresh means everything
+    assert ctx.needs_download(new, refresh=True)
+
+
+def test_the_run_records_what_completed_and_leaves_a_failed_step_open(tmp_path, monkeypatch):
+    calls: list = []
+    monkeypatch.setattr(update, "load", _stub_load(calls, boom=("synth",)))
+    ctx = _ctx(tmp_path)
+    update.run(ctx, phases=("derive",))
+    state = update.read_state(ctx)
+    assert state["matchdays"]["completed_at"]
+    assert state["synth"]["completed_at"] is None, "a step that did not complete stays open to resume"
+    assert ctx.refresh_since is None, "the cycle does not leak out of the run"
+
+
+def test_the_refreshing_modules_ask_the_shared_predicate_and_not_the_bare_flag():
+    """Crude on purpose: a module that goes back to `exists() and not refresh` restarts every cut walk."""
+    import inspect
+
+    from euroleghe_ingest.modules import injuries, market, performance, transfers
+    for module in (market, performance, transfers):
+        source = inspect.getsource(module.run)
+        assert "ctx.needs_download(" in source, module.__name__
+        assert "and not refresh" not in source, module.__name__
+    assert "ctx.needs_download(" in inspect.getsource(injuries.fetch_squads)
+
+
 # ----------------------------------------------------------------- what the run does
 def test_a_failed_step_does_not_end_the_run_and_lands_in_the_summary(tmp_path, monkeypatch, capsys):
     calls: list = []

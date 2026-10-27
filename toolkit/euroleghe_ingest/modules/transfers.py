@@ -457,7 +457,7 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False, **kw
             if ctx.cancelled():
                 break
             path = _cache(ctx.config, "competition", league)
-            if path.exists() and not refresh:
+            if not ctx.needs_download(path, refresh):
                 continue
             _polite_sleep(ctx.cancel_event)
             html = _get_html(session, COMPETITION_ENDPOINT.format(code=COMPETITIONS[league]))
@@ -479,7 +479,7 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False, **kw
             if index % 5 == 0 or index == len(clubs):
                 print(f"[transfers] club {index}/{len(clubs)}")
             path = _cache(ctx.config, "coaches", str(tm_id))
-            if not path.exists() or refresh:
+            if ctx.needs_download(path, refresh):
                 _polite_sleep(ctx.cancel_event)
                 html = _get_html(session, COACHES_ENDPOINT.format(tm_id=tm_id))
                 if html:
@@ -489,7 +489,7 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False, **kw
                     break
                 year = season.split("-")[0]
                 path = _cache(ctx.config, "transfers", f"{tm_id}_{year}")
-                if path.exists() and not refresh:
+                if not ctx.needs_download(path, refresh):
                     continue
                 _polite_sleep(ctx.cancel_event)
                 html = _get_html(session, TRANSFERS_ENDPOINT.format(tm_id=tm_id, year=year))

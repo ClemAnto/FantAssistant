@@ -33,6 +33,7 @@
 #
 # Usage:
 #   pwsh scripts/nightly-update.ps1 -Slice base   # run one slice now, exactly as its task would
+#   pwsh scripts/nightly-update.ps1 -Archives     # the archive slot: what is due tonight, catch-up included
 #   pwsh scripts/nightly-update.ps1               # run every slice in order (each with its limit)
 #   pwsh scripts/nightly-update.ps1 -Register     # create/replace the scheduled tasks
 #   pwsh scripts/nightly-update.ps1 -Unregister   # remove them
@@ -44,7 +45,9 @@ param(
     [switch]$Unregister,
     [switch]$Status,
     # One slice by name (see $Slices). Without it, every slice runs in order.
-    [string]$Slice
+    [string]$Slice,
+    # The archive slot: whatever archive slice is DUE tonight, its own day or a catch-up.
+    [switch]$Archives
 )
 
 $ErrorActionPreference = 'Stop'
@@ -134,7 +137,7 @@ function Write-Morning {
     # WHAT COUNTS AS THE NIGHT'S VERDICT: a run that did nothing has as many ways of saying so as a
     # run that worked, and a switch file with a typo is read as ON and must still leave a trace here.
     $verdict = @(Get-Content $log -ErrorAction SilentlyContinue |
-        Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|TAGLIATA|=== .*: exit' })
+        Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|TAGLIATA|RINVIATA|riprendo il giro|=== archivi:|=== .*: exit' })
     Set-Content -Path $morning -Value ("=== la notte del {0} ===" -f (Get-Date).ToString('yyyy-MM-dd')) -Encoding utf8
     Add-Content -Path $morning -Value $verdict -Encoding utf8
     Add-Content -Path $morning -Value '' -Encoding utf8
@@ -157,10 +160,12 @@ function Write-Morning {
 # runs under `cmd /c` with its output appended straight to the log (no pipe that can die under it),
 # and on timeout `taskkill /T /F` takes cmd and Python together.
 function Invoke-Slice {
-    param($one, [string]$log)
+    # `$Minutes` lowers the slice's own limit when it runs inside the archive slot with less time left.
+    param($one, [string]$log, [int]$Minutes = 0)
+    $limit = if ($Minutes -gt 0) { [math]::Min($Minutes, $one.Minutes) } else { $one.Minutes }
     $started = Get-Date
     Write-Log $log ("=== {0} {1} ({2}, limite {3} min) ===" -f $started.ToString('yyyy-MM-dd HH:mm:ss'),
-        $one.Name, $one.Why, $one.Minutes)
+        $one.Name, $one.Why, $limit)
 
     # THE SWITCH IS A DECLARATION, not a property of the scheduler (operator, 10/09/2026: «permettimi
     # di attivare/disattivare il check notturno»). It lives in `config/nightly.json`, read rather than
@@ -221,11 +226,15 @@ except Exception as exc:
 
     # UTF-8 on the way out, or every «·» of `update` lands in the log as «À».
     $env:PYTHONIOENCODING = 'utf-8'
+    # ...and UNBUFFERED: written to a file, Python holds its output in blocks, so a slice killed at its
+    # limit lost exactly the last lines - the ones that say how far it got (seen on `transfers`, whose
+    # log stayed silent for ten minutes of work).
+    $env:PYTHONUNBUFFERED = '1'
     $line = "`"$python`" -m euroleghe_ingest update $($one.Args -join ' ') >> `"$log`" 2>&1"
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList '/d', '/s', '/c', "`"$line`"" `
         -WorkingDirectory (Join-Path $repo 'toolkit') -WindowStyle Hidden -PassThru
     $null = $proc.Handle   # cache the handle, or ExitCode reads null after the wait
-    if ($proc.WaitForExit($one.Minutes * 60 * 1000)) {
+    if ($proc.WaitForExit($limit * 60 * 1000)) {
         $code = $proc.ExitCode
         $minutes = [math]::Round(((Get-Date) - $started).TotalMinutes)
         Write-Log $log ("=== {0}: exit {1} alle {2} ({3} min) ===" -f $one.Name, $code,
@@ -234,22 +243,14 @@ except Exception as exc:
     }
     & taskkill.exe /PID $proc.Id /T /F 2>&1 | Out-Null
     $proc.WaitForExit(30 * 1000) | Out-Null
-    # TAGLIATA and not an error: every step is resumable, so tomorrow's slice picks it up.
-    Write-Log $log ("=== {0}: TAGLIATA al limite di {1} min alle {2} - riprende domani da dove e' arrivata ===" -f `
-        $one.Name, $one.Minutes, (Get-Date).ToString('HH:mm:ss'))
+    # TAGLIATA and not an error: every step resumes its own cycle (`update.begin_step`), and the
+    # archive slot puts an unfinished slice back on the next night.
+    Write-Log $log ("=== {0}: TAGLIATA al limite di {1} min alle {2} - riprende la prossima notte da dove e' arrivata ===" -f `
+        $one.Name, $limit, (Get-Date).ToString('HH:mm:ss'))
     return 0
 }
 
-# WHEN a slice runs, in the operator's words: the trigger is derived from the same fields the table
-# declares, so the schedule and the table cannot say two different things.
-function Get-SliceTrigger {
-    param($one)
-    if (-not $one.Days -or $one.Days.Count -eq 0) {
-        return New-ScheduledTaskTrigger -Daily -At $one.At
-    }
-    New-ScheduledTaskTrigger -Weekly -WeeksInterval $one.Weeks -DaysOfWeek $one.Days -At $one.At
-}
-
+# WHEN a slice is scheduled, in the operator's words - read by -Register and -Status.
 function Get-SliceWhen {
     param($one)
     $it = @{ Monday = 'lun'; Tuesday = 'mar'; Wednesday = 'mer'; Thursday = 'gio'; Friday = 'ven';
@@ -260,6 +261,102 @@ function Get-SliceWhen {
     "$days alle $($one.At)"
 }
 
+# ---------------------------------------------------------------- the archive slot, and the catch-up
+#
+# A SLICE THAT DID NOT FINISH COMES BACK THE NEXT NIGHT (operator, 27/10/2026: «quando un'operazione per
+# qualche motivo si interrompe a meta' possa essere ripresa successivamente, anche il giorno dopo per
+# recuperare»). The four archive slices do not have a task each: they share ONE slot, every night at
+# 01:45, and the slot decides what is DUE - a slice is due when its last scheduled day has come and not
+# every one of its steps has completed since. So the slice of its day runs, and so does one that was cut
+# at its limit, crashed, or met a machine that was off - the night after, not fifteen days after.
+# TONIGHT'S OWN SLICE GOES FIRST, then the debts oldest first, within the slot's two hours: a debt
+# that keeps running long must not starve the per-match layer of the morning after a round, and what a
+# debt does not finish it resumes the next night. What does not fit is postponed, and says so.
+#
+# «COMPLETED» IS NOT DECIDED HERE: `update` writes, per step, when its cycle began and when it
+# completed (`data/cache/update-state.json`), and it is the same record that makes a resumed step skip
+# the pages it already read. One record, two readers.
+$archiveSlot = [pscustomobject]@{ Name = 'archivi'; Minutes = 120; At = '01:45' }
+# The week the every-other-week slices count from: a Monday, so «week 0» is the one of 28/10/2026.
+$biweeklyAnchor = [datetime]'2026-10-26'
+
+function Get-StepState {
+    $path = Join-Path $repo 'data\cache\update-state.json'
+    if (-not (Test-Path $path)) { return @{} }
+    # `-DateKind String`: left to itself ConvertFrom-Json turns the ISO stamps into local DateTimes
+    # and then nothing parses them back.
+    try { (Get-Content $path -Raw | ConvertFrom-Json -AsHashtable -DateKind String).steps } catch { @{} }
+}
+
+function Get-SliceSteps {
+    param($one)
+    $out = @()
+    for ($i = 0; $i -lt $one.Args.Count - 1; $i++) {
+        if ($one.Args[$i] -eq '--step') { $out += $one.Args[$i + 1] }
+    }
+    $out
+}
+
+# The last day on or before $day this slice was SCHEDULED for.
+function Get-LastOccurrence {
+    param($one, [datetime]$day)
+    for ($back = 0; $back -lt 21; $back++) {
+        $d = $day.Date.AddDays(-$back)
+        if ($one.Days -notcontains $d.DayOfWeek.ToString()) { continue }
+        $week = [math]::Floor(($d - $biweeklyAnchor).TotalDays / 7)
+        if ((($week % $one.Weeks) + $one.Weeks) % $one.Weeks -eq 0) { return $d }
+    }
+    $null
+}
+
+# Every step completed at or after $since? A step with no record has never completed.
+function Test-SliceDone {
+    param($one, [datetime]$since, $state)
+    foreach ($key in Get-SliceSteps $one) {
+        $done = $state[$key].completed_at
+        if (-not $done) { return $false }
+        if (([datetimeoffset]::Parse($done, [cultureinfo]::InvariantCulture)).LocalDateTime -lt $since) { return $false }
+    }
+    $true
+}
+
+function Get-DueSlices {
+    param([datetime]$day)
+    $state = Get-StepState
+    $due = foreach ($one in $Slices | Where-Object { $_.Days -and $_.Days.Count -gt 0 }) {
+        $since = Get-LastOccurrence $one $day
+        if ($since -and -not (Test-SliceDone $one $since $state)) {
+            [pscustomobject]@{ Slice = $one; Since = $since }
+        }
+    }
+    @($due | Sort-Object @{ Expression = { if ($_.Since -eq $day.Date) { 0 } else { 1 } } }, Since)
+}
+
+function Invoke-Archives {
+    param([string]$log)
+    $started = Get-Date
+    $due = Get-DueSlices (Get-Date)
+    if (-not $due) {
+        Write-Log $log ("=== archivi: niente di dovuto stanotte ({0}) ===" -f (Get-Date).ToString('HH:mm:ss'))
+        return 0
+    }
+    Write-Log $log ("=== archivi: dovute {0} ===" -f (($due | ForEach-Object {
+        "$($_.Slice.Name) (dal $($_.Since.ToString('dd/MM')))" }) -join ', '))
+    $code = 0
+    foreach ($item in $due) {
+        $left = $archiveSlot.Minutes - [math]::Floor(((Get-Date) - $started).TotalMinutes)
+        # Less than a quarter of an hour is not worth opening a walk for: it would only re-read the
+        # pages a resumed cycle skips, and be cut. It waits for the next night, and says so.
+        if ($left -lt 15) {
+            Write-Log $log ("=== {0}: RINVIATA alla prossima notte, restano {1} min nella fascia ===" -f `
+                $item.Slice.Name, $left)
+            continue
+        }
+        $code = Invoke-Slice $item.Slice $log -Minutes $left
+    }
+    $code
+}
+
 if ($Register) {
     Assert-Toolkit
     $pwsh = (Get-Process -Id $PID).Path
@@ -267,9 +364,21 @@ if ($Register) {
     foreach ($old in $legacyTasks) {
         Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction SilentlyContinue
     }
-    foreach ($one in $Slices) {
+    # THREE TASKS, every night: the base slice, the ARCHIVE SLOT (which decides on its own which archive
+    # slice is due - its day, or a catch-up), and the build.
+    $units = @(
+        [pscustomobject]@{ Name = 'base'; Minutes = ($Slices | Where-Object Name -eq 'base').Minutes
+            At = ($Slices | Where-Object Name -eq 'base').At; Arg = '-Slice base'
+            Why = ($Slices | Where-Object Name -eq 'base').Why },
+        [pscustomobject]@{ Name = $archiveSlot.Name; Minutes = $archiveSlot.Minutes; At = $archiveSlot.At
+            Arg = '-Archives'; Why = 'ogni notte: la fetta d archivio del giorno, o quella rimasta a meta' },
+        [pscustomobject]@{ Name = 'build'; Minutes = ($Slices | Where-Object Name -eq 'build').Minutes
+            At = ($Slices | Where-Object Name -eq 'build').At; Arg = '-Slice build'
+            Why = ($Slices | Where-Object Name -eq 'build').Why }
+    )
+    foreach ($one in $units) {
         $action = New-ScheduledTaskAction -Execute $pwsh `
-            -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Slice $($one.Name)" -WorkingDirectory $repo
+            -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$script`" $($one.Arg)" -WorkingDirectory $repo
         # THREE SETTINGS, each a decision about a LAPTOP (operator, 10/09/2026). WakeToRun: he leaves
         # it suspended and plugged in. StartWhenAvailable OFF: a missed slice must not start at the next
         # boot, while he sits down to work - every step is resumable, so waiting costs nothing. Not on
@@ -282,12 +391,15 @@ if ($Register) {
             -MultipleInstances IgnoreNew
         $name = "$taskPrefix - $($one.Name)"
         Register-ScheduledTask -TaskName $name -Action $action `
-            -Trigger (Get-SliceTrigger $one) `
+            -Trigger (New-ScheduledTaskTrigger -Daily -At $one.At) `
             -Settings $settings -Description "euroleghe-ingest, notte: $($one.Why)" -Force | Out-Null
-        Write-Host ("registrata: '{0}' {1}, limite {2} min" -f $name, (Get-SliceWhen $one), $one.Minutes)
+        Write-Host ("registrata: '{0}' ogni notte alle {1}, limite {2} min" -f $name, $one.At, $one.Minutes)
     }
-    # A slice that the table no longer declares must not keep running under its old name.
-    $declared = $Slices | ForEach-Object { "$taskPrefix - $($_.Name)" }
+    foreach ($one in $Slices | Where-Object { $_.Days -and $_.Days.Count -gt 0 }) {
+        Write-Host ("  nella fascia archivi: {0,-9} {1}" -f $one.Name, (Get-SliceWhen $one))
+    }
+    # A task that the table no longer declares must not keep running under its old name.
+    $declared = $units | ForEach-Object { "$taskPrefix - $($_.Name)" }
     Get-ScheduledTask -TaskName "$taskPrefix - *" -ErrorAction SilentlyContinue |
         Where-Object { $declared -notcontains $_.TaskName } | ForEach-Object {
             Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false
@@ -309,14 +421,19 @@ if ($Unregister) {
 }
 
 if ($Status) {
-    foreach ($one in $Slices) {
-        $name = "$taskPrefix - $($one.Name)"
+    foreach ($unit in @('base', $archiveSlot.Name, 'build')) {
+        $name = "$taskPrefix - $unit"
         $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-        if (-not $task) { Write-Host "  $($one.Name): NON registrata"; continue }
+        if (-not $task) { Write-Host "  ${unit}: NON registrata"; continue }
         $info = Get-ScheduledTaskInfo -TaskName $name
-        Write-Host ("  {0,-9} {1} ({2}) | ultima {3} | esito {4} | prossima {5}" -f `
-                $one.Name, (Get-SliceWhen $one), $task.State, $info.LastRunTime, $info.LastTaskResult, $info.NextRunTime)
+        Write-Host ("  {0,-9} {1} | ultima {2} | esito {3} | prossima {4}" -f `
+                $unit, $task.State, $info.LastRunTime, $info.LastTaskResult, $info.NextRunTime)
     }
+    # WHAT THE ARCHIVE SLOT WOULD RUN TONIGHT, and why: its own day, or a slice left unfinished.
+    $tonight = (Get-Date).AddHours(6)
+    $due = Get-DueSlices $tonight
+    Write-Host ("fascia archivi della prossima notte: {0}" -f $(if ($due) { ($due | ForEach-Object {
+        "$($_.Slice.Name) (dovuta dal $($_.Since.ToString('dd/MM')))" }) -join ', ' } else { 'niente di dovuto' }))
     foreach ($old in $legacyTasks) {
         if (Get-ScheduledTask -TaskName $old -ErrorAction SilentlyContinue) {
             Write-Host "  ATTENZIONE: c'e' ancora la vecchia attivita' '$old' - rilancia -Register"
@@ -348,6 +465,9 @@ Assert-Toolkit
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $log = Get-NightLog
 
+if ($Archives) {
+    exit (Invoke-Archives $log)
+}
 $todo = if ($Slice) { @($Slices | Where-Object Name -eq $Slice) } else { $Slices }
 if (-not $todo) {
     throw "slice sconosciuta '$Slice'; dichiarate: $(($Slices | ForEach-Object Name) -join ', ')"
