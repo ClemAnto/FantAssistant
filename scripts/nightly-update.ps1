@@ -416,7 +416,7 @@ if ($Register) {
         Register-ScheduledTask -TaskName $name -Action $action `
             -Trigger (New-ScheduledTaskTrigger -Daily -At $one.At) `
             -Settings $settings -Description "euroleghe-ingest, notte: $($one.Why)" -Force | Out-Null
-        Write-Host ("registrata: '{0}' ogni notte alle {1}, limite {2} min" -f $name, $one.At, $one.Minutes)
+        Write-Host ("registrata: '{0}' ogni giorno alle {1}, limite {2} min" -f $name, $one.At, $one.Minutes)
     }
     foreach ($one in $Slices | Where-Object { $_.Days -and $_.Days.Count -gt 0 }) {
         Write-Host ("  nella fascia archivi: {0,-9} {1}" -f $one.Name, (Get-SliceWhen $one))
