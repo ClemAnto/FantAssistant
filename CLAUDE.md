@@ -7469,6 +7469,14 @@ starts and goals, so the matchday map (`derive_from_tm`) and the TREND (`snapsho
 lineup slot, no rating and no xG, so the boards, the short window and the per-match table do NOT - writing it into
 `external_match_stats` would have made NULL xG read as zero (`expectedScope`) and half-fed eighty readers. Rows of
 the backup cover only rounds after the layer's last match, so they retire themselves when the provider reopens.
+**And since 30/10/2026 ESPN is the second backup** (`modules/espn.py`, spec «Novità v9.109»): its public site API
+answers a plain request, so the LIVE SQUAD (whole roster per club, ESPN identities joined by name inside the club
+pool with the birth year as a veto) and the CALENDAR's dates and status come from there. Which provider the absence
+readers listen to is ONE function, `features.live_source` - the freshest, one at a time and never a union, because
+an absence is evidence only about a man that provider can name. Getting past SofaScore's 403 by impersonating a
+browser was refused as bot-check circumvention: that road stays closed. The synthetic vote WITHOUT the provider
+rating is measured in `docs/model/voto-sintetico-senza-rating-v1.md` (a linear rule per role on events, result,
+minutes and Elo beats the rating line, 0.303 against 0.372 abroad); where it enters is the operator's decision.
 
 ## A price is judged on what HAPPENED, and a bonus player is an OPTION
 **22/10/2026, the Lineup page (`formazione-leghe-v1.md` §4-duodecies).** The odds the press sheet has archived
