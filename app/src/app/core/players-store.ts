@@ -1377,7 +1377,7 @@ export class PlayersStore {
     try {
       const manifest = await this.bundle.manifest();
       const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring,
-        crests, coaches, calendar] = await Promise.all([
+        crests, coaches, calendar, espn] = await Promise.all([
         this.bundle.table('players'),
         this.bundle.table('clubs'),
         this.bundle.table('rosters'),
@@ -1398,6 +1398,9 @@ export class PlayersStore {
         // IL CALENDARIO, per la sola giornata che il livello per-partita non ha ancora letto (vedi
         // `buildLeagueMatches`): opzionale, e senza di lui quelle righe restano senza avversario.
         this.bundle.calendar().catch(() => null),
+        // IL RIPIEGO DI ESPN (30/10/2026), per le giornate che SofaScore non legge piu': opzionale, e un
+        // bundle che non lo porta lascia quelle righe senza minuti, come prima.
+        this.bundle.table('espn_match_players').catch(() => null),
       ]);
 
       this.generatedAt.set(manifest.generated_at);
@@ -1432,7 +1435,7 @@ export class PlayersStore {
       // UNA DEFINIZIONE SOLA di dove gli attesi esistono, passata ai due lettori del layer per-partita:
       // due copie darebbero a una partita due xG, uno misurato e uno inventato.
       const expected = expectedScope(external);
-      const provider = buildProviderIndex(external, expected);
+      const provider = buildProviderIndex(external, expected, espn);
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
       const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring,
@@ -1508,6 +1511,8 @@ export class PlayersStore {
 const ABBREVIATION_SKIP = new Set([
   'ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb',
   'sv', 'sc', 'vfb', 'vfl', 'tsg', 'fsv', 'bsc', 'st.', 'ud', 'cf', 'cd', 'rcd', 'sd', 'gfc',
+  // `Le Havre AC` -> `Hav`: the article names nobody, and «Le» in a three-letter column reads as a typo.
+  'le',
 ]);
 
 /**
@@ -1896,7 +1901,11 @@ function expectedOf(known: ReadonlySet<string>, key: string, value: unknown): nu
 
 /** Keyed on (fc_id, season, competition, real_md): the competition belongs in the key because
  *  a player can have a league round and a cup tie under the same number. */
-function buildProviderIndex(external: BundleTable, scope: ExpectedScope): {
+function buildProviderIndex(
+  external: BundleTable,
+  scope: ExpectedScope,
+  espn: BundleTable | null = null,
+): {
   index: Map<string, ProviderMatch>;
   present: Set<string>;
   roundDates: Map<string, string>;
@@ -1951,6 +1960,42 @@ function buildProviderIndex(external: BundleTable, scope: ExpectedScope): {
       xa: xaAt < 0 ? null : expectedOf(scope.xa, `${row[season]}|${row[competition]}`, row[xaAt]),
       date: matchDate,
     });
+  }
+  /* IL RIPIEGO DI ESPN (30/10/2026): SofaScore risponde 403 dal 24/09, quindi da allora il livello qui
+   * sopra non ha le giornate nuove, e la card stampava `?'` sui minuti e saltava le giornate passate in
+   * panchina. ESPN porta chi era in distinta, i minuti, se e' partito titolare, l'avversario e il campo:
+   * riempie SOLO le chiavi che SofaScore non ha, quindi il giorno che riapre non cambia niente. Non porta
+   * rating ne' attesi, e gli attesi restano IGNOTI (null) e non zero; il voto sintetico non si legge qui,
+   * perche' dove entra e' una decisione dell'operatore. Niente `matchId`: la formazione resta chiusa. */
+  if (espn) {
+    const [eFc, eSeason, eLeague, eMd, eDate, eClub, eOpp, eHome, eStarter, eMinutes] = columnIndex(
+      espn, 'fc_id', 'season', 'league', 'real_md', 'match_date', 'club', 'opponent', 'home',
+      'starter', 'minutes');
+    for (const row of espn.rows) {
+      if (row[eFc] == null || row[eMd] == null) continue;
+      present.add(`${row[eFc]}|${row[eSeason]}|${row[eLeague]}`);
+      const matchDate = ((row[eDate] as string) ?? '').slice(0, 10) || null;
+      const roundKey = `${row[eSeason]}|${row[eLeague]}|${row[eMd]}`;
+      if (matchDate && (!roundDates.has(roundKey) || matchDate < roundDates.get(roundKey)!)) {
+        roundDates.set(roundKey, matchDate);
+      }
+      const key = `${row[eFc]}|${row[eSeason]}|${row[eLeague]}|${row[eMd]}`;
+      if (index.has(key)) continue;
+      index.set(key, {
+        matchId: null,
+        club: (row[eClub] as string) ?? null,
+        opponent: (row[eOpp] as string) ?? null,
+        home: row[eHome] == null ? null : row[eHome] === 1,
+        started: row[eStarter] == null ? null : row[eStarter] === 1,
+        // Zero minuti e' la panchina, che SofaScore scrive NULL: stessa convenzione, una riga sola.
+        minutes: ((row[eMinutes] as number) ?? 0) > 0 ? (row[eMinutes] as number) : null,
+        voteSynth: null,
+        rating: null,
+        xg: null,
+        xa: null,
+        date: matchDate,
+      });
+    }
   }
   return { index, present, roundDates };
 }

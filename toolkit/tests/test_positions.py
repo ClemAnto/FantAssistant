@@ -251,6 +251,20 @@ def test_manual_override_wins(tmp_path):
     assert [(claim.fc_id, claim.pass_name) for claim in claims] == [(1, "manual")]
 
 
+def test_a_manual_override_with_no_fc_id_denies_the_provider_id_to_everybody(tmp_path):
+    """30/10/2026: a Girona winger called Kim took Kim Min-jae's identity on the name pass."""
+    ctx = _ctx(tmp_path)
+    _add_player(ctx.conn, 1, "Kim", "Girona", "la_liga")
+    ctx.conn.execute(
+        "INSERT INTO manual_overrides(entity, fc_id, field, value, reason, created_at) "
+        "VALUES ('player_xref', NULL, 'sofascore', '777', 'a namesake', '2026-10-30')")
+    ctx.conn.commit()
+    claims, report = positions.resolve_season(
+        ctx.conn, "2023-24", {"la_liga": [_provider_row(777, "Kim", "Girona FC")]})
+    assert claims == []
+    assert [entry["reason"] for entry in report] == ["denied"]
+
+
 def test_parse_round_uses_the_xref_and_keeps_the_real_matchday():
     payload = {
         "league": "premier_league", "round": 7,

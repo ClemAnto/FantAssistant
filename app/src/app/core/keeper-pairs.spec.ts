@@ -316,6 +316,17 @@ describe('CalendarBook', () => {
   it('non esiste senza calendario, invece di esistere vuoto', () => {
     expect(calendarBookFrom(null)).toBeNull();
   });
+
+  it('un avversario fuori perimetro si scrive col nome della classifica e mai con la sua chiave', () => {
+    // 30/10/2026: «freiburg» e «le mans» in minuscolo sulla card, «DEP» per il Deportivo.
+    const one = file([match(1, 'inter', 'freiburg', 300)]);
+    one.leagues['serie_a'].clubs.push({ key: 'freiburg', name: null, label: 'SC Freiburg', fc_club_id: null, elo: 1600 });
+    expect(calendarBookFrom(one)!.forClub('Inter')!.window('Inter', 1, 1)[0].opponent).toBe('SC Freiburg');
+    // ...e un bundle scritto prima del 30/10 senza `label` continua a stampare la chiave, come prima.
+    const old = file([match(1, 'inter', 'freiburg', 300)]);
+    old.leagues['serie_a'].clubs.push({ key: 'freiburg', name: null, fc_club_id: null, elo: 1600 });
+    expect(calendarBookFrom(old)!.forClub('Inter')!.window('Inter', 1, 1)[0].opponent).toBe('freiburg');
+  });
 });
 
 describe('la quota di porte inviolate attesa', () => {

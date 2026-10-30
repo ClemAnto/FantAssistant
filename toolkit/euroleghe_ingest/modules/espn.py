@@ -398,10 +398,20 @@ def update_fixtures(conn, rows: list[dict], observed_on: str) -> dict[str, int]:
     """Move the SofaScore rows to ESPN's date and status. Never inserts: a row needs its round."""
     moved = updated = unmatched = 0
     for row in {(r["season"], r["league"], r["home_key"], r["away_key"]): r for r in rows}.values():
+        # THE SAME DAY BEATS THE SAME ORIENTATION (30/10/2026). When the two sources disagree on the venue
+        # (PSG - Rennes of 23/08: SofaScore home PSG on round 1, ESPN home Rennes), joining on the ordered
+        # pair finds the REVERSE fixture of round 23 and moves it from March to August, played - so a row
+        # of these two clubs already on that very day is the match, whichever side it calls home.
         found = conn.execute(
             "SELECT event_id, date, played FROM fixtures WHERE season = ? AND league = ? "
-            "AND home_key = ? AND away_key = ?",
-            (row["season"], row["league"], row["home_key"], row["away_key"])).fetchall()
+            "AND ((home_key = ? AND away_key = ?) OR (home_key = ? AND away_key = ?)) AND date = ?",
+            (row["season"], row["league"], row["home_key"], row["away_key"], row["away_key"],
+             row["home_key"], row["date"])).fetchall()
+        if len(found) != 1:
+            found = conn.execute(
+                "SELECT event_id, date, played FROM fixtures WHERE season = ? AND league = ? "
+                "AND home_key = ? AND away_key = ?",
+                (row["season"], row["league"], row["home_key"], row["away_key"])).fetchall()
         if len(found) != 1:
             unmatched += 1
             continue
@@ -615,7 +625,8 @@ def ingest_matches(ctx: Context) -> dict[str, int]:
         keepers_known |= {str(a.get("id")) for a in athletes
                           if (a.get("position") or {}).get("abbreviation") == "G"}
     levels: dict[str, dict] = {}
-    written = unresolved = 0
+    rounds = RoundBook(conn)
+    written = unresolved = unrounded = 0
     for path in sorted(ctx.config.cache_dir.glob("espn_summary_*.json")):
         key = _SUMMARY_CACHE.search(path.name)
         payload = _read(path) if key else None
@@ -630,6 +641,10 @@ def ingest_matches(ctx: Context) -> dict[str, int]:
         year = season[:4]
         if year not in levels:
             levels[year] = elo_module.levels_at(conn, year)
+        first = rows[0]
+        real_md = rounds.round_of(season, league, first["date"],
+                                  clubs.get(first["team_id"]) or names.get(first["team_id"]))
+        unrounded += real_md is None
         for row in rows:
             fc_id = ids.get(row["athlete_id"])
             unresolved += fc_id is None
@@ -643,11 +658,11 @@ def ingest_matches(ctx: Context) -> dict[str, int]:
             vote = vote_synth.base_vote({**row, "elo_team": elo_t, "elo_opp": elo_o}, role) if role else None
             conn.execute(
                 """INSERT OR REPLACE INTO espn_match_players(event_id, athlete_id, fc_id, season, league, match_date,
-                   club, opponent, home, team_goals, opponent_goals, formation, starter, formation_place, position,
+                   real_md, club, opponent, home, team_goals, opponent_goals, formation, starter, formation_place, position,
                    minutes, goals, assists, pen_scored, pen_missed, pen_saved, own_goals, yellows, reds, shots,
                    shots_on_target, saves, goals_conceded, fouls_committed, fouls_suffered, vote_synth,
-                   observed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (event_id, row["athlete_id"], fc_id, season, league, row["date"], club, opponent, row["home"],
+                   observed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (event_id, row["athlete_id"], fc_id, season, league, row["date"], real_md, club, opponent, row["home"],
                  row["team_goals"], row["opponent_goals"], row["formation"], row["starter"],
                  row["formation_place"], row["position"], row["minutes"], row["goals"], row["assists"],
                  row["pen_scored"], row["pen_missed"], row["pen_saved"], row["own_goals"], row["yellows"],
@@ -655,8 +670,50 @@ def ingest_matches(ctx: Context) -> dict[str, int]:
                  row["fouls_committed"], row["fouls_suffered"], vote, observed_on))
             written += 1
     conn.commit()
-    print(f"[espn] per-match: {written} player-matches · {unresolved} without a resolved fc_id")
-    return {"player_matches": written, "unresolved": unresolved}
+    print(f"[espn] per-match: {written} player-matches · {unresolved} without a resolved fc_id · "
+          f"{unrounded} match(es) the calendar cannot place on a round")
+    return {"player_matches": written, "unresolved": unresolved, "unrounded": unrounded}
+
+
+class RoundBook:
+    """Which REAL round an ESPN match belongs to: ESPN numbers no rounds, the calendar does.
+
+    The club's own fixture on that date first (a postponed catch-up is placed on ITS round, not on the
+    round most matches of that day belong to), then the round most of the league's fixtures that day
+    belong to, then - for a season the calendar does not carry - the round the per-match layer files
+    that day's matches under. None when no source can say, and the row stays unplaced: «vuoto = ignoto».
+    """
+
+    def __init__(self, conn) -> None:
+        self.by_club: dict[tuple, set[int]] = {}
+        votes: dict[tuple, dict[int, int]] = {}
+        for season, league, rnd, date, home, away in conn.execute(
+                "SELECT season, league, round, date, home_key, away_key FROM fixtures "
+                "WHERE round IS NOT NULL AND date IS NOT NULL"):
+            for club in (home, away):
+                self.by_club.setdefault((season, league, date[:10], club), set()).add(rnd)
+            day = votes.setdefault((season, league, date[:10]), {})
+            day[rnd] = day.get(rnd, 0) + 1
+        from_fixtures = set(votes)
+        for season, league, date, rnd, n in conn.execute(
+                "SELECT season, competition, substr(match_date, 1, 10), real_md, COUNT(*) "
+                "FROM external_match_stats WHERE real_md IS NOT NULL AND match_date IS NOT NULL "
+                "AND source = 'sofascore' GROUP BY 1, 2, 3, 4"):
+            if (season, league, date) in from_fixtures:
+                continue
+            day = votes.setdefault((season, league, date), {})
+            day[rnd] = day.get(rnd, 0) + n
+        self.by_day = {key: max(counts, key=counts.get) for key, counts in votes.items()}
+
+    def round_of(self, season: str, league: str, date: str, club: str | None) -> int | None:
+        day = (date or "")[:10]
+        common = self.by_day.get((season, league, day))
+        hits = self.by_club.get((season, league, day, matching.club_identity(club))) if club else None
+        if not hits:
+            return common
+        # Two rounds of one club on one day is a calendar that contradicts itself (a venue swap read as
+        # the reverse fixture): the day's own round wins when it is one of them, the lowest otherwise.
+        return common if common in hits else min(hits)
 
 
 def fetch_matches(ctx: Context, seasons_back: int = 0, leagues=None) -> dict[str, int]:

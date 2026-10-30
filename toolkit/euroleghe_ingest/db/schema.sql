@@ -380,6 +380,7 @@ CREATE TABLE IF NOT EXISTS espn_match_players (
     season          TEXT NOT NULL,             -- la nostra stagione (2026-27)
     league          TEXT NOT NULL,             -- il nostro campionato
     match_date      TEXT NOT NULL,             -- ISO, UTC
+    real_md         INTEGER,                   -- la giornata vera, dal calendario (la fonte non la numera)
     club            TEXT,                      -- nome canonico se lo portiamo, altrimenti quello ESPN
     opponent        TEXT,
     home            INTEGER,

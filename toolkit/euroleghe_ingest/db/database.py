@@ -210,6 +210,9 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # con `Tutti`. NULL = «letto prima che la colonna esistesse», che non e' «comprabile»: chi legge
     # tratta il vuoto come ignoto e un `ratings --quotes-from-cache` lo riempie senza rete.
     ("listone_quotes", "sold", "INTEGER"),
+    # LA GIORNATA VERA di una riga ESPN (30/10/2026): la fonte non numera i turni, quindi la scrive
+    # `espn.ingest_matches` dal calendario. Senza, l'app non sa a quale giornata appendere minuti e panchina.
+    ("espn_match_players", "real_md", "INTEGER"),
 )
 
 

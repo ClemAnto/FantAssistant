@@ -2570,12 +2570,18 @@ def known_identities(conn) -> dict[str, int]:
         "SELECT fc_id, source_id FROM player_xref WHERE source = 'sofascore'")}
 
 
-def _manual_overrides(conn) -> dict[str, int]:
+def _manual_overrides(conn) -> dict[str, int | None]:
     """manual_overrides rows pinning a provider id to an fc_id (highest precedence, spec §7):
-    entity='player_xref', field='sofascore', value=<provider id>."""
+    entity='player_xref', field='sofascore', value=<provider id>.
+
+    A row with NO fc_id DENIES the provider id to everybody (30/10/2026): «this man is nobody of ours».
+    Needed because a name pass can hand a namesake the identity - a Girona winger called Kim took
+    Kim Min-jae's, so Bayern's centre back read `LW` and his matches were somebody else's - and a pin
+    alone cannot stop the namesake from claiming the next listone's Kim.
+    """
     return {str(value): fc_id for value, fc_id in conn.execute(
         "SELECT value, fc_id FROM manual_overrides "
-        "WHERE entity = 'player_xref' AND field = 'sofascore' AND fc_id IS NOT NULL")}
+        "WHERE entity = 'player_xref' AND field = 'sofascore'")}
 
 
 def collect_claims(conn, rows: list[dict], league: str, season: str, pools, overrides, known=None):
@@ -2604,8 +2610,13 @@ def collect_claims(conn, rows: list[dict], league: str, season: str, pools, over
         name = player.get("name") or ""
         team = (row.get("team") or {}).get("name") or ""
         if provider_id in overrides:
-            claims.append(Claim(overrides[provider_id], (_PASS_RANK["manual"], 0), league, row,
-                                "manual"))
+            if overrides[provider_id] is None:
+                report.append({"league": league, "season": season, "provider_id": provider_id,
+                               "provider_name": name, "provider_team": team, "reason": "denied",
+                               "detail": "manual_overrides: this provider id is nobody of ours"})
+            else:
+                claims.append(Claim(overrides[provider_id], (_PASS_RANK["manual"], 0), league, row,
+                                    "manual"))
             continue
         passes = (
             ("club", by_club.get(club_key(team), []), 4),

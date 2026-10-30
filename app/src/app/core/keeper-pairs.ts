@@ -28,6 +28,9 @@ export interface CalendarClub {
   key: string;
   /** OUR canonical name, resolved in the toolkit - null for a club outside the perimeter. */
   name: string | null;
+  /** A name to SHOW: ours, or the league table's spelling for a club outside the perimeter. Display
+   *  only - nothing joins on it. Absent in a bundle written before 30/10/2026. */
+  label?: string | null;
   fcClubId: number | null;
   elo: number | null;
 }
@@ -64,7 +67,13 @@ export interface CalendarFile {
       rounds: number;
       unclassified: number;
       clean_sheet_fitted: boolean;
-      clubs: { key: string; name: string | null; fc_club_id: number | null; elo: number | null }[];
+      clubs: {
+        key: string;
+        name: string | null;
+        label?: string | null;
+        fc_club_id: number | null;
+        elo: number | null;
+      }[];
       columns: string[];
       matches: CalendarRow[];
       /** The league table on the same keys: [key, position, points, played]. Older bundles have none. */
@@ -101,6 +110,8 @@ export class LeagueCalendar {
   /** Canonical name -> the key the calendar is written in. The join, resolved in the toolkit. */
   private readonly keyByName = new Map<string, string>();
   private readonly nameByKey = new Map<string, string>();
+  /** What to print for a club with no name of ours: the league table's spelling, never its key. */
+  private readonly labelByKey = new Map<string, string>();
   /**
    * Each club's level (the calendar's own Elo), by the CALENDAR'S key: every club of the championship, also
    * the ones outside our perimeter that carry no canonical name - on EuroLeghe those are half the league,
@@ -139,6 +150,7 @@ export class LeagueCalendar {
         this.keyByName.set(club.name, club.key);
         this.nameByKey.set(club.key, club.name);
       }
+      if (club.label) this.labelByKey.set(club.key, club.label);
       if (club.elo != null) this.eloByKey.set(club.key, club.elo);
     }
     for (const [round, date, home, away, edge, csHome, csAway] of matches) {
@@ -170,7 +182,7 @@ export class LeagueCalendar {
   }
 
   private label(key: string): string {
-    return this.nameByKey.get(key) ?? key;
+    return this.nameByKey.get(key) ?? this.labelByKey.get(key) ?? key;
   }
 
   /**
@@ -836,6 +848,7 @@ export function leagueCalendarFrom(file: CalendarFile, league: string): LeagueCa
     one.clubs.map((club) => ({
       key: club.key,
       name: club.name,
+      label: club.label ?? null,
       fcClubId: club.fc_club_id,
       elo: club.elo,
     })),

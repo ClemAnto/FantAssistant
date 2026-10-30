@@ -495,6 +495,36 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.111 (30 ottobre 2026 — DATI MANCANTI SULLE CARD: IL RIPIEGO ESPN ARRIVA ALL'APP)
+
+Quattro segnalazioni dell'operatore sull'app pubblicata, quattro cause.
+- **`?'` sui minuti e giornate di panchina sparite** (Bensebaini, Godts, Kane): da quando SofaScore è chiuso
+  il livello per-partita non ha le giornate nuove, e la card leggeva solo quello. `espn_match_players` porta
+  ora `real_md` (ADDED_COLUMNS), scritta da `espn.RoundBook` col calendario — la partita del club in quel
+  giorno, poi il turno della maggioranza delle partite di quel giorno, poi per le stagioni senza calendario
+  il turno del livello SofaScore. Concorda con SofaScore su 36.517 righe di 36.554. La tabella entra nel
+  bundle (`heavy`, solo righe con `fc_id` e `real_md`) e in `pull-bundle`, e `players-store` riempie con lei
+  SOLO le chiavi che SofaScore non ha: distinta, minuti, titolare, avversario, campo, data. Niente rating,
+  attesi IGNOTI e non zero, e `vote_synth` non letto: dove entra resta una decisione dell'operatore.
+- **Avversari in minuscolo** (`freiburg`, `le mans`) **e `DEP`**: un club fuori perimetro non ha un nostro
+  nome e il calendario stampava la CHIAVE. `fixtures.schedule` porta ora `label`, la grafia della classifica
+  (`league_standings.source_name`), solo per la visualizzazione: `name` resta null e nessuno ci si unisce.
+  E l'articolo `le` non è più la sigla di un club (`Le Havre AC` → `Hav`).
+- **`???` sulla giornata 7 euro di Ligue 1**: `matchday_map` non era stata rigirata dopo le partite del
+  26/10. Rigirata (Transfermarkt), euro 7 → giornata 8.
+- **Un'inversione di campo spostava la partita di ritorno**: PSG - Rennes del 23/08, casa PSG per SofaScore
+  e casa Rennes per ESPN, e l'unione sulla coppia ordinata portava la gara di ritorno di marzo ad agosto e
+  la dava per giocata. `update_fixtures` cerca prima una partita delle due squadre in quel giorno in
+  qualunque verso. La riga è stata riparata a mano (marzo, da giocare).
+- **Kim Min-jae era un'ala del Girona** (`LW`, 177 cm, e le partite di un altro): il passaggio per nome ne
+  aveva dato l'identità SofaScore a un omonimo, e il campetto del Bayern lo metteva fra i rivali di Luis
+  Diaz. Stesso difetto per il portiere del Monaco Yann Liénard, che leggeva le stagioni di Dimitri Liénard.
+  `manual_overrides` sa ora anche NEGARE un id (`fc_id` NULL = «nessuno dei nostri»), perché un aggancio
+  forzato da solo non impedisce all'omonimo di riprendersi il prossimo Kim del listone. Righe di ruolo,
+  per-partita e stagione dell'identità sbagliata tolte, ruoli rigiocati dalla cache (Kim `DC`, 190 cm).
+  Trovati con una sola query: un ruolo del listone che il ruolo granulare contraddice di reparto (2 su tutto
+  il listone).
+
 ## Novità v9.110 (30 ottobre 2026 — ESPN, PASSO 2: IL LIVELLO PER-PARTITA E IL VOTO SINTETICO SENZA RATING)
 
 `espn --layer matches` (dentro `all`, quindi nella fetta notturna `base`) scarica il `summary` di ogni partita

@@ -103,6 +103,12 @@ CONTRACT: tuple[TableSpec, ...] = (
               "the per-match layer: propensity, the inactivity proxy, mv_synth, and the "
               "`sofascore_recent` rows the no-history pricing reads before the auction",
               also="source = 'sofascore_recent'"),
+    TableSpec("espn_match_players", "heavy",
+              "the per-match BACKUP while SofaScore answers 403 (30/10/2026): who was on the team sheet, "
+              "minutes, starts, opponent and venue for the rounds `external_match_stats` no longer reads. "
+              "The app fills only the keys the layer above lacks; its synthetic vote travels and is read "
+              "nowhere yet - where it enters is the operator's decision",
+              extra="fc_id IS NOT NULL AND real_md IS NOT NULL"),
     TableSpec("club_match_lineups", "full",
               "how many players of each line a club actually FIELDS: the Mantra slot caps and the "
               "attack-capacity denominator (22k rows in total, so it travels whole)"),
@@ -198,9 +204,6 @@ EXCLUDED: dict[str, str] = {
     "tm_appearances": "2.09M per-match rows from Transfermarkt. What the engine takes from them (minutes "
                       "per competition, the newcomer window) reaches the app as `desc_abroad_*` columns "
                       "already computed",
-    "espn_match_players": "ESPN's per-match rows while SofaScore answers 403, with the synthetic vote "
-                          "rebuilt without a provider rating. No reader is wired yet - which readers it "
-                          "may feed is the operator's decision (docs/model/voto-sintetico-senza-rating-v1.md)",
     "fvm_history": "the FVM curve per platform, accumulating since 2026. The app shows the CURRENT FVM "
                    "from `listone_quotes` and the market-value curve from `market_value_history`; "
                    "drawing the listone's own curve beside it is a feature nobody has asked for, so it "

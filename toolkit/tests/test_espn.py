@@ -98,6 +98,39 @@ def test_the_calendar_moves_sofascore_rows_and_never_creates_one(tmp_path):
     assert conn.execute("SELECT COUNT(*) FROM fixtures").fetchone()[0] == 1
 
 
+def test_a_venue_swap_updates_the_match_of_that_day_and_not_the_reverse_fixture(tmp_path):
+    """PSG - Rennes 23/08/2026: SofaScore home PSG (round 1), ESPN home Rennes. The ordered pair is the
+    round-23 return match, and moving it to August would erase it from the calendar still to play."""
+    conn = init_db(tmp_path / "t.db")
+    for event, rnd, date, home, away in (("s1", 1, "2026-08-23", "psg", "rennes"),
+                                         ("s23", 23, "2027-03-06", "rennes", "psg")):
+        conn.execute("INSERT INTO fixtures(event_id, season, league, round, date, home_key, away_key, played, "
+                     "source, observed_on) VALUES (?, '2026-27', 'ligue_1', ?, ?, ?, ?, 0, 'sofascore', "
+                     "'2026-09-24')", (event, rnd, date, home, away))
+    rows = [{"season": "2026-27", "league": "ligue_1", "home_key": "rennes", "away_key": "psg",
+             "date": "2026-08-23", "played": 1, "event_id": "e"}]
+    counts = espn.update_fixtures(conn, rows, "2026-10-30")
+    assert counts == {"updated": 1, "moved": 0, "unmatched": 0}
+    assert dict(conn.execute("SELECT event_id, date || '|' || played FROM fixtures")) == {
+        "s1": "2026-08-23|1", "s23": "2027-03-06|0"}
+
+
+def test_an_espn_match_is_placed_on_its_club_round_and_a_self_contradicting_day_on_the_common_one(tmp_path):
+    conn = init_db(tmp_path / "t.db")
+    for event, rnd, date, home, away in (("a", 5, "2026-10-04", "inter", "milan"),
+                                         ("b", 5, "2026-10-04", "roma", "lazio"),
+                                         ("c", 3, "2026-10-04", "napoli", "como"),
+                                         ("d", 23, "2026-10-04", "milan", "inter")):
+        conn.execute("INSERT INTO fixtures(event_id, season, league, round, date, home_key, away_key, played, "
+                     "source, observed_on) VALUES (?, '2026-27', 'serie_a', ?, ?, ?, ?, 1, 'sofascore', "
+                     "'2026-10-30')", (event, rnd, date, home, away))
+    book = espn.RoundBook(conn)
+    assert book.round_of("2026-27", "serie_a", "2026-10-04", "Napoli") == 3   # a catch-up keeps ITS round
+    assert book.round_of("2026-27", "serie_a", "2026-10-04", "Inter") == 5    # two rounds that day: the common
+    assert book.round_of("2026-27", "serie_a", "2026-10-04", None) == 5
+    assert book.round_of("2026-27", "serie_a", "2026-10-05", "Inter") is None
+
+
 def test_the_absence_readers_listen_to_the_freshest_provider_one_at_a_time(tmp_path):
     conn = init_db(tmp_path / "t.db")
     conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'A'), (2, 'B')")

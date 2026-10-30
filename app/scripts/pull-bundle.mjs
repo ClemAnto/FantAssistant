@@ -24,6 +24,9 @@ const TABLES = [
   'match_ratings',
   'external_match_stats',
   'matchday_map',
+  /* ESPN's per-match rows (30/10/2026): the backup of the per-match layer while SofaScore answers 403 -
+   * minutes, starts, the bench, opponent and venue for the rounds the layer above no longer reads. */
+  'espn_match_players',
   /* Last season's MEASURED fantamedia, per platform: the auction panel shows it beside the
    * prediction so a number can be judged against what the man actually did. */
   'season_stats',

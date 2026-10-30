@@ -673,6 +673,16 @@ def standings_of(conn, season: str, league: str) -> list[list]:
         return []
 
 
+def standing_names(conn, season: str, league: str) -> dict[str, str]:
+    """club_key -> the name the league table spells it with; empty on a DB that predates the table."""
+    try:
+        return {key: name for key, name in conn.execute(
+            "SELECT club_key, source_name FROM league_standings WHERE season = ? AND league = ? "
+            "AND source_name IS NOT NULL", (season, league))}
+    except sqlite3.Error:
+        return {}
+
+
 def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
     """THE CALENDAR STILL TO BE PLAYED, per championship, priced by the edge - for the app to read.
 
@@ -732,6 +742,7 @@ def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
         if not rows:
             continue
         rated = league in CLEAN_SHEET_LEAGUES
+        labels = standing_names(conn, season, league)
         form = recent_goals(conn, before=today, league=league) if rated else {}
         matches: list[list] = []
         unclassified = 0
@@ -774,7 +785,11 @@ def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
             "clubs": sorted(
                 ({"key": key, "elo": levels.get(key),
                   "name": ours.get(key, (None, None))[1],
-                  "fc_club_id": ours.get(key, (None, None))[0]}
+                  "fc_club_id": ours.get(key, (None, None))[0],
+                  # A NAME TO SHOW for a club outside the perimeter (30/10/2026: the screen printed its KEY,
+                  # `freiburg` and `le mans` in lower case, and `DEP` for Deportivo). The league table's own
+                  # spelling, used for display only: `name` stays null, so nothing joins on it.
+                  "label": ours.get(key, (None, None))[1] or labels.get(key)}
                  for key in keys),
                 key=lambda club: club["key"]),
             "columns": ["round", "date", "home", "away", "edge_home", "cs_home", "cs_away"],
