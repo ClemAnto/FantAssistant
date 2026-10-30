@@ -177,6 +177,12 @@ ALLOWED: dict[tuple[str, str, tuple[str, ...]], tuple[str, str]] = {
     ("euroleghe_ingest/modules/transfers.py", "club_xref", ("valid_from", "valid_to")): (
         "never_written", "Same again: the fourth of the four xref writers.",
     ),
+    ("euroleghe_ingest/modules/espn.py", "player_xref", ("valid_from", "valid_to")): (
+        "never_written", "ESPN's identities (30/10/2026): an athlete id, never its window - same as above.",
+    ),
+    ("euroleghe_ingest/modules/espn.py", "club_xref", ("valid_from", "valid_to")): (
+        "never_written", "ESPN's team ids, same statement as the other club mappings.",
+    ),
     ("euroleghe_ingest/modules/arrivals.py", "arrivals", ("tier", "foreign_fm_equiv")): (
         "same_call",
         "`run` empties the table - a roster diff is re-derived whole - and ends with `enrich`, which "

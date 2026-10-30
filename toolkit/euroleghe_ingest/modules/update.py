@@ -142,6 +142,8 @@ LINEUP_CATCHUP: dict[str, float] = {
     "positions:season": 24, "positions:match": 24, "positions:complete": 24,
     # Transfermarkt's per-match layer, the trend's backup: read the mornings after the rounds
     "performance": 48,
+    # the live squads and the calendar from ESPN (SofaScore's replacement): who is in a squad TODAY
+    "espn": 24,
     # the coaches: a sacking changes the board the lineup is drawn against
     "transfers": 168,
 }
@@ -333,6 +335,8 @@ DAILY: dict[str, str] = {
     "positions:roles": "the granular real role AND the live squad, one request per club. The provider "
                        "accepts a seasonId and ignores it, so this is an observation of TODAY; and the "
                        "squad read is the authority on who is in a squad (operator, 17/08/2026)",
+    "espn": "today's FULL squad of every club from ESPN - the live squad since SofaScore closed on 24/09 - "
+            "and the date/status of the fixtures. Both are facts about TODAY",
     "fixtures": "each club's upcoming matches. A postponement moves a match by weeks, and both the "
                 "easy-matches count and the calendar margin are read off it",
     "elo": "one request per auction date - and during a season in progress that date is TODAY, so a "

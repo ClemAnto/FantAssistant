@@ -24,6 +24,7 @@ PIPELINE: tuple[str, ...] = (
     "fbref",
     "positions",
     "fixtures",
+    "espn",         # dopo `fixtures`: aggiorna le sue righe (data, giocata) e non ne crea
     "recent_form",
     "synth",
     "arrivals",
@@ -56,7 +57,7 @@ ALL_MODULES: tuple[str, ...] = STANDALONE + PIPELINE
 # Single source of truth: add a name here when its module becomes real.
 IMPLEMENTED: frozenset[str] = frozenset(
     {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "injuries", "positions",
-     "performance",
+     "performance", "espn",
      "recent_form", "synth", "tournaments", "arrivals",
      "elo", "press", "auctions",
      "validate"}

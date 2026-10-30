@@ -1,0 +1,90 @@
+{
+ "M0_fit": {
+  "P": {
+   "base": 6.211,
+   "manyGA": -0.388
+  },
+  "D": {
+   "base": 5.896,
+   "goals_all": 0.973,
+   "assists": 0.596,
+   "manyGA": -0.653,
+   "manyGF": 0.171
+  },
+  "C": {
+   "base": 5.87,
+   "goals_all": 0.973,
+   "assists": 0.597,
+   "manyGA": -0.349,
+   "manyGF": 0.206
+  },
+  "A": {
+   "base": 5.752,
+   "goals_all": 0.987,
+   "assists": 0.647,
+   "manyGA": -0.212,
+   "manyGF": 0.145
+  }
+ },
+ "M0ext_fit": {
+  "P": {
+   "base": 6.321,
+   "manyGA": -0.043,
+   "reds": -1.372,
+   "pen_missed": 0.0,
+   "own_goals": -0.735,
+   "yellows": -0.027,
+   "cs_dp": 0.032,
+   "gk_ga": -0.135,
+   "pen_saved": 1.002,
+   "sub_short": -0.119,
+   "W": -0.017,
+   "L": -0.011
+  },
+  "D": {
+   "base": 5.863,
+   "goals_all": 0.938,
+   "assists": 0.56,
+   "manyGA": -0.371,
+   "manyGF": -0.004,
+   "reds": -1.013,
+   "pen_missed": -0.906,
+   "own_goals": -0.614,
+   "yellows": -0.069,
+   "cs_dp": 0.298,
+   "sub_short": 0.136,
+   "W": 0.114,
+   "L": -0.229
+  },
+  "C": {
+   "base": 5.873,
+   "goals_all": 0.942,
+   "assists": 0.564,
+   "manyGA": -0.152,
+   "manyGF": 0.031,
+   "reds": -1.017,
+   "pen_missed": -0.819,
+   "own_goals": -0.546,
+   "yellows": -0.037,
+   "cs_dp": 0.0,
+   "sub_short": 0.055,
+   "W": 0.181,
+   "L": -0.193
+  },
+  "A": {
+   "base": 5.721,
+   "goals_all": 0.981,
+   "assists": 0.634,
+   "manyGA": -0.051,
+   "manyGF": -0.004,
+   "reds": -0.963,
+   "pen_missed": -0.731,
+   "own_goals": -0.479,
+   "yellows": -0.007,
+   "cs_dp": 0.0,
+   "sub_short": 0.156,
+   "W": 0.156,
+   "L": -0.16
+  }
+ }
+}

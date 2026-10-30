@@ -553,26 +553,43 @@ def parse_standings(payload: dict, keys: set[str]) -> list[dict]:
     children = (payload or {}).get("children") or [{}]
     entries = ((children[0].get("standings") or {}).get("entries")) or []
     rows: list[dict] = []
-    left: list[tuple[dict, set[str]]] = []
+    teams: list[tuple[dict, dict]] = []
     for entry in entries:
         team = entry.get("team") or {}
         name = team.get("displayName") or ""
         stats = {one.get("name"): one.get("value") for one in entry.get("stats") or []}
         if not name or stats.get("rank") is None:
             continue
-        row = {"source_name": name, "position": int(stats["rank"]),
-               "points": None if stats.get("points") is None else int(stats["points"]),
-               "played": None if stats.get("gamesPlayed") is None else int(stats["gamesPlayed"])}
-        key = matching.club_identity(name)
-        if key in keys and key not in {one["club_key"] for one in rows}:
-            rows.append({**row, "club_key": key})
+        teams.append(({"source_name": name, "position": int(stats["rank"]),
+                       "points": None if stats.get("points") is None else int(stats["points"]),
+                       "played": None if stats.get("gamesPlayed") is None else int(stats["gamesPlayed"])},
+                      team))
+    for row, key in match_espn_teams(teams, keys):
+        rows.append({**row, "club_key": key})
+    return rows
+
+
+def match_espn_teams(teams: list[tuple[object, dict]], keys: set[str]) -> list[tuple[object, str]]:
+    """[(item, our key)] for ESPN `team` objects, each paired with whatever its caller carries. Pure.
+
+    The join `parse_standings` describes, lifted out so the CALENDAR (`modules/espn.py`) places ESPN's
+    clubs with the same rule the table does: two joins of one provider's names to one set of keys would
+    eventually put a club in the table and not in the calendar. Items that fit no key, or two, are left
+    out - «vuoto = ignoto».
+    """
+    rows: list[tuple[object, str]] = []
+    left: list[tuple[object, set[str]]] = []
+    for item, team in teams:
+        key = matching.club_identity(team.get("displayName") or "")
+        if key in keys and key not in {one for _item, one in rows}:
+            rows.append((item, key))
         else:
-            left.append((row, {w for field in ("displayName", "shortDisplayName", "location")
-                               for w in _words(team.get(field) or "")}))
+            left.append((item, {w for field in ("displayName", "shortDisplayName", "location")
+                                for w in _words(team.get(field) or "")}))
     # A KEY GOES TO THE NAME THAT SHARES THE MOST WORDS WITH IT, and only if no other leftover name shares as
     # many - so «Paris FC» (one word of «paris saint germain») cannot take Paris Saint-Germain's key by being
     # listed first, and a name that fits two keys equally takes neither.
-    free = keys - {row["club_key"] for row in rows}
+    free = keys - {key for _item, key in rows}
 
     def score(words: set[str], key: str) -> int:
         return sum(1 for k in _words(key) if any(k.startswith(w) or w.startswith(k) for w in words))
@@ -581,7 +598,7 @@ def parse_standings(payload: dict, keys: set[str]) -> list[dict]:
     # «Deportivo» has one key left. A claim counts against another only if it is that name's own best.
     pending = list(left)
     while pending:
-        claims: dict[str, list[tuple[dict, int]]] = {}
+        claims: dict[str, list[tuple[object, int]]] = {}
         for row, words in pending:
             scores = {key: score(words, key) for key in free}
             best = max(scores.values(), default=0)
@@ -594,7 +611,7 @@ def parse_standings(payload: dict, keys: set[str]) -> list[dict]:
             top = max(value for _, value in rivals)
             winners = [row for row, value in rivals if value == top]
             if len(winners) == 1:
-                rows.append({**winners[0], "club_key": key})
+                rows.append((winners[0], key))
                 taken.append(key)
                 placed.add(id(winners[0]))
         if not taken:

@@ -1441,6 +1441,30 @@ _TARGET_FROM_LISTONE = """
 # Chi la fonte non ha mai visto tiene il club del listone - ignoto non è partito - ed è il secondo ramo.
 # Il gate non lo usa: il suo default resta `listone` e un test lo asserisce, quindi nessun numero pubblicato
 # cambia popolazione.
+# THE PROVIDERS WHOSE FULL SQUAD READ IS THE AUTHORITY on who is in a squad (operator, 17/08/2026). Two since
+# 30/10/2026, because SofaScore has answered 403 since 24/09 and ESPN reads the same fact (`modules/espn.py`).
+LIVE_SOURCES: tuple[str, ...] = ("espn", "sofascore")
+
+
+def live_source(conn, date: str) -> str:
+    """WHICH ONE the absence readers listen to at `date`: the provider with the most recent read.
+
+    ONE AT A TIME and never a union, because an absence is evidence only about a man THAT provider can name
+    (`observed_players`): a man SofaScore identified and ESPN has not yet would read as «gone» from an ESPN
+    payload. So the reading, the identities and the completeness gate all come from the same source, and the
+    freshest one wins - a provider that stopped answering stops being the authority on the day another one
+    reads after it. Ties go to the first of `LIVE_SOURCES`. No read at all answers `sofascore`, the source
+    every reading had until that day, so a DB without ESPN behaves exactly as before.
+    """
+    best, best_day = LIVE_SOURCES[-1], ""
+    for source in LIVE_SOURCES:
+        day = conn.execute("SELECT MAX(valid_from) FROM squad_snapshot WHERE source = ? AND valid_from <= ?",
+                           (source, date)).fetchone()[0] or ""
+        if day > best_day:
+            best, best_day = source, day
+    return best
+
+
 _TARGET_FROM_AUTHORITY = """
     SELECT s.fc_id,
            COALESCE(rt.role_classic,
@@ -1453,7 +1477,7 @@ _TARGET_FROM_AUTHORITY = """
            q.price, (SELECT c3.fc_club_id FROM clubs c3 WHERE c3.canonical_name = s.club) AS fc_club_id,
            q.price_initial, q.fvm, q.fvm_mantra, q.price_mantra, q.price_initial_mantra
     FROM (SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot
-          WHERE valid_from <= :auction AND source = 'sofascore' GROUP BY fc_id) s
+          WHERE valid_from <= :auction AND source = :live GROUP BY fc_id) s
     LEFT JOIN rosters rt ON rt.fc_id = s.fc_id AND rt.season = :target
     LEFT JOIN listone_quotes q ON q.fc_id = s.fc_id AND q.season = :target AND q.platform = :platform
     WHERE s.club IN (SELECT DISTINCT team FROM match_ratings
@@ -1482,7 +1506,7 @@ _TARGET_FROM_AUTHORITY = """
       -- mentre `desc_live_club` dice dove la fonte lo vede: la contraddizione si riporta, non si applica.
       AND r.fc_id NOT IN (
             SELECT fc_id FROM (SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot
-                               WHERE valid_from <= :auction AND source = 'sofascore' GROUP BY fc_id)
+                               WHERE valid_from <= :auction AND source = :live GROUP BY fc_id)
             WHERE club IN (SELECT DISTINCT team FROM match_ratings
                            WHERE platform = :platform AND team IS NOT NULL))
 """
@@ -1551,7 +1575,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
                                      AND st.platform = :platform
             WHERE 1 = 1{league_filter}""",
         {"input": window.input_season, "target": window.target_season, "platform": platform,
-         "auction": window.auction_date}).fetchall()
+         "auction": window.auction_date,
+         "live": live_source(conn, window.auction_date or "9999-12-31")}).fetchall()
 
     external = _external(conn, window.input_season)
     # ...of THIS platform: the tier is a percentile inside a listone (schema.sql, `arrivals`).

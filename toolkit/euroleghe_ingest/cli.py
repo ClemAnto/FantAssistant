@@ -313,6 +313,17 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--pages", type=int, default=3,
                            help="pages of 30 future events per club (default: 3, which covered a whole "
                                 "38-round season plus cups on the club it was measured on)")
+        if name == "espn":
+            p.add_argument("--layer", choices=("all", "squads", "calendar"), default="all",
+                           help="squads = clubs, today's rosters and the ESPN identities (the live squad); "
+                                "calendar = each club's schedule pages -> the dates and status of the "
+                                "fixtures SofaScore wrote; all = both (default)")
+            p.add_argument("--no-refresh", dest="refresh", action="store_false",
+                           help="use the cached pages where they exist (today's rosters are dated, so a "
+                                "second run of the day costs nothing anyway)")
+            p.add_argument("--from-cache", dest="from_cache", action="store_true",
+                           help="OFFLINE: clubs, identities and calendar from the cache - the replay "
+                                "`rebuild` runs")
         if name == "tournaments":
             # The module has always taken both, and neither was reachable from the CLI - so the only
             # tournament anybody could download was the built-in default. An option no caller can pass
@@ -523,6 +534,11 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command == "fixtures":
                 load("fixtures").run(ctx, leagues=args.league, refresh=args.refresh,
                                      pages=args.pages)
+            elif args.command == "espn":
+                if args.from_cache:
+                    load("espn").reingest_from_cache(ctx)
+                else:
+                    load("espn").run(ctx, layer=args.layer, refresh=args.refresh)
             elif args.command == "positions":
                 # `--days` ANCHE QUI, ed e' la seconda volta che questo dispatcher perde un flag che aveva
                 # appena parsato (la prima fu `--tournament`, spec «Novita' v9.39»). Misurato il

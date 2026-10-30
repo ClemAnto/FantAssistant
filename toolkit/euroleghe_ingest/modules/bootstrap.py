@@ -114,6 +114,13 @@ def plan(seasons: tuple[str, ...] | None = None, *,
              why="each club's upcoming matches -> `fixtures`, which feeds the sheet's easy-matches count "
                  "and the calendar margin. RE-READ on an update: a postponement moves a match by weeks, "
                  "and the unit here is the MATCH and never the matchday"),
+        # ESPN DA QUANDO SOFASCORE E' CHIUSO (403 dal 24/09/2026): la rosa intera di ogni club - l'autorita' su
+        # chi c'e', letta ogni giorno - e la data e lo stato delle partite che `fixtures` ha scritto. Dopo
+        # `fixtures` perche' ne aggiorna le righe senza crearne (ESPN non ha il numero di giornata).
+        Step("espn", "espn", minutes=5, params={"refresh": refresh},
+             why="ESPN: today's full squad of every club (the live squad, since SofaScore answers 403) and "
+                 "the date/status of every fixture - a postponement moves a match. ALWAYS re-read: both are "
+                 "facts about today"),
         Step("fc_site", "fc_site", minutes=1,
              why="today's probabili/indisponibili snapshot + the revealed penalty hierarchy. Its HISTORY "
                  "cannot be backfilled and is deliberately NOT scheduled (operator, 05/08/2026): re-run it "

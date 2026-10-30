@@ -1,5 +1,19 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXIX): 22 ottobre 2026 — SOFASCORE CHIUSO (403), E UN RIPIEGO SU TRANSFERMARKT.**
+**Aggiornato (XXX): 30 ottobre 2026 — ESPN AL POSTO DI SOFASCORE, E UN VOTO SINTETICO SENZA RATING.**
+Due lavori in parallelo, su richiesta dell'operatore. (1) **`modules/espn.py`** (spec «Novità v9.109»): rose vive
+e calendario dall'API pubblica di ESPN. Agganciati 70 club, 531/539 quotati di Serie A e 914/924 di euro; la rosa
+entra in `squad_snapshot` source `espn` al prossimo `snapshot`, e `features.live_source` fa ascoltare ai lettori
+dell'assenza il provider più recente. Il calendario ha date e partite giocate aggiornate (Serie A 90 giocate
+contro 0). Passo `espn` nella fetta notturna `base` e nel mattino della formazione. Prima corsa fatta su una
+copia del DB e poi sul vivo. (2) **Voto sintetico senza il rating del provider**
+(`voto-sintetico-senza-rating-v1.md`, script in `toolkit/scripts/synth_vote/`): una regola lineare per ruolo
+(eventi, risultato, minuti, Elo, campo) batte la retta sul rating di SofaScore, 0,303 contro 0,372 di MAE
+all'estero (6 stagioni su 6) e 0,310 contro 0,363 in Serie A (7 su 7). Solo il portiere perde, per le parate.
+La regola dettata dall'operatore (6 / +1 / +0,5 / ...), presa così com'è, è già pari a `mv_synth`. **Aperti**:
+dove entra L3 (decisione sua: `mv_synth` alimenta percorsi giudicati); verificare `mv_synth` vuoto dal 2024-25;
+passo 2 di ESPN (livello per-partita: modulo, posto, ruoli granulari, parate).
+
+· precedente: **Aggiornato (XXIX): 22 ottobre 2026 — SOFASCORE CHIUSO (403), E UN RIPIEGO SU TRANSFERMARKT.**
 Dal 24/09 SofaScore risponde 403 su ogni endpoint (riprovato il 22/10), quindi il livello per-partita si ferma alle
 giornate del 20/09 e con lui i ruoli granulari e il calendario (letto il 24/09, porta comunque le partite future).
 Elo: API 502, l'archivio non ha date dopo il 01/09. Il DB è stato aggiornato da capo (`performance` 1319/1319,

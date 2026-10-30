@@ -495,6 +495,53 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.109 (30 ottobre 2026 — ESPN AL POSTO DI SOFASCORE: ROSE VIVE E CALENDARIO, `modules/espn.py`)
+
+SofaScore risponde 403 dal 24/09/2026, e con lui si erano fermate le due letture da cui dipende una formazione:
+la ROSA VIVA (l'autorità su chi c'è, dell'operatore dal 17/08) e il CALENDARIO (letto il 24/09, mai più
+riletto: nessun rinvio e nessuna partita segnata come giocata). Aggirare il blocco impersonando un browser è
+stato respinto il 30/10 come aggiramento di un controllo anti-bot, e la strada non si riprova. L'API pubblica di
+ESPN (`site.api.espn.com`) è stata provata lo stesso giorno con una richiesta per endpoint, senza chiave né
+cookie, sui cinque campionati.
+
+**Il modulo** (`espn`, PIPELINE dopo `fixtures`, passo `espn` di `bootstrap`/`update`, fetta notturna `base`,
+`LINEUP_CATCHUP` 24 ore):
+- `/teams` → i club ESPN sui nostri (`club_xref` source `espn`): 70 su 96 agganciati. Otto grafie che il
+  risolutore non piazza sono DICHIARATE (`ESPN_CLUB_NAMES`: Internazionale, Bayern Munich, Marseille, Lyon...);
+  gli altri 26 club ESPN non li quota nessun nostro listone e sono stampati, non indovinati.
+- `/teams/{id}/roster` → la rosa INTERA di ogni club, in cache datata (`espn_roster_{id}_{giorno}.json`). Gli
+  atleti si legano a un `fc_id` per NOME dentro il POOL del club (`matching.match_in_pool`), con l'anno di
+  nascita come VETO; poi un secondo giro sull'intero listone, dove servono un tier 1-2 e lo STESSO anno. Due id
+  ESPN sullo stesso uomo lo lasciano senza nessuno. Risolti 1437 atleti su 2146, e fra i quotati nei club ESPN
+  **531 su 539 in Serie A e 914 su 924 su euro** (SofaScore ne aveva 513 e 882). Le identità si riderivano da
+  tutta la cache a ogni corsa, con `resolved_by = 'espn'`.
+- `/teams/{id}/schedule[?fixture=true]` → data e stato delle partite. ESPN non ha il numero di giornata, quindi
+  il modulo AGGIORNA le righe che SofaScore ha scritto (sulla coppia casa/fuori della stagione) e non ne crea:
+  una partita senza giornata non la può collocare nessuno. I club ESPN si legano alle chiavi del calendario con
+  la stessa regola della classifica (`fixtures.match_espn_teams`, estratta da `parse_standings`: due join per i
+  nomi di un provider finirebbero per mettere un club in classifica e non nel calendario). Prima corsa: Serie A
+  380 partite aggiornate, 238 con un'altra data (222 a +1 giorno sulle giornate 13-38, cioè date provvisorie che
+  SofaScore teneva a mezzanotte italiana = sabato in UTC), 90 ora giocate contro 0; negli altri campionati le
+  righe senza corrispondenza sono le partite fra due club fuori perimetro, che `fixtures` non ha mai letto.
+
+**La rosa entra nel foglio** da `snapshot.derive_squads`, come `squad_snapshot` source `espn` (ogni giorno in
+cache, non solo l'ultimo: il cancello delle letture sottili confronta un club con le SUE letture precedenti).
+**Chi la legge come autorità** è una funzione sola nel motore, `features.live_source`: il provider con la
+lettura più recente alla data, UNO alla volta e mai un'unione, perché un'assenza è una prova solo su un uomo che
+QUEL provider sa nominare. La leggono `snapshot.live_squads`, `live_club_of`, `observed_players` e la
+popolazione «squad» del foglio (`features._TARGET_FROM_AUTHORITY`, ora su `:live`). Senza letture ESPN risponde
+`sofascore`, quindi un DB di prima del 30/10 e un foglio retrodatato si comportano come prima.
+
+Tre limiti detti invece che scoperti:
+- Chi era già partito prima della prima lettura ESPN non ha un'identità ESPN, quindi la sua assenza non si legge:
+  da qui in avanti sì. Sulla prima lettura, zero quotati assenti e zero spostati.
+- Una decina di club con pochi quotati (Colonia 7 identificati, Gladbach 1, Leeds 3) restano sotto `SQUAD_FLOOR`,
+  cioè letture sottili senza giudizio d'assenza: la soglia conta gli identificati.
+- I ruoli granulari e il livello per-partita (modulo, posto, titolare, minuti, ruolo per partita, cambi) sono il
+  passo successivo, dai `summary` delle partite.
+
+Nessuna colonna del foglio cambia significato: `SHEET_REVISION` fermo. `backtest --verify` rieseguito.
+
 ## Novità v9.108 (27 ottobre 2026 — LA NOTTE IN FETTE, PER CADENZA, E UN PASSO INTERROTTO SI RIPRENDE)
 
 Tre richieste dell'operatore in una sera: «5 ore sono troppe, dobbiamo suddividere in più step da max un paio

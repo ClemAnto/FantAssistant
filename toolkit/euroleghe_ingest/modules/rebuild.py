@@ -73,6 +73,7 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("transfers").reingest_from_cache(ctx)           # clubs, coaches (new_coach), transfers
     load("injuries").reingest_from_cache(ctx)            # tm ids, dated absences, contract snapshot
     load("market").reingest_from_cache(ctx)              # la curva del valore (dopo: usa i tm id)
+    load("espn").reingest_from_cache(ctx)                # rose vive e identita' ESPN, offline
     # LE PARTITE DI TRANSFERMARKT (30/09/2026): modulo NETWORK come `recent_form`, e come lui senza una
     # replica chiamata da nessuno - un `rebuild` lasciava vuota `tm_appearances` (2M di righe, da cui
     # vengono le posizioni storiche, le squalifiche e la stagione estera). Dopo `injuries`, che paga i tm id.

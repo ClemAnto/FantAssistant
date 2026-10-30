@@ -1231,7 +1231,7 @@ def derive_squads(ctx: Context, date: str | None = None,
 
     conn = ctx.require_conn()
     date = date or dt.datetime.now(tz=dt.UTC).date().isoformat()
-    counts = {"fc_site": 0, "sofascore": 0, "transfermarkt": 0, "appearances": 0}
+    counts = {"fc_site": 0, "sofascore": 0, "espn": 0, "transfermarkt": 0, "appearances": 0}
 
     # A SECOND WRITER CAN BE HOLDING THE LOCK, and this phase is where it hurts most: it is the FIRST thing
     # a snapshot writes, so a long acquisition running beside it kills a run before it has produced
@@ -1304,6 +1304,27 @@ def derive_squads(ctx: Context, date: str | None = None,
                 "VALUES (?, ?, ?, 'sofascore', NULL)", (fc_id, observed, club))
             counts["sofascore"] = counts.get("sofascore", 0) + 1
 
+    # ...AND THE SAME READ FROM ESPN, since SofaScore closed on 24/09/2026 (`modules/espn.py`): the whole
+    # roster of a club, one request, dated by the day of the read - the same KIND of fact, so it is stored
+    # the same way under its own source, and `live_source` decides which of the two the absence readers
+    # listen to. Every cached day is written, not only the newest: `live_squads` judges a thin read against
+    # the club's OWN previous reads, and one day of history would leave that gate nothing to compare with.
+    from euroleghe_ingest.modules import espn as espn_module
+
+    espn_ids = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'espn'")}
+    counts["espn"] = 0
+    for club, observed, athletes in espn_module.cached_rosters(
+            ctx.config.cache_dir, espn_module.espn_clubs(conn), until=date):
+        for athlete in athletes:
+            fc_id = espn_ids.get(str(athlete.get("id") or ""))
+            if fc_id is None:
+                continue
+            write(
+                "INSERT OR REPLACE INTO squad_snapshot(fc_id, valid_from, club, source, role_hint) "
+                "VALUES (?, ?, ?, 'espn', NULL)", (fc_id, observed, club))
+            counts["espn"] += 1
+
     from euroleghe_ingest.modules.injuries import _SQUAD_CACHE, parse_squad
 
     xref = {source_id: fc_id for source_id, fc_id in conn.execute(
@@ -1366,7 +1387,7 @@ def derive_squads(ctx: Context, date: str | None = None,
     database.retry_on_lock(conn.commit, what="real squads")
     total = conn.execute("SELECT COUNT(DISTINCT fc_id) FROM squad_snapshot").fetchone()[0]
     print(f"[snapshot] real squads: {total} players "
-          f"(fc_site {counts['fc_site']}, sofascore {counts['sofascore']}, "
+          f"(fc_site {counts['fc_site']}, sofascore {counts['sofascore']}, espn {counts['espn']}, "
           f"transfermarkt {counts['transfermarkt']}, appearances {counts['appearances']})")
     return counts
 
@@ -4225,6 +4246,11 @@ def departures(conn, window: features.Window, date: str) -> dict[int, dict]:
     return out
 
 
+# The provider the absence readers listen to - ONE definition, in the engine, because the sheet's
+# population query (`features._TARGET_FROM_AUTHORITY`) asks the same question. See `features.live_source`.
+from euroleghe_ingest.engine.features import LIVE_SOURCES, live_source  # noqa: E402
+
+
 def live_squads(conn, date: str, reads: int = ABSENT_READS) -> dict[str, dict]:
     """{club key: {"on", "club", "ids", "ever", "thin"}} - la rosa VIVA di ogni club al `date`.
 
@@ -4271,8 +4297,8 @@ def live_squads(conn, date: str, reads: int = ABSENT_READS) -> dict[str, dict]:
     per_club: dict[str, dict[str, set[int]]] = {}
     names: dict[str, str] = {}
     for club, observed, fc_id in conn.execute(
-            "SELECT club, valid_from, fc_id FROM squad_snapshot WHERE source = 'sofascore' "
-            "AND valid_from <= ?", (date,)):
+            "SELECT club, valid_from, fc_id FROM squad_snapshot WHERE source = ? "
+            "AND valid_from <= ?", (live_source(conn, date), date)):
         key = _club_key(club)
         if not key:
             continue
@@ -4316,22 +4342,24 @@ def live_club_of(conn, date: str) -> dict[int, tuple[str, str]]:
     """
     out: dict[int, tuple[str, str]] = {}
     for fc_id, club, observed in conn.execute(
-            "SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot WHERE source = 'sofascore' "
-            "AND valid_from <= ? GROUP BY fc_id", (date,)):
+            "SELECT fc_id, club, MAX(valid_from) FROM squad_snapshot WHERE source = ? "
+            "AND valid_from <= ? GROUP BY fc_id", (live_source(conn, date), date)):
         out[int(fc_id)] = (club, observed)
     return out
 
 
-def observed_players(conn) -> set[int]:
-    """Whoever the provider can be asked about at all: an fc_id with a sofascore identity.
+def observed_players(conn, date: str | None = None) -> set[int]:
+    """Whoever the provider can be asked about at all: an fc_id with an identity at the LIVE source
+    (`live_source` at `date`; without a date, the freshest read there is).
 
     ⚠️ THE GUARD, and without it the live squad reads backwards. A man missing from a squad payload is either
     gone or never identified - 1352 provider ids have no resolved identity, and the same is true the other way
     round - and «vuoto = ignoto, mai zero rivali» is the rule this project already paid for twice. So absence
     is only evidence about a man the provider KNOWS.
     """
+    source = live_source(conn, date or "9999-12-31")
     return {fc_id for (fc_id,) in conn.execute(
-        "SELECT fc_id FROM player_xref WHERE source = 'sofascore'")}
+        "SELECT fc_id FROM player_xref WHERE source = ?", (source,))}
 
 
 def still_buyable(row: dict, seen_at: dict, perimeter_keys: set[str] | None) -> bool:
@@ -6525,7 +6553,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     window = window or data.window
     estimation = estimation_layer(conn, window, platform, data.observations, perimeter)
     left = departures(conn, window, window.auction_date)
-    provider_known = observed_players(conn)
+    provider_known = observed_players(conn, window.auction_date)
     # La sottigliezza di un payload la giudica `live_squads` da se', contro le letture DELLO STESSO club:
     # il denominatore preso dal foglio era circolare (`live_squads` porta la misura), e per questo qui non
     # passa piu' ne' le osservazioni ne' un secondo cancello.

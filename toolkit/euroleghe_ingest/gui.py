@@ -85,7 +85,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # on this display, so it is a reason and not a preference: 669/453 put first, 589/533 put here.
     ("Everything, in order", ("update",)),
     ("During the season - every matchday",
-     ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
+     ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "espn", "validate")),
     ("Before an auction", ("snapshot", "press", "auctions", "export")),
 )
 
@@ -139,6 +139,9 @@ TOOLTIPS: dict[str, str] = {
     "fixtures": "Read each club's upcoming matches into `fixtures` (keyed on the provider's event id, "
                 "clubs resolved by provider id). Feeds the sheet's easy-matches count and calendar "
                 "margin. Re-run it through the season: a postponement moves a match by weeks.",
+    "espn": "Read every club's FULL squad from ESPN (the live squad, since SofaScore answers 403) and "
+            "the date/status of the fixtures. Re-run it daily: a squad and a calendar are facts about "
+            "today.",
     "transfers": "Read the club identities, the coach history and the club transfer pages from "
                  "Transfermarkt -> club_xref, coaches (hence the new_coach flag) and "
                  "transfers_history with the fees. Injuries and exit_risk are not covered yet.",
@@ -253,6 +256,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "performance": "tm_appearances",
     "arrivals": "arrivals",
     "elo": "club_elo",
+    "espn": "player_xref",   # its own output is the ESPN identities; the squads land via `snapshot`
     "press": "press_formations",
 }
 

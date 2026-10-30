@@ -82,10 +82,10 @@ $keepLogs = 14
 # acquisition step of the plan is in EXACTLY one slice.
 $Slices = @(
     [pscustomobject]@{ Name = 'base'; Minutes = 75; At = '00:30'; Days = @(); Weeks = 1
-        Why  = 'ogni notte: voti e listone, rose e ruoli SofaScore, calendario, Elo, probabili'
+        Why  = 'ogni notte: voti e listone, rose ESPN (e SofaScore), calendario, Elo, probabili'
         Args = @('--step', 'inbox', '--step', 'rosters', '--step', 'stats', '--step', 'ratings:default',
             '--step', 'ratings:euro', '--step', 'positions:season', '--step', 'positions:roles',
-            '--step', 'elo', '--step', 'fixtures', '--step', 'fc_site', '--step', 'positions:match',
+            '--step', 'elo', '--step', 'fixtures', '--step', 'espn', '--step', 'fc_site', '--step', 'positions:match',
             '--step', 'positions:complete') },
     [pscustomobject]@{ Name = 'presenze'; Minutes = 90; At = '01:45'; Days = @('Monday', 'Tuesday', 'Friday'); Weeks = 1
         Why  = 'dopo le giornate: le partite giocate da Transfermarkt (il ripiego di SofaScore)'
