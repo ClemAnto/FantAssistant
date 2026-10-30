@@ -1,0 +1,23 @@
+{
+  "_comment": "PER-LEAGUE bonus/malus scoring (spec v8 + set-pieces note v2). Leagues use NON-standard values for scored/missed penalties and set-piece assists: no value should be hard-coded. 'default' = fantacalcio.it; 'leagues' holds only the overrides relative to the default. Both the toolkit and the prediction engine read from here. NOTE on clean_sheet_bonus_gk: the source does NOT apply it - measured on 16,017 of our own keeper rows on both platforms, fantavoto = mv - goals_conceded + 3*pen_saved - cards is exact in 100% of them, and the residual is 0.000 on the 4,872 matches closed at zero as well. It stays here as a league-configurable term and every reader must keep leaving it out (see ratings._fantavoto and arrivals.keeper_fm_equivalent).",
+  "default": {
+    "goal_bonus": 3.0,
+    "penalty_scored_bonus": 3.0,
+    "penalty_missed_malus": 3.0,
+    "assist_bonus": 1.0,
+    "assist_set_piece_bonus": 1.0,
+    "own_goal_malus": 2.0,
+    "yellow_card_malus": 0.5,
+    "red_card_malus": 1.0,
+    "goal_conceded_malus_gk": 1.0,
+    "penalty_saved_bonus_gk": 3.0,
+    "clean_sheet_bonus_gk": 1.0
+  },
+  "leagues": {
+    "serie_a": {},
+    "premier_league": {},
+    "la_liga": {},
+    "bundesliga": {},
+    "ligue_1": {}
+  }
+}
