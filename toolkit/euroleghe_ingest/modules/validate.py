@@ -35,6 +35,9 @@ ALLOWED_EMPTY: dict[str, set[str]] = {
     # the providers give an id, not the window it is valid for: we date a mapping only when a source
     # actually tells us it changed (e.g. a manual override), which has not happened yet.
     "player_xref": {"valid_from", "valid_to"},
+    # an identity is not a season fact (30/10/2026, the first rows: Kim Min-jae pinned, two namesakes
+    # denied), so an override of `player_xref` carries no season - and a denial carries no fc_id either.
+    "manual_overrides": {"season", "fc_id"},
     "club_xref": {"valid_from", "valid_to"},
     # quotations and FVM all come from the listone: a roster rebuilt from the votes alone has none
     "rosters": {"price", "price_initial", "fvm", "fvm_mantra",
