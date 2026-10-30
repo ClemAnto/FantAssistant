@@ -22,7 +22,7 @@ import { computed, signal } from '@angular/core';
 
 import { OutWindow } from './injury-window';
 import { Role } from './plancia';
-import { MatchCell, Platform, RecentMatch, clubNameKey, isChampionship } from './players-store';
+import { MatchCell, Platform, RecentMatch, clubNameKey, countsAsPlayed, isChampionship } from './players-store';
 
 /**
  * LA META' D'ASTA di una card: esiste sulla plancia e NON sulla Strategia.
@@ -424,7 +424,7 @@ export interface SeasonTotals {
 
 export function seasonTotals(cells: readonly MatchCell[]): SeasonTotals | null {
   const own = cells.filter((one) => isChampionship(one.kind));
-  const played = own.filter((one) => one.state === 'played' || one.state === 'no_vote');
+  const played = own.filter((one) => countsAsPlayed(one.state));
   if (!played.length) return null;
 
   const mean = (values: number[]) =>

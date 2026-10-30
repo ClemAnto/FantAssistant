@@ -495,6 +495,23 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.112 (30 ottobre 2026 — IL SENZA VOTO È UNA PARTITA NON GIOCATA, E COSÌ IL CAMEO)
+
+Due dichiarazioni dell'operatore, la sera stessa della v9.111, dopo aver visto a schermo un «8' ~6.0» su una
+giornata che EuroLeghe aveva dato s.v.:
+- **«Il senza voto (SV) va trattato come partita non giocata»**. Nell'app una riga del campionato senza voto della
+  piattaforma resta s.v. e non si ricopre più col sintetico del provider (`buildLeagueMatches`), e nessun
+  conteggio la conta: presenze, minuti a partita, quote di frequenza, riepilogo della card, ordinamento per
+  presenze e la riga della formazione chiedono a `players-store.countsAsPlayed` (una definizione, sei lettori).
+  La riga si disegna ancora, perché è un fatto (è entrato); si legge come il toolkit già la leggeva, dove la
+  titolarità conta le giornate col VOTO.
+- **«Nel voto sintetico, sotto i 15 minuti non prende voto e risulta come partita non giocata — a meno che non
+  abbia segnato, fatto assist, sbagliato un rigore o sia stato espulso»**. Una definizione,
+  `vote_synth.gets_a_vote` (`MIN_VOTE_MINUTES` = 15), letta dalla retta sul rating (`synth`: `mv_synth` e
+  `mv_est` NULL) e dal voto ESPN. Misurata sui voti veri prima di adottarla: s.v. sul 97% delle comparse
+  sotto i 10', sul 49% fra 10 e 14, sul 3% fra 15 e 19 su 23.000 presenze di Serie A — il taglio sta sul salto.
+  Il rigore sbagliato non è nel livello del provider, quindi lì l'eccezione è letta su gol, assist ed espulsione.
+
 ## Novità v9.111 (30 ottobre 2026 — DATI MANCANTI SULLE CARD: IL RIPIEGO ESPN ARRIVA ALL'APP)
 
 Quattro segnalazioni dell'operatore sull'app pubblicata, quattro cause.

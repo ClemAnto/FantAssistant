@@ -50,10 +50,30 @@ def features(row: dict, role: str) -> dict[str, float]:
     }
 
 
+# THE CAMEO WITHOUT A VOTE (operator, 30/10/2026): «se il calciatore ha giocato meno di 15 minuti non deve
+# prendere voto e risultare come partita non giocata - a meno che non abbia segnato, fatto assist, sbagliato un
+# rigore o sia stato espulso». Measured on 23,000 Serie A appearances against the real votes before adopting
+# it: s.v. on 97% of cameos under 10 minutes, 49% from 10 to 14, 3% from 15 to 19 - the cut sits on the jump.
+MIN_VOTE_MINUTES = 15
+
+
+def gets_a_vote(minutes, goals=0, assists=0, pen_missed=0, reds=0) -> bool:
+    """Whether a synthetic vote may exist for this appearance. ONE definition: `synth` (the provider-rating line,
+    `mv_synth`/`mv_est`) and this module (ESPN) both ask here. Unknown minutes are not a short cameo."""
+    if minutes is None:
+        return True
+    if minutes >= MIN_VOTE_MINUTES:
+        return True
+    return bool((goals or 0) or (assists or 0) or (pen_missed or 0) or (reds or 0))
+
+
 def raw_vote(row: dict, role: str, coefficients: dict | None = None) -> float | None:
     """The unrounded prediction, or None for a man who did not play or a role we do not know."""
     weights = (coefficients or COEFFICIENTS).get(role)
     if weights is None or not row.get("minutes"):
+        return None
+    if not gets_a_vote(row.get("minutes"), row.get("goals"), row.get("assists"), row.get("pen_missed"),
+                       row.get("reds")):
         return None
     x = features(row, role)
     return weights["base"] + sum(w * x.get(name, 0.0) for name, w in weights.items() if name != "base")

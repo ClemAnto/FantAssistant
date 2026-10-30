@@ -56,7 +56,7 @@ import {
 import { EDGE_BASE, Role } from '../../core/plancia';
 import { TrendCell, trendVoteMean } from '../../core/player-trend';
 import { Standings, placeOf, standingsOf } from '../../core/standings';
-import { PlayersStore, isChampionship } from '../../core/players-store';
+import { PlayersStore, countsAsPlayed, isChampionship } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { NextRoundStore } from '../../core/next-round-store';
 import { PressCall, pressCallsFor } from '../../core/next-round';
@@ -703,7 +703,7 @@ export class Lineup {
       const played = (now?.played ?? 0) + (before?.played ?? 0);
       // The rest of the bonus on the SAME matches the goal rate is counted on (`seasonTotals`' own filter).
       const championship = [...cellsNow, ...cellsBefore].filter(
-        (one) => isChampionship(one.kind) && (one.state === 'played' || one.state === 'no_vote'),
+        (one) => isChampionship(one.kind) && countsAsPlayed(one.state),
       );
       out.set(r.fcId, {
         goalsPerMatch: played ? ((now?.goals ?? 0) + (before?.goals ?? 0)) / played : null,

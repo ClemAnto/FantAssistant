@@ -208,3 +208,19 @@ def test_the_synthetic_vote_is_on_half_points_and_reads_the_events():
     assert (vote_synth.base_vote(scorer, "C") * 2) % 1 == 0
     assert vote_synth.base_vote({**quiet, "minutes": 0}, "C") is None    # did not play: no vote, not a 6
     assert vote_synth.base_vote(quiet, "X") is None                      # unknown role: no guess
+
+
+def test_a_cameo_under_fifteen_minutes_gets_no_vote_unless_something_happened():
+    """Operator, 30/10/2026: under 15' the match is not played - unless he scored, assisted, missed a penalty
+    or was sent off. One rule for the provider-rating line and for ESPN's vote."""
+    from euroleghe_ingest.engine import vote_synth
+    assert vote_synth.gets_a_vote(15)
+    assert not vote_synth.gets_a_vote(14)
+    assert vote_synth.gets_a_vote(5, goals=1)
+    assert vote_synth.gets_a_vote(5, assists=1)
+    assert vote_synth.gets_a_vote(5, pen_missed=1)
+    assert vote_synth.gets_a_vote(5, reds=1)
+    assert vote_synth.gets_a_vote(None)            # unknown minutes are not a cameo
+    row = {"minutes": 9, "started": 0, "team_goals": 1, "opponent_goals": 0}
+    assert vote_synth.base_vote(row, "C") is None
+    assert vote_synth.base_vote({**row, "goals": 1}, "C") is not None

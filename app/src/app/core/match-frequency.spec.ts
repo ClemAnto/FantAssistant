@@ -144,13 +144,12 @@ describe('le quattro frequenze', () => {
     expect(matchFrequencies([cell({ state: 'bench' }), cell({ state: 'injured' })], null)).toBeNull();
   });
 
-  /** Una giornata senza pagella e' comunque una partita giocata: entra nei bonus e non nel fantavoto. */
-  it('una giornata senza pagella conta come giocata', () => {
-    const counted = matchFrequencies([cell({ state: 'no_vote', fantavoto: null, goals: 1 })], null);
+  /** RITIRATA il 30/10/2026 dall'operatore: «il senza voto va trattato come partita non giocata». Fino ad
+   *  allora una giornata senza pagella contava come giocata; adesso non entra in nessuna quota. */
+  it('una giornata senza voto e una partita non giocata', () => {
+    expect(matchFrequencies([cell({ state: 'no_vote', fantavoto: null })], null)).toBeNull();
+    const counted = matchFrequencies([cell({ state: 'no_vote', fantavoto: null }), cell({})], null);
     expect(counted?.played).toBe(1);
-    expect(counted?.rated).toBe(0);
-    expect(counted?.bonus).toBe(1);
-    expect(counted?.good).toBeNull();
   });
 
   /**

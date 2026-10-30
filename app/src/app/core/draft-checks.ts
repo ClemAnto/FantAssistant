@@ -1,5 +1,5 @@
 import { THIN_SAMPLE } from './match-frequency';
-import { MatchCell, isChampionship } from './players-store';
+import { MatchCell, countsAsPlayed, isChampionship } from './players-store';
 
 /**
  * THE «CHECKS» VIEW OF THE DRAFT LIST (operator, 04/10/2026): five yes/no badges per man, one column each.
@@ -109,7 +109,7 @@ export const strictBonusFor = (zone: string) => zone !== 'P' && zone !== 'gk';
  */
 export function minutesPerAppearance(cells: readonly MatchCell[]): { minutes: number | null; timed: number } {
   const timed = cells.filter(
-    (one) => isChampionship(one.kind) && (one.state === 'played' || one.state === 'no_vote') && one.minutes != null,
+    (one) => isChampionship(one.kind) && countsAsPlayed(one.state) && one.minutes != null,
   );
   if (!timed.length) return { minutes: null, timed: 0 };
   return { minutes: timed.reduce((sum, one) => sum + (one.minutes as number), 0) / timed.length, timed: timed.length };
@@ -157,7 +157,7 @@ export function lastStint(cells: readonly MatchCell[]): MatchCell[] {
 export function stintPresence(stint: readonly MatchCell[]): { share: number | null; rounds: number } {
   const rounds = stint.filter((one) => one.state !== 'not_in_league');
   if (!rounds.length) return { share: null, rounds: 0 };
-  const played = rounds.filter((one) => one.state === 'played' || one.state === 'no_vote').length;
+  const played = rounds.filter((one) => countsAsPlayed(one.state)).length;
   return { share: played / rounds.length, rounds: rounds.length };
 }
 

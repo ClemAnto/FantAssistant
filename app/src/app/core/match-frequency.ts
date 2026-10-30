@@ -1,6 +1,6 @@
 import { ScoringConfig } from './bundle';
 import { bonusesOf } from './match-bonuses';
-import { MatchCell, isChampionship } from './players-store';
+import { MatchCell, countsAsPlayed, isChampionship } from './players-store';
 
 /**
  * QUANTO SPESSO GLI SUCCEDE UNA COSA, sulle partite che ha davvero giocato.
@@ -102,7 +102,7 @@ export function matchFrequencies(
   scoring: ScoringConfig | null,
 ): MatchFrequencies | null {
   const played = cells.filter(
-    (one) => isChampionship(one.kind) && (one.state === 'played' || one.state === 'no_vote'),
+    (one) => isChampionship(one.kind) && countsAsPlayed(one.state),
   );
   if (!played.length) return null;
 

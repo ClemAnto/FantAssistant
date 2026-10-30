@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 
 from euroleghe_ingest.context import Context
+from euroleghe_ingest.engine import vote_synth
 
 NAME = "synth"
 DESCRIPTION = "Calibrated synthetic base voto (provider rating -> euro Mv) -> mv_synth"
@@ -501,16 +502,22 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
               f"{'passes the criterion' if info['kept'] else 'not kept'}")
     rows = conn.execute(
         """
-        SELECT e.fc_id, e.season, e.match_id, e.rating, r.role_classic, e.competition, e.source
+        SELECT e.fc_id, e.season, e.match_id, e.rating, r.role_classic, e.competition, e.source,
+               e.minutes, e.goals, e.assists, e.reds
         FROM external_match_stats e
         LEFT JOIN rosters r ON r.fc_id = e.fc_id AND r.season = e.season
         WHERE e.rating IS NOT NULL
         """
     ).fetchall()
-    updates = [(apply_model(model, role, rating, competition),
-                reading_value(model, role, rating, competition, fallback),
-                fc_id, season, source, match_id)
-               for fc_id, season, match_id, rating, role, competition, source in rows]
+    # A CAMEO GETS NO VOTE (operator, 30/10/2026, `vote_synth.gets_a_vote`): under 15 minutes and with no goal,
+    # assist or red card the row is a match not played, on both the calibrated vote and the reading. The provider
+    # carries no missed penalty, so that fourth exception cannot be read here.
+    updates = [((apply_model(model, role, rating, competition), reading_value(model, role, rating, competition,
+                                                                              fallback))
+                if vote_synth.gets_a_vote(minutes, goals, assists, 0, reds) else (None, None))
+               + (fc_id, season, source, match_id)
+               for fc_id, season, match_id, rating, role, competition, source, minutes, goals, assists, reds
+               in rows]
     conn.executemany(
         "UPDATE external_match_stats SET mv_synth = ?, mv_est = ? "
         "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?",

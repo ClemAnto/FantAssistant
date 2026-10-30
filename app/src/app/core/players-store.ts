@@ -41,6 +41,9 @@ export function isChampionship(kind: MatchKind): boolean {
  *  7.6%, and only 6.9% genuinely unaccounted for. An empty cell used to be all five at once. */
 export type CellState =
   | 'played'
+  /** In campo e SENZA VOTO: per l'operatore (30/10/2026) e' una partita NON GIOCATA, come per il gioco -
+   *  la titolarita' del toolkit conta le giornate col voto. Si disegna (e' un fatto: e' entrato), non si
+   *  conta: chi conta le partite giocate chiede a `countsAsPlayed`. */
   | 'no_vote'
   /** The match is on file and carries nothing measurable. NOT the same as `bench`: that
    *  reading was measured on the LEAGUE layer, where a row without minutes matches a man with
@@ -52,6 +55,12 @@ export type CellState =
   | 'injured'
   | 'not_in_league'
   | 'absent';
+
+/** UNA PARTITA GIOCATA E' UNA PARTITA COL VOTO (operatore, 30/10/2026: «il senza voto va trattato come partita
+ *  non giocata»). Una definizione per tutti i conteggi di presenze, minuti e medie. */
+export function countsAsPlayed(state: CellState): boolean {
+  return state === 'played';
+}
 
 /**
  * QUANTO INDIETRO ANDARE: un numero di partite, un numero di STAGIONI, o tutt'e due.
@@ -731,7 +740,7 @@ export class PlayersStore {
       // Counting non-empty cells would now count the ABSENCES too - every round has a cell
       // since they carry their reason. What the operator asked to sort by is appearances.
       const played = (line: PlayerLine) =>
-        line.cells.reduce((n, c) => n + (c && (c.state === 'played' || c.state === 'no_vote') ? 1 : 0), 0);
+        line.cells.reduce((n, c) => n + (c && countsAsPlayed(c.state) ? 1 : 0), 0);
       lines.sort((a, b) => played(b) - played(a) || a.name.localeCompare(b.name));
     }
     return lines;
@@ -1438,7 +1447,7 @@ export class PlayersStore {
       const provider = buildProviderIndex(external, expected, espn);
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
-      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring,
+      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes,
         calendarBookFrom(calendar));
 
       // LA STAGIONE BERSAGLIO STA GIA' DENTRO se qualcuno ha giocato una giornata, quindi il `Set` la
@@ -2024,7 +2033,6 @@ function buildLeagueMatches(
   leagueOf: Map<number, string | null>,
   euroToReal: Map<string, number>,
   shapes: Map<string, { counted: string; declared: string | null }>,
-  scoring: ScoringConfig | null,
   book: CalendarBook | null = null,
 ) {
   const [
@@ -2114,19 +2122,17 @@ function buildLeagueMatches(
 
     const cell: MatchCell = {
       kind: 'league',
-      state: realVote == null && extra?.voteSynth == null ? 'no_vote' : 'played',
+      // IL SENZA VOTO E' UNA PARTITA NON GIOCATA (operatore, 30/10/2026): la piattaforma ha gia' deciso
+      // su questa giornata, quindi un s.v. resta s.v. e non si ricopre col sintetico del provider.
+      state: realVote == null ? 'no_vote' : 'played',
       injury: null,
       role: (row[role] as string) ?? null,
       competition: league ?? '',
       competitionLabel: league ? competitionLabel(league) : 'Campionato',
       matchday: md,
       date: extra?.date ?? fixture?.date ?? null,
-      // IL SINTETICO ARROTONDATO AL MEZZO PUNTO: e' l'alfabeto in cui i voti veri sono scritti
-      // (misurato: 57.925 su 57.925), quindi `5,88` accanto a un `6,0` vero e' una precisione che la
-      // fonte non ha mai. `roundVote` sta in `match-bonuses` perche' il fantavoto si somma a QUESTO
-      // numero e non a quello prima dell'arrotondamento: la riga deve tornare.
-      vote: realVote ?? (extra?.voteSynth == null ? null : roundVote(extra.voteSynth)),
-      voteSynthetic: realVote == null && extra?.voteSynth != null,
+      vote: realVote,
+      voteSynthetic: false,
       providerRating: extra?.rating ?? null,
       fantavoto: (row[fantavoto] as number) ?? null,
       goals: (row[goals] as number) ?? 0,
@@ -2156,10 +2162,6 @@ function buildLeagueMatches(
       matchId: extra?.matchId ?? null,
       matchClub: extra?.club ?? null,
     };
-    // IL FANTAVOTO SI CALCOLA SOLO DOVE LA FONTE NON LO PUBBLICA. Qui succede su una giornata senza
-    // pagella recuperata dal sintetico: i bonus li porta la riga dei VOTI, quindi sono completi -
-    // cartellini e gol subiti compresi - e la somma e' esatta invece che ottimista.
-    cell.fantavoto ??= syntheticFantavoto(cell, scoring);
     playerMap.set(md, cell);
   }
   return out;
