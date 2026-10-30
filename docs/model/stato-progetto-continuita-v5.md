@@ -9,9 +9,16 @@ copia del DB e poi sul vivo. (2) **Voto sintetico senza il rating del provider**
 (`voto-sintetico-senza-rating-v1.md`, script in `toolkit/scripts/synth_vote/`): una regola lineare per ruolo
 (eventi, risultato, minuti, Elo, campo) batte la retta sul rating di SofaScore, 0,303 contro 0,372 di MAE
 all'estero (6 stagioni su 6) e 0,310 contro 0,363 in Serie A (7 su 7). Solo il portiere perde, per le parate.
-La regola dettata dall'operatore (6 / +1 / +0,5 / ...), presa così com'è, è già pari a `mv_synth`. **Aperti**:
-dove entra L3 (decisione sua: `mv_synth` alimenta percorsi giudicati); verificare `mv_synth` vuoto dal 2024-25;
-passo 2 di ESPN (livello per-partita: modulo, posto, ruoli granulari, parate).
+La regola dettata dall'operatore (6 / +1 / +0,5 / ...), presa così com'è, è già pari a `mv_synth`. (3) **Passo 2
+di ESPN** (spec «Novità v9.110», commit `b0719f8`): `espn_match_players`, una riga per uomo e partita (modulo,
+posto, minuti, eventi, parate) — al 30/10 Serie A 2024-25, 2025-26 e 2026-27 fino al 29/10, gli altri quattro
+campionati per la stagione in corso; ogni notte arrivano le partite nuove. `engine/vote_synth.py` ritarato con le
+parate: MAE 0,318 → 0,312, portiere 0,41 → 0,36; nessun lettore ancora. **Bilancio con l'operatore**: ESPN è più
+solido per accesso e fatti (rose, calendario, eventi, minuti, parate), SofaScore più ricco per la qualità (rating,
+xG/xA, heatmap, passaggi chiave); identità costruite da noi e API non documentata, quindi un provider per volta
+via `features.live_source`. **Aperti**: dove entra il voto sintetico (decisione sua: `mv_synth` alimenta percorsi
+giudicati); verificare `mv_synth` vuoto dal 2024-25; ruoli granulari e board da ESPN; Understat (passaggi chiave,
++2% sul voto) dopo che si è deciso dove il voto entra.
 
 · precedente: **Aggiornato (XXIX): 22 ottobre 2026 — SOFASCORE CHIUSO (403), E UN RIPIEGO SU TRANSFERMARKT.**
 Dal 24/09 SofaScore risponde 403 su ogni endpoint (riprovato il 22/10), quindi il livello per-partita si ferma alle

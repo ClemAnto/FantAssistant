@@ -525,6 +525,18 @@ C 0,26 · A 0,30. Arrotondato al mezzo punto come un voto vero.
 tier degli arrivi, `est_*`), quindi dove entra `vote_synth` è una decisione dell'operatore da misurare là.
 `export.EXCLUDED` lo dichiara. `engine_*` fermo, `SHEET_REVISION` fermo, `evaluate` non importa il modulo.
 
+**ESPN contro SofaScore, il bilancio** (conclusione condivisa con l'operatore, 30/10/2026). ESPN è più solido
+sull'ACCESSO (risponde a una richiesta normale, mentre SofaScore ci ha rifiutato il 16/08 a metà scansione e
+dal 24/09 su tutto) e sui FATTI della partita: rose complete, calendario e stato, modulo dichiarato, posto,
+titolare, cambi e quindi minuti, gol, assist, rigori, autogol, cartellini, tiri, e le PARATE, che SofaScore non
+ci dava e che hanno portato il portiere da 0,41 a 0,36. Non porta quello che giudica COME uno ha giocato: il
+rating (da cui il voto sintetico ricostruito dagli eventi), xG e xA (quindi niente R29 dalle sue righe), heatmap
+e posizioni medie (il lato), passaggi chiave, contrasti e tocchi (che sul voto valgono 0,5-1%). Due cautele: le
+identità le costruiamo noi per nome dentro la rosa del club, con l'anno di nascita come veto, contro mesi di
+collegamenti SofaScore verificati; ed è un'API non documentata, quindi la scelta del provider passa da una
+funzione sola (`features.live_source`) e cambiarla è una riga. Quindi: ESPN come fonte dei fatti, rose e
+calendario; SofaScore, se riapre, resta preferibile per le statistiche di qualità.
+
 ## Novità v9.109 (30 ottobre 2026 — ESPN AL POSTO DI SOFASCORE: ROSE VIVE E CALENDARIO, `modules/espn.py`)
 
 SofaScore risponde 403 dal 24/09/2026, e con lui si erano fermate le due letture da cui dipende una formazione:
