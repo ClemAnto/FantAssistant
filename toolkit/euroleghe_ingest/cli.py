@@ -314,10 +314,15 @@ def build_parser() -> argparse.ArgumentParser:
                            help="pages of 30 future events per club (default: 3, which covered a whole "
                                 "38-round season plus cups on the club it was measured on)")
         if name == "espn":
-            p.add_argument("--layer", choices=("all", "squads", "calendar"), default="all",
+            p.add_argument("--layer", choices=("all", "squads", "calendar", "matches"), default="all",
                            help="squads = clubs, today's rosters and the ESPN identities (the live squad); "
                                 "calendar = each club's schedule pages -> the dates and status of the "
-                                "fixtures SofaScore wrote; all = both (default)")
+                                "fixtures SofaScore wrote; matches = every completed league match's summary "
+                                "-> espn_match_players with the synthetic vote; all = the three (default)")
+            p.add_argument("--seasons-back", dest="seasons_back", type=int, default=0,
+                           help="matches layer: also this many PAST seasons (finished, fetched once)")
+            p.add_argument("--league", action="append", metavar="LEAGUE",
+                           help="matches layer: only this championship (repeatable; default: the five)")
             p.add_argument("--no-refresh", dest="refresh", action="store_false",
                            help="use the cached pages where they exist (today's rosters are dated, so a "
                                 "second run of the day costs nothing anyway)")
@@ -538,7 +543,8 @@ def main(argv: list[str] | None = None) -> int:
                 if args.from_cache:
                     load("espn").reingest_from_cache(ctx)
                 else:
-                    load("espn").run(ctx, layer=args.layer, refresh=args.refresh)
+                    load("espn").run(ctx, layer=args.layer, refresh=args.refresh,
+                                     seasons_back=args.seasons_back, leagues=args.league)
             elif args.command == "positions":
                 # `--days` ANCHE QUI, ed e' la seconda volta che questo dispatcher perde un flag che aveva
                 # appena parsato (la prima fu `--tournament`, spec «Novita' v9.39»). Misurato il

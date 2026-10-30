@@ -136,4 +136,24 @@ Coefficienti in `coef_L3.json`. Basi: P 6,04 · D 6,03 · C 5,73 · A 5,66.
   sostituire qualunque cosa.
 - La ricerca ha trovato `mv_synth` **vuoto dal 2024-25** sulle righe delle cinque leghe: va verificato sul DB
   vivo prima di crederci (potrebbe essere la popolazione della query).
-- Il portiere aspetta le parate di ESPN (passo 2, il livello per-partita).
+- ~~Il portiere aspetta le parate di ESPN (passo 2, il livello per-partita).~~ Fatto il 30/10, §8.
+- **Understat** (pilota sul 2024-25 di Serie A): i passaggi chiave correlano 0,15-0,24 col residuo di L3 su
+  D/C/A, ma aggiunti alla funzione valgono **0,316 → 0,309**, il 2%. Prossimo passo piccolo, non urgente.
+
+## 8. Passo 2: le parate e la ritaratura su ESPN (30/10/2026)
+`espn --layer matches` scrive `espn_match_players` e il voto `vote_synth` (`engine/vote_synth.py`). Unite le
+righe ESPN di Serie A 2024-25 e 2025-26 ai voti veri (20.163 righe, attraverso la giornata della riga SofaScore
+dello stesso uomo nello stesso giorno), ogni stagione giudicata dall'altra:
+
+| ruolo | L3 com'è | ritarata | ritarata + parate |
+|---|---|---|---|
+| P | 0,394 · 0,418 | 0,407 · 0,435 | **0,356 · 0,371** |
+| D | 0,331 · 0,328 | **0,325 · 0,321** | 0,325 · 0,321 |
+| C | 0,291 · 0,300 | 0,291 · 0,300 | 0,291 · 0,300 |
+| A | 0,304 · 0,304 | 0,305 · 0,301 | 0,305 · 0,301 |
+
+Regola d'adozione: un ruolo si ritara solo se batte L3 su entrambe le stagioni, altrimenti resta L3 (fittata su
+una popolazione sette volte più grande e di cinque campionati). Ritarati P (con le parate), D e C; A resta L3.
+Totale 0,318 → **0,312**. Fuori campione sulla Serie A 2026-27, mai vista dalla taratura: **P 0,38 · D 0,29 ·
+C 0,26 · A 0,30**. Una parata vale +0,13; il resto dei coefficienti del portiere si sposta di conseguenza (i gol
+subiti pesano meno, perché le parate ne portano una parte). Nessun lettore lo legge ancora: vedi §7.

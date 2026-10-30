@@ -41,17 +41,17 @@ def test_the_wide_pass_requires_the_birth_year_to_agree():
 
 
 def test_two_espn_ids_on_one_man_leave_him_with_neither():
-    pool = {"Inter": [_entry(1, "Martinez L.", 1997)]}
-    rosters = [("Inter", [{"id": "10", "displayName": "Lautaro Martinez", "dateOfBirth": "1997-08-22"},
-                          {"id": "11", "displayName": "Lautaro Martinez", "dateOfBirth": "1997-08-22"}])]
-    mapping, dropped = espn.resolve_athletes(rosters, pool, [])
+    pool = [_entry(1, "Martinez L.", 1997)]
+    items = [(pool, [], [{"id": "10", "displayName": "Lautaro Martinez", "dateOfBirth": "1997-08-22"},
+                         {"id": "11", "displayName": "Lautaro Martinez", "dateOfBirth": "1997-08-22"}])]
+    mapping, dropped = espn.resolve_athletes(items)
     assert mapping == {} and dropped == 2
 
 
 def test_one_athlete_read_on_several_days_reaches_one_fc_id():
-    pool = {"Inter": [_entry(1, "Thuram", 1997)]}
+    pool = [_entry(1, "Thuram", 1997)]
     athlete = {"id": "7", "displayName": "Marcus Thuram", "dateOfBirth": "1997-08-06"}
-    mapping, dropped = espn.resolve_athletes([("Inter", [athlete]), ("Inter", [athlete])], pool, [])
+    mapping, dropped = espn.resolve_athletes([(pool, [], [athlete]), (pool, [], [athlete])])
     assert mapping == {"7": 1} and dropped == 0
 
 
@@ -115,3 +115,63 @@ def test_the_absence_readers_listen_to_the_freshest_provider_one_at_a_time(tmp_p
     assert snapshot.live_club_of(conn, "2026-10-30") == {2: ("Inter", "2026-10-30")}
     # no read at all behaves as before ESPN existed
     assert features.live_source(init_db(tmp_path / "empty.db"), "2026-10-30") == "sofascore"
+
+
+def _summary():
+    def entry(aid, name, pos, starter, stats, place=None):
+        return {"athlete": {"id": aid, "displayName": name}, "starter": starter, "formationPlace": place,
+                "position": {"abbreviation": pos}, "stats": [{"name": k, "value": v} for k, v in stats.items()]}
+    return {
+        "header": {"season": {"year": 2026}, "competitions": [{
+            "date": "2026-10-25T18:45Z", "status": {"type": {"completed": True}},
+            "competitors": [{"homeAway": "home", "team": {"id": "110"}, "score": "2"},
+                            {"homeAway": "away", "team": {"id": "109"}, "score": "1"}]}]},
+        "keyEvents": [
+            {"type": {"text": "Substitution"}, "clock": {"value": 3780},
+             "participants": [{"athlete": {"id": "s1"}}, {"athlete": {"id": "a2"}}]},
+            {"type": {"text": "Red Card"}, "clock": {"value": 4200}, "participants": [{"athlete": {"id": "b2"}}]},
+            {"type": {"text": "Penalty - Scored"}, "clock": {"value": 5400}, "team": {"id": "110"},
+             "participants": [{"athlete": {"id": "s1"}}]},
+            {"type": {"text": "Penalty - Saved"}, "clock": {"value": 3000}, "team": {"id": "110"},
+             "participants": [{"athlete": {"id": "a2"}}]},
+            {"type": {"text": "Substitution"}, "clock": {"value": 2400},
+             "participants": [{"athlete": {"id": "gk2"}}, {"athlete": {"id": "gk1"}}]}],
+        "rosters": [
+            {"team": {"id": "110"}, "formation": "3-5-2", "roster": [
+                entry("a1", "Keeper A", "G", True, {"saves": 1, "goalsConceded": 1}, 1),
+                entry("a2", "Striker A", "CF-L", True, {"totalGoals": 0}, 9),
+                entry("s1", "Sub A", "SUB", False, {"totalGoals": 1})]},
+            {"team": {"id": "109"}, "formation": "4-3-3", "roster": [
+                entry("gk1", "Keeper B", "G", True, {"saves": 2, "goalsConceded": 0}, 1),
+                entry("gk2", "Keeper B2", "SUB", False, {"saves": 0, "goalsConceded": 2}),
+                entry("b2", "Defender B", "CD", True, {"redCards": 1}, 5)]}]}
+
+
+def test_a_summary_rebuilds_minutes_penalties_and_the_keeper_who_saved():
+    rows = {row["athlete_id"]: row for row in espn.parse_summary(_summary(), {"gk2"})}
+    assert rows["a2"]["minutes"] == 63 and rows["s1"]["minutes"] == 27      # off at 63', on at 63'
+    assert rows["b2"]["minutes"] == 70                                       # sent off at 70'
+    assert rows["s1"]["pen_scored"] == 1 and rows["a2"]["pen_missed"] == 1
+    # the penalty saved at 50' goes to the keeper ON THE PITCH then - the one who came on at 40' - and he
+    # is recognised as a keeper only because the caller knows it: a substitute is listed as SUB
+    assert rows["gk2"]["pen_saved"] == 1 and rows["gk1"]["pen_saved"] == 0
+    assert rows["gk2"]["minutes"] == 50 and rows["gk1"]["minutes"] == 40
+    assert rows["a1"]["team_goals"] == 2 and rows["b2"]["opponent_goals"] == 2 and rows["a1"]["home"] == 1
+
+
+def test_an_unfinished_match_has_no_rows():
+    payload = _summary()
+    payload["header"]["competitions"][0]["status"]["type"]["completed"] = False
+    assert espn.parse_summary(payload) == []
+
+
+def test_the_synthetic_vote_is_on_half_points_and_reads_the_events():
+    from euroleghe_ingest.engine import vote_synth
+
+    quiet = {"minutes": 90, "starter": 1, "team_goals": 0, "opponent_goals": 0, "home": 1}
+    scorer = {**quiet, "team_goals": 1, "goals": 1}
+    assert vote_synth.base_vote(quiet, "C") in (5.5, 6.0, 6.5)
+    assert vote_synth.raw_vote(scorer, "C") > vote_synth.raw_vote(quiet, "C") + 0.7
+    assert (vote_synth.base_vote(scorer, "C") * 2) % 1 == 0
+    assert vote_synth.base_vote({**quiet, "minutes": 0}, "C") is None    # did not play: no vote, not a 6
+    assert vote_synth.base_vote(quiet, "X") is None                      # unknown role: no guess

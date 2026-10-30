@@ -495,6 +495,36 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.110 (30 ottobre 2026 — ESPN, PASSO 2: IL LIVELLO PER-PARTITA E IL VOTO SINTETICO SENZA RATING)
+
+`espn --layer matches` (dentro `all`, quindi nella fetta notturna `base`) scarica il `summary` di ogni partita
+giocata dei cinque campionati — una volta sola, i fatti di una partita finita non scadono — e lo scrive in una
+tabella SUA, `espn_match_players` (PK `event_id, athlete_id`), e non in `external_match_stats`: ESPN non porta
+rating né xG, e scriverlo là farebbe leggere a ottanta lettori un xG NULL come zero (`expectedScope`). Stessa
+regola del ripiego Transfermarkt del 22/10: un backup alimenta solo i lettori di cui porta la quantità.
+- **Cosa porta**: modulo, posto (`formationPlace`), titolare, MINUTI ricostruiti da cambi ed espulsioni
+  (`clock` in secondi, 90' come tetto), gol, assist, rigori segnati e sbagliati dai `keyEvents`, il rigore
+  PARATO attribuito al portiere avversario in campo a quel minuto, autogol, cartellini, tiri, PARATE, gol subiti.
+  Verificato su Inter-Fiorentina 2-1 (Bastoni 76', Zielinski 13' col rigore, De Gea 9 parate). Un portiere si
+  riconosce dalla posizione G della rosa ESPN o dal ruolo P del listone, non dalla presenza di `saves`: la
+  colonna esce anche su un centrocampista in panchina.
+- **Le identità** si estendono agli atleti dei `summary`, col pool del club e quello largo della LORO stagione.
+- **Prima corsa**: stagione in corso sui cinque (404 partite) più Serie A 2024-25 e 2025-26 (`--seasons-back 2`,
+  752 partite): 52.521 righe, 11.187 senza `fc_id` (uomini che nessun nostro listone quota: in Serie A il 5-10%,
+  sugli altri campionati più della metà, perché euro quota pochi club per lega).
+
+**Il voto sintetico** (`engine/vote_synth.py`, coefficienti in `vote_synth_coef.json`) è la L3 di
+`voto-sintetico-senza-rating-v1.md` §6 ricalibrata dove ESPN la migliora: per ogni ruolo si tiene la ritaratura
+solo se batte L3 su ENTRAMBE le stagioni tenute fuori (`scripts/synth_vote/espn_refit.py`), perché L3 è fittata
+su 138.794 voti di cinque campionati e questa su ~20.000 della sola Serie A. Ritarati P (con le parate, +0,13 a
+parata), D e C; A resta L3. MAE incrociato 0,318 → **0,312**; il portiere **0,406 → 0,364** (−10%), che era il
+punto debole dichiarato. Fuori campione sulla Serie A 2026-27, che la taratura non ha visto: P 0,38 · D 0,29 ·
+C 0,26 · A 0,30. Arrotondato al mezzo punto come un voto vero.
+
+**Nessun lettore lo legge ancora**, ed è una scelta: `mv_synth` alimenta percorsi giudicati (FM-equivalente,
+tier degli arrivi, `est_*`), quindi dove entra `vote_synth` è una decisione dell'operatore da misurare là.
+`export.EXCLUDED` lo dichiara. `engine_*` fermo, `SHEET_REVISION` fermo, `evaluate` non importa il modulo.
+
 ## Novità v9.109 (30 ottobre 2026 — ESPN AL POSTO DI SOFASCORE: ROSE VIVE E CALENDARIO, `modules/espn.py`)
 
 SofaScore risponde 403 dal 24/09/2026, e con lui si erano fermate le due letture da cui dipende una formazione:

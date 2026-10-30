@@ -198,6 +198,9 @@ EXCLUDED: dict[str, str] = {
     "tm_appearances": "2.09M per-match rows from Transfermarkt. What the engine takes from them (minutes "
                       "per competition, the newcomer window) reaches the app as `desc_abroad_*` columns "
                       "already computed",
+    "espn_match_players": "ESPN's per-match rows while SofaScore answers 403, with the synthetic vote "
+                          "rebuilt without a provider rating. No reader is wired yet - which readers it "
+                          "may feed is the operator's decision (docs/model/voto-sintetico-senza-rating-v1.md)",
     "fvm_history": "the FVM curve per platform, accumulating since 2026. The app shows the CURRENT FVM "
                    "from `listone_quotes` and the market-value curve from `market_value_history`; "
                    "drawing the listone's own curve beside it is a feature nobody has asked for, so it "

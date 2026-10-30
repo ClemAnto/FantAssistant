@@ -268,30 +268,30 @@ def _claim(athlete: dict, pool: list[tuple], *, strict: bool) -> int | None:
     return None
 
 
-def resolve_athletes(rosters: list[tuple[str, list[dict]]], pools: dict[str, list[tuple]],
-                     wide: list[tuple]) -> tuple[dict[str, int], int]:
+def resolve_athletes(items: list[tuple[list[tuple], list[tuple], list[dict]]]) -> tuple[dict[str, int], int]:
     """({ESPN athlete id: fc_id}, how many claims were dropped as ambiguous). Pure.
 
-    `rosters` = [(canonical club, athletes)] over every cached read; the same athlete read on several days
-    (or at two clubs across a window) must reach the SAME fc_id, or he has none.
+    `items` = [(the club's pool, the season's wide pool, athletes)] over every cached read - today's rosters
+    and every past match - so the same athlete read on several days, at two clubs or in two seasons must
+    reach the SAME fc_id, or he has none.
     """
     claims: dict[str, set[int]] = {}
-    seen: dict[str, dict] = {}
-    for club, athletes in rosters:
-        pool = pools.get(club) or []
+    seen: dict[str, list[tuple[dict, list[tuple]]]] = {}
+    for pool, wide, athletes in items:
         for athlete in athletes:
             aid = str(athlete.get("id") or "")
             if not aid:
                 continue
-            seen.setdefault(aid, athlete)
-            fc_id = _claim(athlete, pool, strict=False)
+            seen.setdefault(aid, []).append((athlete, wide))
+            fc_id = _claim(athlete, pool or [], strict=False)
             if fc_id is not None:
                 claims.setdefault(aid, set()).add(fc_id)
-    for aid, athlete in seen.items():
+    for aid, reads in seen.items():
         if aid not in claims:
-            fc_id = _claim(athlete, wide, strict=True)
-            if fc_id is not None:
-                claims.setdefault(aid, set()).add(fc_id)
+            for athlete, wide in reads:
+                fc_id = _claim(athlete, wide or [], strict=True)
+                if fc_id is not None:
+                    claims.setdefault(aid, set()).add(fc_id)
     one = {aid: next(iter(ids)) for aid, ids in claims.items() if len(ids) == 1}
     owners: dict[int, list[str]] = {}
     for aid, fc_id in one.items():
@@ -314,6 +314,20 @@ def cached_rosters(cache: Path, clubs: dict[str, str], until: str | None = None)
     return out
 
 
+def cached_match_athletes(cache: Path, clubs: dict[str, str]):
+    """[(our season, canonical club, athletes)] from every cached match summary - the clubs we carry only."""
+    out = []
+    for path in sorted(cache.glob("espn_summary_*.json")):
+        payload = _read(path)
+        header = (payload or {}).get("header") or {}
+        season = _our_season((header.get("season") or {}).get("year"))
+        for team in (payload or {}).get("rosters") or []:
+            club = clubs.get(str((team.get("team") or {}).get("id")))
+            if season and club:
+                out.append((season, club, [entry.get("athlete") or {} for entry in team.get("roster") or []]))
+    return out
+
+
 def store_identities(conn, mapping: dict[str, int]) -> int:
     """Rewrite this module's own identities. Only `resolved_by = 'espn'` rows are ever retracted."""
     conn.execute("DELETE FROM player_xref WHERE source = 'espn' AND resolved_by = 'espn'")
@@ -331,9 +345,18 @@ def ingest_identities(ctx: Context) -> dict[str, int]:
     if not reads or not season:
         return {"identities": 0, "athletes": 0}
     newest = max(day for _club, day, _athletes in reads)
-    mapping, dropped = resolve_athletes([(club, athletes) for club, _day, athletes in reads],
-                                        club_pools(conn, season, newest), quoted_pool(conn, season))
-    athletes = len({str(a.get("id")) for _c, _d, roster in reads for a in roster if a.get("id")})
+    pools = {season: club_pools(conn, season, newest)}
+    wides = {season: quoted_pool(conn, season)}
+    items = [(pools[season].get(club), wides[season], athletes) for club, _day, athletes in reads]
+    # ...and the athletes of every cached MATCH, in the pool of their club for THAT season: a man who has
+    # left since, or who played only in a past season, is in no roster of today.
+    for season_of, club, athletes in cached_match_athletes(ctx.config.cache_dir, clubs):
+        if season_of not in pools:
+            pools[season_of] = club_pools(conn, season_of, f"{int(season_of[:4]) + 1}-06-30")
+            wides[season_of] = quoted_pool(conn, season_of)
+        items.append((pools[season_of].get(club), wides[season_of], athletes))
+    mapping, dropped = resolve_athletes(items)
+    athletes = len({str(a.get("id")) for _p, _w, roster in items for a in roster if a.get("id")})
     written = store_identities(conn, mapping)
     conn.commit()
     print(f"[espn] identities: {written} of {athletes} ESPN athletes resolved to an fc_id"
@@ -425,6 +448,271 @@ def ingest_calendar(ctx: Context, observed_on: str | None = None) -> dict[str, i
     return totals
 
 
+# --------------------------------------------------------------------------------------- per-match layer
+
+SUMMARY_ENDPOINT = BASE_URL + "/{slug}/summary?event={eid}"
+_SUMMARY_CACHE = re.compile(r"espn_summary_(\d+)\.json$")
+FULL_MATCH = 90
+
+
+def _minute(event: dict) -> int:
+    """The minute of a key event, stoppage time folded onto 90 (the clock stops at 5400 seconds)."""
+    value = (event.get("clock") or {}).get("value")
+    return min(FULL_MATCH, int(float(value) // 60)) if value is not None else FULL_MATCH
+
+
+def _ids(event: dict) -> list[str]:
+    return [str((one.get("athlete") or {}).get("id") or "") for one in event.get("participants") or []]
+
+
+def parse_summary(payload: dict, keepers_known: set[str] | None = None) -> list[dict]:
+    """One ESPN match summary -> a row per athlete it lists. Pure.
+
+    What the summary STATES is taken as stated (starter, the place in the declared module, the position, the
+    box-score counts); what it does not publish is RECONSTRUCTED from its own commentary and said so: the
+    minutes (a substitution names who came on and who went off, and the minute), and the penalties and own
+    goals, which the box score folds into `totalGoals`. A penalty SAVED names only the taker, so the save goes
+    to the keeper of the other side who was on the pitch at that minute.
+
+    A substitute is listed as `SUB` with no position, and the box score hands a `saves` count to bench
+    outfielders too (an Inter midfielder on the bench carried one), so a keeper who came on is recognised
+    from `keepers_known` - the athlete ids the caller knows to be keepers - and a starter from `G`.
+    """
+    keepers_known = keepers_known or set()
+    header = (payload or {}).get("header") or {}
+    competition = (header.get("competitions") or [{}])[0]
+    if not ((competition.get("status") or {}).get("type") or {}).get("completed"):
+        return []
+    sides = {str((one.get("team") or {}).get("id")): one for one in competition.get("competitors") or []}
+    if len(sides) != 2:
+        return []
+    date = (competition.get("date") or "")[:10]
+    year = (header.get("season") or {}).get("year")
+    events = payload.get("keyEvents") or []
+    came_on: dict[str, int] = {}
+    went_off: dict[str, int] = {}
+    counts: dict[str, dict[str, int]] = {}
+
+    def bump(aid: str, key: str) -> None:
+        if aid:
+            counts.setdefault(aid, {}).setdefault(key, 0)
+            counts[aid][key] += 1
+
+    saved_at: list[tuple[str, int]] = []
+    for event in events:
+        kind = ((event.get("type") or {}).get("text") or "").lower()
+        ids = _ids(event)
+        minute = _minute(event)
+        if kind == "substitution" and len(ids) >= 2:
+            came_on[ids[0]] = minute
+            went_off[ids[1]] = minute
+        elif kind == "red card" and ids:
+            went_off[ids[0]] = min(went_off.get(ids[0], FULL_MATCH), minute)
+        elif kind.startswith("penalty") and ids:
+            if "scored" in kind:
+                bump(ids[0], "pen_scored")
+            elif "saved" in kind:
+                bump(ids[0], "pen_missed")
+                saved_at.append((str((event.get("team") or {}).get("id")), minute))
+            else:
+                bump(ids[0], "pen_missed")
+        elif "own goal" in kind and ids:
+            bump(ids[0], "own_goals")
+    rows: list[dict] = []
+    keepers: dict[str, list[dict]] = {}
+    for team in payload.get("rosters") or []:
+        tid = str((team.get("team") or {}).get("id"))
+        mine, theirs = sides.get(tid), [one for key, one in sides.items() if key != tid]
+        if mine is None or not theirs:
+            continue
+        for entry in team.get("roster") or []:
+            athlete = entry.get("athlete") or {}
+            aid = str(athlete.get("id") or "")
+            if not aid:
+                continue
+            stats = {one.get("name"): one.get("value") for one in entry.get("stats") or []}
+            starter = bool(entry.get("starter"))
+            start = 0 if starter else came_on.get(aid)
+            end = went_off.get(aid, FULL_MATCH)
+            minutes = max(0, end - start) if start is not None else 0
+            extra = counts.get(aid, {})
+
+            def num(name):
+                value = stats.get(name)
+                return int(value) if value is not None else None
+            row = {
+                "athlete_id": aid, "athlete_name": athlete.get("displayName"), "team_id": tid,
+                "opponent_id": str((theirs[0].get("team") or {}).get("id")),
+                "date": date, "year": year,
+                "home": 1 if mine.get("homeAway") == "home" else 0,
+                "team_goals": int(mine.get("score") or 0), "opponent_goals": int(theirs[0].get("score") or 0),
+                "formation": team.get("formation"), "starter": 1 if starter else 0,
+                "formation_place": entry.get("formationPlace"),
+                "position": (entry.get("position") or {}).get("abbreviation"), "minutes": minutes,
+                "goals": num("totalGoals"), "assists": num("goalAssists"),
+                "pen_scored": extra.get("pen_scored", 0), "pen_missed": extra.get("pen_missed", 0),
+                "pen_saved": 0, "own_goals": extra.get("own_goals", num("ownGoals") or 0),
+                "yellows": num("yellowCards"), "reds": num("redCards"), "shots": num("totalShots"),
+                "shots_on_target": num("shotsOnTarget"), "saves": num("saves"),
+                "goals_conceded": num("goalsConceded"), "fouls_committed": num("foulsCommitted"),
+                "fouls_suffered": num("foulsSuffered"),
+            }
+            row["keeper"] = 1 if row["position"] == "G" or aid in keepers_known else 0
+            rows.append(row)
+            if row["keeper"]:
+                keepers.setdefault(tid, []).append({"row": row, "start": start or 0, "end": end})
+    for taker_team, minute in saved_at:
+        for tid, gks in keepers.items():
+            if tid == taker_team:
+                continue
+            on = [gk for gk in gks if gk["start"] <= minute <= gk["end"] and gk["row"]["minutes"] > 0]
+            if on:
+                on[0]["row"]["pen_saved"] += 1
+    return rows
+
+
+def league_events(cache: Path, clubs_by_league: dict[str, list[str]], years: dict[str, list[str]]):
+    """{league: {event id: espn year}} for every COMPLETED league match in the cached schedules."""
+    out: dict[str, dict[str, int]] = {}
+    for league, tids in clubs_by_league.items():
+        for tid in tids:
+            for tag in years.get(league, []):
+                path = cache / f"espn_schedule_{tid}_{tag}.json"
+                payload = _read(path) if path.exists() else None
+                for event in (payload or {}).get("events") or []:
+                    competition = (event.get("competitions") or [{}])[0]
+                    if ((competition.get("status") or {}).get("type") or {}).get("completed"):
+                        out.setdefault(league, {})[str(event.get("id"))] = (event.get("season") or {}).get("year")
+    return out
+
+
+def ingest_matches(ctx: Context) -> dict[str, int]:
+    """`espn_match_players` from every cached summary (offline). Identities through `player_xref` only."""
+    from euroleghe_ingest.engine import vote_synth
+    from euroleghe_ingest.modules import elo as elo_module
+
+    conn = ctx.require_conn()
+    observed_on = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    clubs = espn_clubs(conn)
+    league_of = {}
+    for league, slug in ESPN_SLUGS.items():
+        path = ctx.config.cache_dir / f"espn_teams_{slug}.json"
+        for team in teams_of(_read(path)) if path.exists() else []:
+            league_of[str(team.get("id"))] = league
+    names = {}
+    for league, slug in ESPN_SLUGS.items():
+        path = ctx.config.cache_dir / f"espn_teams_{slug}.json"
+        for team in teams_of(_read(path)) if path.exists() else []:
+            names[str(team.get("id"))] = team.get("displayName")
+    ids = {source_id: fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'espn'")}
+    roles = {fc_id: role for fc_id, role in conn.execute(
+        "SELECT fc_id, role_classic FROM rosters r WHERE season = (SELECT MAX(season) FROM rosters r2 "
+        "WHERE r2.fc_id = r.fc_id AND r2.role_classic IS NOT NULL)")}
+    # Who is a keeper: ESPN's own squad read says G, and our listone says P - either is enough.
+    keepers_known = {aid for aid, fc_id in ids.items() if roles.get(fc_id) == "P"}
+    for _club, _day, athletes in cached_rosters(ctx.config.cache_dir, clubs):
+        keepers_known |= {str(a.get("id")) for a in athletes
+                          if (a.get("position") or {}).get("abbreviation") == "G"}
+    levels: dict[str, dict] = {}
+    written = unresolved = 0
+    for path in sorted(ctx.config.cache_dir.glob("espn_summary_*.json")):
+        key = _SUMMARY_CACHE.search(path.name)
+        payload = _read(path) if key else None
+        rows = parse_summary(payload, keepers_known) if payload else []
+        if not rows:
+            continue
+        event_id = key.group(1)
+        league = league_of.get(rows[0]["team_id"]) or league_of.get(rows[0]["opponent_id"])
+        season = _our_season(rows[0]["year"])
+        if not (league and season):
+            continue
+        year = season[:4]
+        if year not in levels:
+            levels[year] = elo_module.levels_at(conn, year)
+        for row in rows:
+            fc_id = ids.get(row["athlete_id"])
+            unresolved += fc_id is None
+            club = clubs.get(row["team_id"]) or names.get(row["team_id"])
+            opponent = clubs.get(row["opponent_id"]) or names.get(row["opponent_id"])
+            role = roles.get(fc_id) if fc_id else None
+            if role is None and row["keeper"]:
+                role = "P"
+            elo_t = levels[year].get(matching.club_identity(club)) if club else None
+            elo_o = levels[year].get(matching.club_identity(opponent)) if opponent else None
+            vote = vote_synth.base_vote({**row, "elo_team": elo_t, "elo_opp": elo_o}, role) if role else None
+            conn.execute(
+                """INSERT OR REPLACE INTO espn_match_players(event_id, athlete_id, fc_id, season, league, match_date,
+                   club, opponent, home, team_goals, opponent_goals, formation, starter, formation_place, position,
+                   minutes, goals, assists, pen_scored, pen_missed, pen_saved, own_goals, yellows, reds, shots,
+                   shots_on_target, saves, goals_conceded, fouls_committed, fouls_suffered, vote_synth,
+                   observed_on) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (event_id, row["athlete_id"], fc_id, season, league, row["date"], club, opponent, row["home"],
+                 row["team_goals"], row["opponent_goals"], row["formation"], row["starter"],
+                 row["formation_place"], row["position"], row["minutes"], row["goals"], row["assists"],
+                 row["pen_scored"], row["pen_missed"], row["pen_saved"], row["own_goals"], row["yellows"],
+                 row["reds"], row["shots"], row["shots_on_target"], row["saves"], row["goals_conceded"],
+                 row["fouls_committed"], row["fouls_suffered"], vote, observed_on))
+            written += 1
+    conn.commit()
+    print(f"[espn] per-match: {written} player-matches · {unresolved} without a resolved fc_id")
+    return {"player_matches": written, "unresolved": unresolved}
+
+
+def fetch_matches(ctx: Context, seasons_back: int = 0, leagues=None) -> dict[str, int]:
+    """The summaries of every completed league match of the current season (and `seasons_back` before it).
+
+    A finished match never changes, so a cached summary is never re-read: the nightly cost is the new round.
+    Past seasons need their schedule pages (`?season=YYYY`) first, which are finished facts too.
+    """
+    conn = ctx.require_conn()
+    cache = ctx.config.cache_dir
+    teams = {league: teams_of(_read(cache / f"espn_teams_{slug}.json"))
+             for league, slug in ESPN_SLUGS.items() if (cache / f"espn_teams_{slug}.json").exists()
+             and (not leagues or league in leagues)}
+    target = _target_season(conn)
+    current = int(target[:4]) if target else dt.datetime.now(tz=dt.UTC).year
+    past_years = [current - k for k in range(1, seasons_back + 1)]
+    counts = {"requests": 0, "failed": 0}
+    for league, ts in teams.items():
+        for team in ts:
+            for year in past_years:
+                path = cache / f"espn_schedule_{team.get('id')}_{year}.json"
+                if path.exists():
+                    continue
+                payload = _get_json(SCHEDULE_ENDPOINT.format(slug=ESPN_SLUGS[league], tid=team.get("id"))
+                                    + f"?season={year}")
+                counts["requests"] += 1
+                if payload is not None:
+                    _write(path, payload)
+                _sleep(ctx)
+    tags = {league: ["past"] + [str(y) for y in past_years] for league in teams}
+    events = league_events(cache, {league: [str(t.get("id")) for t in ts] for league, ts in teams.items()}, tags)
+    todo = [(league, eid) for league, ids in events.items() for eid in ids
+            if not (cache / f"espn_summary_{eid}.json").exists()]
+    print(f"[espn] per-match: {sum(len(v) for v in events.values())} completed matches, {len(todo)} to fetch")
+    in_a_row = 0
+    for index, (league, eid) in enumerate(todo, start=1):
+        if ctx.cancelled():
+            print("[espn] interrupted - every summary read is cached, rerun to continue")
+            break
+        payload = _get_json(SUMMARY_ENDPOINT.format(slug=ESPN_SLUGS[league], eid=eid))
+        counts["requests"] += 1
+        if payload is None:
+            counts["failed"] += 1
+            in_a_row += 1
+            if in_a_row >= 5:
+                print(f"[espn] {in_a_row} refusals in a row - stopping, the cache is kept")
+                break
+        else:
+            in_a_row = 0
+            _write(cache / f"espn_summary_{eid}.json", payload)
+        if index % 25 == 0 or index == len(todo):
+            ctx.progress("espn", index, len(todo), "partite lette")
+        _sleep(ctx)
+    return counts
+
+
 # ------------------------------------------------------------------------------------------------- runs
 
 
@@ -444,9 +732,11 @@ def fetch_teams(ctx: Context, refresh: bool = True) -> dict[str, list[dict]]:
     return out
 
 
-def run(ctx: Context, *, layer: str = "all", refresh: bool = True, **kwargs) -> dict[str, int]:
+def run(ctx: Context, *, layer: str = "all", refresh: bool = True, seasons_back: int = 0,
+        leagues=None, **kwargs) -> dict[str, int]:
     """`squads` = the clubs, today's rosters and the identities; `calendar` = the schedule pages and the
-    dates; `all` = both. The rosters are dated by the day of the read, so a second run on the same day costs
+    dates; `matches` = the summary of every completed league match (`seasons_back` past seasons too) ->
+    `espn_match_players`; `all` = the three. The rosters are dated by the day of the read, so a second run on the same day costs
     nothing unless `refresh`; the schedules are one file per club and are re-read on every run (a calendar
     moves) unless `refresh` is off."""
     conn = ctx.require_conn()
@@ -465,7 +755,7 @@ def run(ctx: Context, *, layer: str = "all", refresh: bool = True, **kwargs) -> 
     todo: list[tuple[str, str, str]] = []
     if layer in ("all", "squads"):
         todo += [("roster", tid, cache / f"espn_roster_{tid}_{today}.json") for tid in clubs]
-    if layer in ("all", "calendar"):
+    if layer in ("all", "calendar", "matches"):
         todo += [(f"schedule_{kind}", tid, cache / f"espn_schedule_{tid}_{kind}.json")
                  for tid in slug_of for kind in ("past", "next")]
     todo = [item for item in todo if refresh or not item[2].exists()]
@@ -494,10 +784,14 @@ def run(ctx: Context, *, layer: str = "all", refresh: bool = True, **kwargs) -> 
         if index % 25 == 0 or index == len(todo):
             ctx.progress("espn", index, len(todo), "pagine lette")
         _sleep(ctx)
-    if layer in ("all", "squads"):
+    if layer in ("all", "matches"):
+        counts.update(fetch_matches(ctx, seasons_back, leagues))
+    if layer in ("all", "squads", "matches"):
         counts.update(ingest_identities(ctx))
     if layer in ("all", "calendar"):
         counts.update(ingest_calendar(ctx, today))
+    if layer in ("all", "matches"):
+        counts.update(ingest_matches(ctx))
     return counts
 
 
@@ -514,3 +808,4 @@ def reingest_from_cache(ctx: Context) -> None:
     conn.commit()
     ingest_identities(ctx)
     ingest_calendar(ctx)
+    ingest_matches(ctx)

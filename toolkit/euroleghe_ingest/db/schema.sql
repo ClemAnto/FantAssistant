@@ -365,6 +365,51 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
 -- layer girano trasformazioni fittate su un'altra popolazione (`mv_synth`): mescolarle sarebbe il difetto
 -- di §7-nonies. La traduzione in chiavi nostre si fa in lettura, e allora si dichiara.
 -- `minutes` NULL non e' zero: un convocato che non entra non ha minuti, e lo stato lo dice.
+-- ESPN PER PARTITA (30/10/2026), il livello per-partita da quando SofaScore risponde 403 (`modules/espn.py`).
+-- UNA TABELLA SUA e non `external_match_stats`, per la stessa ragione del ripiego Transfermarkt: qui gli xG
+-- e il rating del provider NON ESISTONO, e scritti la' leggerebbero come zero (`expectedScope`) e
+-- mezzo-alimenterebbero ottanta lettori. Una riga per atleta che il riepilogo della partita elenca (titolari,
+-- entrati e panchinari: un panchinaro ha `minutes` 0 e `starter` 0, ed e' una prova che era in distinta).
+-- `fc_id` NULL = un atleta che non sappiamo nominare, e la riga resta: il club e la partita sono veri.
+-- I minuti sono RICOSTRUITI dai cambi e dalle espulsioni della cronaca (minuto del cambio, recupero a 90):
+-- la fonte non li pubblica. `vote_synth` e' il voto base sintetico (`engine/vote_synth.py`), sui mezzi punti.
+CREATE TABLE IF NOT EXISTS espn_match_players (
+    event_id        TEXT NOT NULL,             -- id partita ESPN
+    athlete_id      TEXT NOT NULL,             -- id atleta ESPN
+    fc_id           INTEGER,                   -- via player_xref source 'espn'; NULL = non risolto
+    season          TEXT NOT NULL,             -- la nostra stagione (2026-27)
+    league          TEXT NOT NULL,             -- il nostro campionato
+    match_date      TEXT NOT NULL,             -- ISO, UTC
+    club            TEXT,                      -- nome canonico se lo portiamo, altrimenti quello ESPN
+    opponent        TEXT,
+    home            INTEGER,
+    team_goals      INTEGER,
+    opponent_goals  INTEGER,
+    formation       TEXT,                      -- il modulo che la fonte DICHIARA per quella squadra
+    starter         INTEGER,
+    formation_place INTEGER,                   -- numerazione Opta del posto nel modulo, NON la nostra 0-10
+    position        TEXT,                      -- G | CD-L | CM-R | LM | AM | CF-L ... (SUB per chi parte fuori)
+    minutes         INTEGER,
+    goals           INTEGER,                   -- rigori compresi
+    assists         INTEGER,
+    pen_scored      INTEGER,
+    pen_missed      INTEGER,
+    pen_saved       INTEGER,                   -- rigori parati (portiere)
+    own_goals       INTEGER,
+    yellows         INTEGER,
+    reds            INTEGER,
+    shots           INTEGER,
+    shots_on_target INTEGER,
+    saves           INTEGER,
+    goals_conceded  INTEGER,                   -- subiti mentre era in campo (la fonte)
+    fouls_committed INTEGER,
+    fouls_suffered  INTEGER,
+    vote_synth      REAL,
+    observed_on     TEXT NOT NULL,
+    PRIMARY KEY (event_id, athlete_id)
+);
+CREATE INDEX IF NOT EXISTS idx_espn_mp_fc ON espn_match_players(fc_id, season);
+
 CREATE TABLE IF NOT EXISTS tm_appearances (
     fc_id       INTEGER NOT NULL REFERENCES players(fc_id),
     tm_game_id  TEXT NOT NULL,               -- id partita della fonte
